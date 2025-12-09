@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# final outcome
+/tmp/
+/videos/
+
 # production
 /build
 
