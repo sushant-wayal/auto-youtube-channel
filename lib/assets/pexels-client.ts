@@ -31,7 +31,7 @@ export async function fetchClipsForKeyword(
     console.log(`🔍 Searching Pexels for keyword: "${keyword}"`);
 
     const response = await fetch(
-      `https://api.pexels.com/videos/search?query=${encodeURIComponent(keyword)}&per_page=${maxClips}`,
+      `https://api.pexels.com/v1/videos/search?query=${encodeURIComponent(keyword)}&per_page=${maxClips}`,
       {
         headers: {
           Authorization: PEXELS_API_KEY,

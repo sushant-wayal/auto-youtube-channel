@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
+import { GoogleGenerativeAI, GenerativeModel, RequestOptions } from "@google/generative-ai";
 
 // Gemini client singleton
 class GeminiClient {
@@ -28,9 +28,14 @@ class GeminiClient {
     /**
      * Get a specific Gemini model
      * @param modelName - The name of the model (default: gemini-2.0-flash-exp)
+     * @param timeout - Optional timeout in milliseconds (default: 300000 = 5 minutes)
      */
-    public getModel(modelName: string = "gemini-2.5-flash"): GenerativeModel {
-        return this.genAI.getGenerativeModel({ model: modelName });
+    public getModel(modelName: string = "gemini-2.5-flash", timeout: number = 300000): GenerativeModel {
+        return this.genAI.getGenerativeModel({ 
+            model: modelName 
+        }, {
+            timeout // 5 minutes timeout for TTS and long operations
+        } as RequestOptions);
     }
 
     /**

@@ -9,15 +9,17 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Sparkles, Video, FileText, Tag, Zap, Copy, Check, Film, Music, Image as ImageIcon, Play, Download } from "lucide-react";
+import { Loader2, Sparkles, Video, FileText, Tag, Zap, Copy, Check, Film, Music, Image as ImageIcon, Play, Download, Mic } from "lucide-react";
 import { VideoScript, VideoAssets, VideoAssemblyResult } from "@/lib/pipeline/types";
 
 export default function Home() {
   const [videoIdea, setVideoIdea] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingVoiceOver, setIsGeneratingVoiceOver] = useState(false);
   const [isGeneratingAssets, setIsGeneratingAssets] = useState(false);
   const [isAssemblingVideo, setIsAssemblingVideo] = useState(false);
   const [generatedScript, setGeneratedScript] = useState<VideoScript | null>(null);
+  const [voiceOverPath, setVoiceOverPath] = useState<string | null>(null);
   const [generatedAssets, setGeneratedAssets] = useState<VideoAssets | null>(null);
   const [assembledVideo, setAssembledVideo] = useState<VideoAssemblyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,9 @@ export default function Home() {
 
     setIsGenerating(true);
     setGeneratedScript(null);
+    setVoiceOverPath(null);
     setGeneratedAssets(null);
+    setAssembledVideo(null);
     setError(null);
 
     try {
@@ -57,16 +61,62 @@ export default function Home() {
     }
   };
 
-  const handleGenerateAssets = async () => {
+  const handleGenerateVoiceOver = async () => {
     if (!generatedScript) return;
+
+    console.log("🎙️ Starting voice-over generation...");
+    setIsGeneratingVoiceOver(true);
+    setError(null);
+
+    try {
+      // Generate unique video ID for this voice-over
+      const videoId = `video-${Date.now()}`;
+
+      console.log("📤 Sending request to /api/generate-voiceover");
+      const response = await fetch("/api/generate-voiceover", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          videoId,
+          narration: generatedScript.narration,
+        }),
+      });
+
+      console.log("📡 Response status:", response.status);
+      const data = await response.json();
+      console.log("📦 Response data:", data);
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate voice-over");
+      }
+
+      if (!data.voiceOverPath) {
+        console.error("❌ No voice-over path in response!");
+        throw new Error("No voice-over path returned from server");
+      }
+
+      console.log("✅ Voice-over generated:", data.voiceOverPath);
+      setVoiceOverPath(data.voiceOverPath);
+    } catch (err) {
+      console.error("❌ Error generating voice-over:", err);
+      setError(err instanceof Error ? err.message : "Failed to generate voice-over");
+    } finally {
+      setIsGeneratingVoiceOver(false);
+    }
+  };
+
+  const handleGenerateAssets = async () => {
+    if (!generatedScript || !voiceOverPath) return;
 
     console.log("🎬 Starting assets generation...");
     setIsGeneratingAssets(true);
     setError(null);
 
     try {
-      // Generate unique video ID
-      const videoId = `video-${Date.now()}`;
+      // Extract video ID from voice-over path
+      const videoId = voiceOverPath.split('/')[0];
 
       console.log("📤 Sending request to /api/generate-assets");
       const response = await fetch("/api/generate-assets", {
@@ -105,7 +155,7 @@ export default function Home() {
   };
 
   const handleAssembleVideo = async () => {
-    if (!generatedAssets || !generatedScript) return;
+    if (!generatedAssets || !generatedScript || !voiceOverPath) return;
 
     console.log("🎬 Starting video assembly...");
     setIsAssemblingVideo(true);
@@ -121,7 +171,8 @@ export default function Home() {
         body: JSON.stringify({
           videoId: generatedAssets.videoId,
           clips: generatedAssets.clips,
-          narration: generatedScript.narration, // Pass narration for timing
+          narration: generatedScript.narration,
+          narrationAudio: voiceOverPath, // Pass the pre-generated voice-over
           music: generatedAssets.music,
           branding: generatedAssets.branding,
         }),
@@ -295,51 +346,137 @@ export default function Home() {
 
               <Separator />
 
-              {/* Assets Generation */}
-              <div className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 rounded-lg p-6 border-2 border-orange-200 dark:border-orange-800">
+              {/* Voice-Over Generation */}
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 rounded-lg p-6 border-2 border-blue-200 dark:border-blue-800">
                 <div className="flex items-center gap-2 mb-4">
-                  <Film className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                  <h3 className="font-semibold text-lg">Generate Video Assets</h3>
+                  <Mic className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <h3 className="font-semibold text-lg">Generate Voice-Over</h3>
                 </div>
 
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">
-                      Download stock footage from Pexels and prepare background music & branding assets.
+                      Generate professional AI voice-over for the script narration.
                     </p>
                     <p className="text-xs text-amber-600 dark:text-amber-400">
-                      💡 Add PEXELS_API_KEY to .env.local (<a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" className="underline">get free API key</a>)
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      📁 Place .mp3 files in assets/music/ and logo/intro/outro in assets/branding/
+                      ⚠️ Requires TTS API key configured in the backend
                     </p>
                   </div>
 
                   <Button
-                    onClick={handleGenerateAssets}
-                    disabled={isGeneratingAssets || generatedAssets !== null}
+                    onClick={handleGenerateVoiceOver}
+                    disabled={isGeneratingVoiceOver || voiceOverPath !== null}
                     className="w-full h-12"
                     size="lg"
                   >
-                    {isGeneratingAssets ? (
+                    {isGeneratingVoiceOver ? (
                       <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Downloading Footage... (This may take a minute)
+                        Generating Voice-Over...
                       </>
-                    ) : generatedAssets ? (
+                    ) : voiceOverPath ? (
                       <>
                         <Check className="mr-2 h-5 w-5" />
-                        Assets Generated!
+                        Voice-Over Generated!
                       </>
                     ) : (
                       <>
-                        <Film className="mr-2 h-5 w-5" />
-                        Generate Assets
+                        <Mic className="mr-2 h-5 w-5" />
+                        Generate Voice-Over
                       </>
                     )}
                   </Button>
+
+                  {/* Audio Player - Display after generation */}
+                  {voiceOverPath && (
+                    <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border-2 border-blue-300 dark:border-blue-700 animate-in fade-in slide-in-from-top-4 duration-500">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Music className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-semibold text-sm">Voice-Over Audio Preview</span>
+                        <Badge variant="secondary" className="ml-auto">Ready</Badge>
+                      </div>
+                      
+                      {/* Audio Player */}
+                      <audio
+                        controls
+                        className="w-full"
+                        src={`/api/videos/${voiceOverPath}`}
+                        preload="metadata"
+                      >
+                        Your browser does not support the audio element.
+                      </audio>
+
+                      <p className="text-xs text-muted-foreground mt-2">
+                        📁 Saved at: {voiceOverPath}
+                      </p>
+
+                      {/* Download Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-3"
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = `/api/videos/${voiceOverPath}`;
+                          link.download = `narration-${Date.now()}.wav`;
+                          link.click();
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download Voice-Over
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Assets Generation */}
+              {voiceOverPath && (
+                <div className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 rounded-lg p-6 border-2 border-orange-200 dark:border-orange-800">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Film className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                    <h3 className="font-semibold text-lg">Generate Video Assets</h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Download stock footage from Pexels and prepare background music & branding assets.
+                      </p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        💡 Add PEXELS_API_KEY to .env.local (<a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" className="underline">get free API key</a>)
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        📁 Place .mp3 files in assets/music/ and logo/intro/outro in assets/branding/
+                      </p>
+                    </div>
+
+                    <Button
+                      onClick={handleGenerateAssets}
+                      disabled={isGeneratingAssets || generatedAssets !== null}
+                      className="w-full h-12"
+                      size="lg"
+                    >
+                      {isGeneratingAssets ? (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Downloading Footage... (This may take a minute)
+                        </>
+                      ) : generatedAssets ? (
+                        <>
+                          <Check className="mr-2 h-5 w-5" />
+                          Assets Generated!
+                        </>
+                      ) : (
+                        <>
+                          <Film className="mr-2 h-5 w-5" />
+                          Generate Assets
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Assets Display */}
               {generatedAssets && (
@@ -412,8 +549,9 @@ export default function Home() {
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <p className="text-sm text-muted-foreground">
-                          Use FFmpeg to normalize clips, add music, and create the final video with branding.
+                          Combine video clips, voice-over narration, background music, and branding into the final video.
                         </p>
+
                         <p className="text-xs text-amber-600 dark:text-amber-400">
                           ⚠️ Requires FFmpeg installed on your system
                         </p>
@@ -431,7 +569,7 @@ export default function Home() {
                         {isAssemblingVideo ? (
                           <>
                             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            Assembling Video... (Please wait)
+                            Assembling Video...
                           </>
                         ) : assembledVideo ? (
                           <>
@@ -628,6 +766,7 @@ export default function Home() {
                   className="flex-1"
                   onClick={() => {
                     setGeneratedScript(null);
+                    setVoiceOverPath(null);
                     setGeneratedAssets(null);
                     setAssembledVideo(null);
                     setVideoIdea("");

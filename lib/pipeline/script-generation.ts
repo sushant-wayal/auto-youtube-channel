@@ -139,7 +139,7 @@ CRITICAL RULES:
                 title: parsed.title || videoIdea,
                 description: parsed.description || "",
                 tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-                narration: parsed.narration,
+                narration: this.preprocessNarration(parsed.narration),
                 shorts: Array.isArray(parsed.shorts) ? parsed.shorts.slice(0, 3) : [], // Max 3 shorts
             };
         } catch (error) {
@@ -150,6 +150,26 @@ CRITICAL RULES:
 
             throw new Error(`Failed to parse generated script: ${error instanceof Error ? error.message : 'Invalid format'}`);
         }
+    }
+
+    /**
+     * Preprocess narration to clean up [PAUSE] markers
+     * Replaces [PAUSE] with commas for natural TTS flow
+     */
+    private preprocessNarration(narration: string): string {
+        // Replace [PAUSE] with comma
+        let processed = narration.replace(/\[PAUSE\]/gi, ',');
+        
+        // Clean up multiple commas (in case there was already a comma before [PAUSE])
+        processed = processed.replace(/,\s*,+/g, ',');
+        
+        // Clean up comma followed by period
+        processed = processed.replace(/,\s*\./g, '.');
+        
+        // Clean up extra whitespace
+        processed = processed.replace(/\s+/g, ' ').trim();
+        
+        return processed;
     }
 
     /**
