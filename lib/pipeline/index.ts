@@ -1,7 +1,7 @@
 import ScriptGenerationService from "./script-generation";
 import { VideoScript, GenerationProgress, VideoGenerationResult, VideoAssets } from "./types";
 import TTSService from "@/lib/audio/tts-service";
-import { downloadClipsForVideo } from "@/lib/assets/clip-downloader";
+import { downloadClipsForVideo, ClipDownloadResult } from "@/lib/assets/clip-downloader";
 import { pickBackgroundTrack, getBrandingAssets } from "@/lib/assets/music-branding";
 import VideoAssemblyService from "@/lib/video/video-assembly";
 import path from "path";
@@ -76,6 +76,7 @@ class VideoGenerationPipeline {
                     const video = await this.assemblyService.assembleVideo({
                         videoId: assets.videoId,
                         clips: assets.clips,
+                        clipTimings: assets.clipTimings,  // Pass pre-calculated timings for better sync
                         music: assets.music,
                         branding: assets.branding,
                     });
@@ -148,21 +149,23 @@ class VideoGenerationPipeline {
      * @param videoId - Unique identifier for the video
      * @param title - Video title
      * @param narration - Full narration text
-     * @returns VideoAssets object with all asset paths
+     * @param narrationAudioPath - Optional path to narration audio for accurate timing
+     * @returns VideoAssets object with all asset paths and timings
      */
     async generateAssets(
         videoId: string,
         title: string,
-        narration: string
+        narration: string,
+        narrationAudioPath?: string
     ): Promise<VideoAssets> {
         console.log("\n🎬 === ASSETS GENERATION STARTED ===");
         console.log(`Video ID: ${videoId}`);
         console.log(`Title: ${title}`);
 
-        // Download stock footage clips
-        console.log("\n📹 Step 1: Downloading stock footage clips...");
-        const clips = await downloadClipsForVideo(videoId, narration);
-        console.log(`✅ Downloaded ${clips.length} clips`);
+        // Download stock footage clips with dynamic timing based on word coverage
+        console.log("\n📹 Step 1: Downloading stock footage clips with dynamic timing...");
+        const clipResult: ClipDownloadResult = await downloadClipsForVideo(videoId, narration, narrationAudioPath);
+        console.log(`✅ Downloaded ${clipResult.clipPaths.length} clips with pre-calculated timings`);
 
         // Select background music
         console.log("\n🎵 Step 2: Selecting background music...");
@@ -180,13 +183,16 @@ class VideoGenerationPipeline {
 
         console.log("\n✅ === ASSETS GENERATION COMPLETE ===");
         console.log(`📊 Summary:`);
-        console.log(`  - Clips: ${clips.length}`);
+        console.log(`  - Clips: ${clipResult.clipPaths.length}`);
+        console.log(`  - Clip timings: ${clipResult.clipTimings.map(t => t.toFixed(2) + 's').join(', ')}`);
+        console.log(`  - Total target duration: ${clipResult.totalTargetDuration.toFixed(2)}s`);
         console.log(`  - Music: ${music ? '✓' : '✗'}`);
         console.log(`  - Branding: ${Object.keys(branding).length} asset(s)`);
 
         return {
             videoId,
-            clips,
+            clips: clipResult.clipPaths,
+            clipTimings: clipResult.clipTimings,
             music,
             branding,
         };

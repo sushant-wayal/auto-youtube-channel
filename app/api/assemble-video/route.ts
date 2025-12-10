@@ -5,7 +5,7 @@ import path from "path";
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { videoId, clips, narration, narrationAudio, music, branding } = body;
+        const { videoId, clips, clipTimings, narration, narrationAudio, music, branding } = body;
 
         if (!videoId || !clips || !Array.isArray(clips) || clips.length === 0) {
             return NextResponse.json(
@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
         console.log("🎬 Video assembly API called");
         console.log(`Video ID: ${videoId}`);
         console.log(`Clips: ${clips.length}`);
+        console.log(`Clip Timings: ${clipTimings ? `${clipTimings.length} timings provided` : '✗ (will calculate from narration)'}`);
         console.log(`Narration: ${narration ? '✓' : '✗'}`);
         console.log(`Narration Audio: ${narrationAudio ? '✓' : '✗'}`);
 
@@ -30,10 +31,11 @@ export async function POST(request: NextRequest) {
         // Initialize assembly service
         const assemblyService = new VideoAssemblyService();
 
-        // Assemble the video with pre-generated narration audio
+        // Assemble the video with pre-generated narration audio and clip timings
         const result = await assemblyService.assembleVideo({
             videoId,
             clips,
+            clipTimings,  // Pass pre-calculated timings for better narration-video sync
             narration,
             narrationAudio: narrationAudioPath,
             music,

@@ -22,6 +22,7 @@ export interface GenerationProgress {
 export interface VideoAssets {
     videoId: string;
     clips: string[];
+    clipTimings?: number[];  // Pre-calculated durations for each clip (in seconds)
     music: string;
     branding: {
         logo?: string;

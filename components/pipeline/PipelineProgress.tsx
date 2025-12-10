@@ -5,8 +5,12 @@ import { PipelineStep, StepStatus } from "./types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Check, Loader2, Circle, AlertCircle, FileText, Video, Image, Mic, Film, Clapperboard, Clock, Zap, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Check, Loader2, Circle, AlertCircle, FileText, Video, Image, Mic, Film, Clapperboard, Clock, Zap, ArrowRight, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Step IDs for retry functionality
+export type RetryableStep = "script" | "voiceover" | "assets" | "assembly" | "thumbnail";
 
 interface PipelineProgressProps {
     scriptStep: PipelineStep;
@@ -18,6 +22,7 @@ interface PipelineProgressProps {
     };
     thumbnailStep: PipelineStep;
     overallProgress: number;
+    onRetryStep?: (stepId: RetryableStep) => void;
 }
 
 export default function PipelineProgress({
@@ -25,6 +30,7 @@ export default function PipelineProgress({
     videoGeneration,
     thumbnailStep,
     overallProgress,
+    onRetryStep,
 }: PipelineProgressProps) {
     const [animatedProgress, setAnimatedProgress] = useState(0);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -120,6 +126,7 @@ export default function PipelineProgress({
                     title="Script Generation"
                     step={scriptStep}
                     color="blue"
+                    onRetry={onRetryStep ? () => onRetryStep("script") : undefined}
                 />
 
                 <Separator className="my-2" />
@@ -145,6 +152,7 @@ export default function PipelineProgress({
                                 step={videoGeneration.voiceOverStep}
                                 color="purple"
                                 compact
+                                onRetry={onRetryStep ? () => onRetryStep("voiceover") : undefined}
                             />
                             <StepRow
                                 icon={<Film className="w-4 h-4" />}
@@ -152,6 +160,7 @@ export default function PipelineProgress({
                                 step={videoGeneration.assetsStep}
                                 color="purple"
                                 compact
+                                onRetry={onRetryStep ? () => onRetryStep("assets") : undefined}
                             />
                             <StepRow
                                 icon={<Clapperboard className="w-4 h-4" />}
@@ -159,6 +168,7 @@ export default function PipelineProgress({
                                 step={videoGeneration.assemblyStep}
                                 color="green"
                                 compact
+                                onRetry={onRetryStep ? () => onRetryStep("assembly") : undefined}
                             />
                         </div>
 
@@ -174,6 +184,7 @@ export default function PipelineProgress({
                                 step={thumbnailStep}
                                 color="pink"
                                 compact
+                                onRetry={onRetryStep ? () => onRetryStep("thumbnail") : undefined}
                             />
                         </div>
                     </div>
@@ -207,9 +218,10 @@ interface StepRowProps {
     step: PipelineStep;
     color: "blue" | "purple" | "pink" | "green";
     compact?: boolean;
+    onRetry?: () => void;
 }
 
-function StepRow({ icon, title, step, color, compact = false }: StepRowProps) {
+function StepRow({ icon, title, step, color, compact = false, onRetry }: StepRowProps) {
     const [animatedProgress, setAnimatedProgress] = useState(0);
 
     useEffect(() => {
@@ -233,16 +245,22 @@ function StepRow({ icon, title, step, color, compact = false }: StepRowProps) {
     };
 
     const classes = colorClasses[color];
+    const hasError = step.status === "error";
 
     return (
         <div className={cn(
             "rounded-lg border p-3",
             classes.bg, classes.border,
-            compact && "p-2"
+            compact && "p-2",
+            hasError && "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
         )}>
             <div className="flex items-center gap-2 mb-2">
                 <StatusIcon status={step.status} />
-                <span className={cn("font-medium", compact ? "text-sm" : "text-base", classes.icon)}>
+                <span className={cn(
+                    "font-medium", 
+                    compact ? "text-sm" : "text-base", 
+                    hasError ? "text-red-600" : classes.icon
+                )}>
                     {title}
                 </span>
                 {step.status === "running" && animatedProgress > 0 && (
@@ -251,10 +269,26 @@ function StepRow({ icon, title, step, color, compact = false }: StepRowProps) {
                 {step.status === "completed" && (
                     <Check className="w-4 h-4 text-green-500 ml-auto" />
                 )}
+                {hasError && onRetry && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onRetry}
+                        className="ml-auto h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30"
+                        title="Retry this step"
+                    >
+                        <RotateCcw className="w-4 h-4 mr-1" />
+                        <span className={cn(compact ? "text-xs" : "text-sm")}>Retry</span>
+                    </Button>
+                )}
             </div>
 
             {step.message && (
-                <p className={cn("text-muted-foreground mb-2", compact ? "text-xs" : "text-sm")}>
+                <p className={cn(
+                    "mb-2", 
+                    compact ? "text-xs" : "text-sm",
+                    hasError ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
+                )}>
                     {step.message}
                 </p>
             )}
@@ -264,10 +298,11 @@ function StepRow({ icon, title, step, color, compact = false }: StepRowProps) {
                     className={cn(
                         "rounded-full transition-all duration-300",
                         compact ? "h-1.5" : "h-2",
-                        step.status === "completed" ? "bg-green-500" : classes.progress,
+                        step.status === "completed" ? "bg-green-500" : 
+                        step.status === "error" ? "bg-red-500" : classes.progress,
                         step.status === "running" && "animate-pulse"
                     )}
-                    style={{ width: `${animatedProgress}%` }}
+                    style={{ width: `${step.status === "error" ? 100 : animatedProgress}%` }}
                 />
             </div>
         </div>

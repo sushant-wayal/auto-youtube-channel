@@ -16,11 +16,13 @@ const PEXELS_API_KEY = process.env.PEXELS_API_KEY || '';
  * Fetch stock video clips for a given keyword from Pexels
  * @param keyword - Search keyword
  * @param maxClips - Maximum number of clips to return (default: 3)
+ * @param minDuration - Minimum duration in seconds (optional, filters clips shorter than this)
  * @returns Array of StockClip objects
  */
 export async function fetchClipsForKeyword(
   keyword: string,
-  maxClips: number = 3
+  maxClips: number = 3,
+  minDuration?: number
 ): Promise<StockClip[]> {
   if (!PEXELS_API_KEY) {
     console.error('❌ PEXELS_API_KEY not found in environment variables');
@@ -28,10 +30,14 @@ export async function fetchClipsForKeyword(
   }
 
   try {
-    console.log(`🔍 Searching Pexels for keyword: "${keyword}"`);
+    const durationFilter = minDuration ? ` (min ${minDuration.toFixed(1)}s)` : '';
+    console.log(`🔍 Searching Pexels for keyword: "${keyword}"${durationFilter}`);
+
+    // Fetch more results to have better filtering options
+    const fetchCount = minDuration ? Math.max(maxClips * 3, 10) : maxClips;
 
     const response = await fetch(
-      `https://api.pexels.com/v1/videos/search?query=${encodeURIComponent(keyword)}&per_page=${maxClips}`,
+      `https://api.pexels.com/v1/videos/search?query=${encodeURIComponent(keyword)}&per_page=${fetchCount}`,
       {
         headers: {
           Authorization: PEXELS_API_KEY,
@@ -52,7 +58,7 @@ export async function fetchClipsForKeyword(
     }
 
     // Process videos and extract best quality clips
-    const clips: StockClip[] = data.videos
+    let clips: StockClip[] = data.videos
       .map((video: any) => {
         // Find the best video file (HD MP4)
         const videoFiles = video.video_files || [];
@@ -79,11 +85,25 @@ export async function fetchClipsForKeyword(
           duration: video.duration || 10,
         };
       })
-      .filter((clip: StockClip | null): clip is StockClip => clip !== null)
-      .slice(0, maxClips);
+      .filter((clip: StockClip | null): clip is StockClip => clip !== null);
 
-    console.log(`✅ Found ${clips.length} clips for "${keyword}"`);
-    return clips;
+    // Apply minimum duration filter if specified
+    if (minDuration && minDuration > 0) {
+      const filteredClips = clips.filter(clip => clip.duration >= minDuration);
+      if (filteredClips.length > 0) {
+        clips = filteredClips;
+        console.log(`✅ Found ${clips.length} clips meeting duration requirement (>=${minDuration.toFixed(1)}s)`);
+      } else {
+        console.log(`⚠️ No clips meet duration requirement, returning all ${clips.length} clips`);
+      }
+    }
+
+    // Sort by duration (prefer longer clips to reduce looping)
+    clips.sort((a, b) => b.duration - a.duration);
+
+    const result = clips.slice(0, maxClips);
+    console.log(`✅ Returning ${result.length} clips for "${keyword}"`);
+    return result;
   } catch (error) {
     console.error(`❌ Error fetching clips for "${keyword}":`, error);
     return [];

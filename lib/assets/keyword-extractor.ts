@@ -1,6 +1,8 @@
 /**
  * Keyword Extraction Utility
- * Extracts visual keywords from narration text for stock footage search
+ * Extracts visual key phrases from narration text for stock footage search
+ * Now extracts 3-4 word phrases with word coverage for dynamic clip timing
+ * AI decides the optimal number of clips based on content
  */
 
 import { GeminiService } from "@/lib/ai";
@@ -24,27 +26,25 @@ const STOPWORDS = new Set([
 ]);
 
 /**
- * Calculate the number of keywords needed based on audio duration
- * Clips should be 2-3 seconds each to avoid excessive looping
+ * Represents a key phrase with its word coverage for timing
  */
-export function calculateKeywordCount(narrationDurationSeconds: number): number {
-  const SECONDS_PER_CLIP = 2.5; // Average 2.5 seconds per clip for dynamic pacing
-  const keywordCount = Math.ceil(narrationDurationSeconds / SECONDS_PER_CLIP);
-
-  // Ensure minimum 10 keywords, no maximum limit
-  // For 5 min video (300s): 300/2.5 = 120 clips
-  return Math.max(10, keywordCount);
+export interface KeyPhrase {
+  phrase: string;        // 3-4 word descriptive phrase for stock footage search
+  wordsCovered: number;  // Number of words in narration this phrase covers
 }
 
 export interface KeywordExtractionResult {
-  keywords: string[];
-  estimatedClipsNeeded: number;
+  keywords: string[];           // Simple list of phrases (for backward compatibility)
+  keyPhrases: KeyPhrase[];      // Phrases with word coverage for dynamic timing
+  clipCount: number;            // Number of clips (determined by AI)
   audioDuration: number;
+  totalWordsCovered: number;    // Total words in narration covered by phrases
 }
 
 /**
  * AI-powered keyword extractor for video content
- * Dynamically determines optimal number of clips based on content and duration
+ * Extracts 3-4 word phrases with word coverage for dynamic clip timing
+ * AI determines optimal number of clips based on content
  */
 export class KeywordExtractor {
   private geminiService: GeminiService;
@@ -54,119 +54,256 @@ export class KeywordExtractor {
   }
 
   /**
-   * Extract keywords from narration text using AI
+   * Extract key phrases from narration text using AI
+   * AI decides the optimal number of clips based on content and pacing
    * @param narration - Full narration text
    * @param audioDuration - Duration of audio in seconds
-   * @returns Keywords and estimated clip count
+   * @returns Key phrases with word coverage (AI determines clip count)
    */
   async extractKeywords(narration: string, audioDuration: number): Promise<KeywordExtractionResult> {
-    console.log('🤖 Extracting keywords using AI...');
+    console.log('🤖 Extracting key phrases using AI...');
     console.log(`📊 Audio duration: ${audioDuration.toFixed(2)}s (${(audioDuration / 60).toFixed(1)} minutes)`);
 
-    // Calculate ideal number of clips based on duration
-    // Target 2-3 seconds per clip to avoid excessive looping
-    const avgClipDuration = 2.5;
-    const estimatedClipsNeeded = Math.ceil(audioDuration / avgClipDuration);
+    // Count total words in narration (excluding pause markers)
+    const cleanNarration = narration.replace(/\[PAUSE\]/g, '');
+    const totalWords = cleanNarration.trim().split(/\s+/).filter(w => w.length > 0).length;
+    console.log(`📝 Total words in narration: ${totalWords}`);
 
-    console.log(`🎯 Target clips: ${estimatedClipsNeeded} (~${avgClipDuration}s average each)`);
-    console.log(`💡 This ensures minimal looping and dynamic visual changes`);
+    // Calculate recommended clip count based on duration
+    // Target 6-10 seconds per clip to keep response size manageable
+    const minClips = Math.max(5, Math.ceil(audioDuration / 15));  // At least 1 clip per 15 seconds
+    const maxClips = Math.min(60, Math.ceil(audioDuration / 5));  // At most 1 clip per 5 seconds, max 60
+    const recommendedClips = Math.ceil((minClips + maxClips) / 2);
 
-    // Create AI prompt for keyword extraction
-    const prompt = `You are a video content analyzer. Extract relevant visual keywords from the following narration that can be used to search for stock footage videos.
+    console.log(`🎯 Recommended clips: ${recommendedClips} (range: ${minClips}-${maxClips})`);
+
+    // Create AI prompt for key phrase extraction with word coverage
+    const prompt = `You are a video content analyzer. Extract relevant visual key phrases from the following narration that can be used to search for stock footage videos.
 
 NARRATION:
 ${narration}
 
+TOTAL WORDS IN NARRATION: ${totalWords}
+AUDIO DURATION: ${audioDuration.toFixed(1)} seconds
+
 REQUIREMENTS:
-- Extract ${estimatedClipsNeeded} keywords or phrases (each should be 3-6 words for better search results)
-- Keywords should represent distinct visual concepts that can be found as stock footage
-- Focus on concrete, visual elements (objects, actions, scenes, locations)
-- Avoid abstract concepts that are hard to visualize
+- Extract between ${minClips} and ${maxClips} key phrases (recommended: ${recommendedClips})
+- Each clip should cover approximately ${Math.round(totalWords / recommendedClips)} words
+- Each phrase should be 3-4 words describing a visual scene (e.g., "person working laptop", "city skyline night", "hands typing keyboard")
+- For each phrase, specify how many words of the narration it should cover
+- The sum of all wordsCovered values MUST equal exactly ${totalWords}
+- Focus on concrete, visual elements that can be found as stock footage
 - Ensure variety - don't repeat similar concepts
-- Keywords should match the flow and pacing of the narration
-- Consider the context and topic of the narration
-- Use descriptive phrases like "person walking in city" instead of just "walking"
+- Match the flow and pacing of the narration chronologically
 
-OUTPUT FORMAT:
-Provide ONLY a comma-separated list of keywords, nothing else.
-Example: business people in meeting, hands typing on laptop, aerial view of city, coffee being poured, modern office workspace, person using smartphone
+OUTPUT FORMAT (JSON array only, no markdown):
+[
+  {"phrase": "business meeting office", "wordsCovered": 25},
+  {"phrase": "person typing laptop", "wordsCovered": 18}
+]
 
-YOUR KEYWORDS:`;
+IMPORTANT: 
+- Return ONLY valid JSON array, NO markdown code blocks, NO backticks
+- Keep it concise - maximum ${maxClips} phrases
+- wordsCovered must be positive integers that sum to ${totalWords}
+
+JSON RESPONSE:`;
 
     try {
       const response = await this.geminiService.generateText(prompt, {
         temperature: 0.7,
-        maxOutputTokens: 2000, // Increased for more keywords
+        maxOutputTokens: 8000,
       });
 
-      // Parse keywords from response
-      const keywords = response
-        .split(',')
-        .map(k => k.trim())
-        .filter(k => k.length > 0 && k.length < 100) // Allow longer phrases
-        .slice(0, estimatedClipsNeeded + 10); // Get extra in case some fail
+      // Parse JSON response
+      const keyPhrases = this.parseKeyPhrasesResponse(response, totalWords);
 
-      if (keywords.length === 0) {
-        throw new Error('AI returned no valid keywords');
+      if (keyPhrases.length === 0) {
+        throw new Error('AI returned no valid key phrases');
       }
 
-      console.log(`✅ Extracted ${keywords.length} keywords for ${(audioDuration / 60).toFixed(1)} min video`);
+      // Calculate total words covered
+      const totalWordsCovered = keyPhrases.reduce((sum, kp) => sum + kp.wordsCovered, 0);
+
+      console.log(`✅ AI decided on ${keyPhrases.length} key phrases for ${(audioDuration / 60).toFixed(1)} min video`);
+      console.log(`📊 Total words covered: ${totalWordsCovered}/${totalWords}`);
+
+      // Extract simple keyword list for backward compatibility
+      const keywords = keyPhrases.map(kp => kp.phrase);
 
       return {
         keywords,
-        estimatedClipsNeeded,
+        keyPhrases,
+        clipCount: keyPhrases.length,
         audioDuration,
+        totalWordsCovered,
       };
     } catch (error) {
-      console.error('❌ AI keyword extraction failed:', error);
-      console.log('⚠️  Falling back to basic keyword extraction');
+      console.error('❌ AI key phrase extraction failed:', error);
+      console.log('⚠️  Falling back to basic extraction');
 
-      // Fallback: extract nouns and key phrases from narration
-      return this.fallbackExtraction(narration, estimatedClipsNeeded);
+      // Fallback: create evenly distributed phrases based on duration
+      const fallbackClipCount = Math.max(10, Math.ceil(audioDuration / 2.5));
+      return this.fallbackExtraction(narration, fallbackClipCount, totalWords, audioDuration);
     }
   }
 
   /**
-   * Fallback keyword extraction using simple text analysis
+   * Parse AI response to extract key phrases with word coverage
    */
-  private fallbackExtraction(narration: string, targetCount: number): KeywordExtractionResult {
+  private parseKeyPhrasesResponse(response: string, totalWords: number): KeyPhrase[] {
+    try {
+      // Try to extract JSON from response
+      let jsonStr = response.trim();
+      
+      console.log('📄 Raw AI response (first 500 chars):', jsonStr.substring(0, 500));
+
+      // Handle markdown code blocks - multiple patterns
+      // Pattern 1: ```json ... ```
+      // Pattern 2: ``` ... ```
+      // Pattern 3: ```\n ... \n```
+      if (jsonStr.includes('```')) {
+        // Remove the opening ```json or ``` and closing ```
+        jsonStr = jsonStr
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+      }
+
+      // If still has backticks, try more aggressive extraction
+      if (jsonStr.includes('```')) {
+        const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (codeBlockMatch && codeBlockMatch[1]) {
+          jsonStr = codeBlockMatch[1].trim();
+        }
+      }
+
+      // Find JSON array in response (in case there's extra text)
+      const arrayMatch = jsonStr.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (arrayMatch) {
+        jsonStr = arrayMatch[0];
+      }
+
+      console.log('📄 Cleaned JSON string (first 300 chars):', jsonStr.substring(0, 300));
+
+      const parsed = JSON.parse(jsonStr);
+
+      if (!Array.isArray(parsed)) {
+        throw new Error('Response is not an array');
+      }
+
+      const keyPhrases: KeyPhrase[] = parsed
+        .filter((item: unknown) => {
+          if (typeof item !== 'object' || item === null) return false;
+          const obj = item as Record<string, unknown>;
+          return typeof obj.phrase === 'string' && 
+                 typeof obj.wordsCovered === 'number' &&
+                 obj.phrase.length > 0 &&
+                 obj.wordsCovered > 0;
+        })
+        .map((item: unknown) => {
+          const obj = item as { phrase: string; wordsCovered: number };
+          return {
+            phrase: obj.phrase.trim(),
+            wordsCovered: Math.max(1, Math.round(obj.wordsCovered)),
+          };
+        });
+
+      // Normalize word coverage to match total words exactly
+      if (keyPhrases.length > 0) {
+        const currentTotal = keyPhrases.reduce((sum, kp) => sum + kp.wordsCovered, 0);
+        if (currentTotal !== totalWords && currentTotal > 0) {
+          const ratio = totalWords / currentTotal;
+          keyPhrases.forEach(kp => {
+            kp.wordsCovered = Math.max(1, Math.round(kp.wordsCovered * ratio));
+          });
+          
+          // Fine-tune to match exactly
+          const newTotal = keyPhrases.reduce((sum, kp) => sum + kp.wordsCovered, 0);
+          const diff = totalWords - newTotal;
+          if (diff !== 0 && keyPhrases.length > 0) {
+            // Add/subtract the difference from the last phrase
+            keyPhrases[keyPhrases.length - 1].wordsCovered = Math.max(1, 
+              keyPhrases[keyPhrases.length - 1].wordsCovered + diff
+            );
+          }
+        }
+      }
+
+      return keyPhrases;
+    } catch (error) {
+      console.error('Failed to parse key phrases JSON:', error);
+      console.error('JSON string was:', response.substring(0, 500));
+      return [];
+    }
+  }
+
+  /**
+   * Fallback key phrase extraction using simple text analysis
+   */
+  private fallbackExtraction(
+    narration: string, 
+    targetCount: number, 
+    totalWords: number,
+    audioDuration: number
+  ): KeywordExtractionResult {
+    // Limit target count to reasonable range (same as AI extraction)
+    const minClips = Math.max(5, Math.ceil(audioDuration / 15));
+    const maxClips = Math.min(60, Math.ceil(audioDuration / 5));
+    const limitedTargetCount = Math.min(Math.max(targetCount, minClips), maxClips);
+
+    console.log(`⚠️  Fallback: limiting clips from ${targetCount} to ${limitedTargetCount}`);
+
     // Remove special characters and split into words
     const words = narration
       .toLowerCase()
+      .replace(/\[PAUSE\]/g, '')
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
-      .filter(w => w.length > 3); // Only words longer than 3 characters
+      .filter(w => w.length > 3 && !STOPWORDS.has(w));
 
-    // Common words to filter out
-    const stopWords = new Set([
-      'this', 'that', 'these', 'those', 'with', 'from', 'have', 'been',
-      'will', 'would', 'could', 'should', 'about', 'into', 'through',
-      'during', 'before', 'after', 'above', 'below', 'between', 'under',
-      'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where',
-      'why', 'how', 'all', 'both', 'each', 'more', 'most', 'other', 'some',
-      'such', 'only', 'own', 'same', 'than', 'very', 'can', 'just', 'also'
-    ]);
-
-    // Filter and count word frequency
+    // Get unique words by frequency
     const wordFreq = new Map<string, number>();
     words.forEach(word => {
-      if (!stopWords.has(word)) {
-        wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
-      }
+      wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
     });
 
-    // Get top words by frequency
-    const keywords = Array.from(wordFreq.entries())
+    // Get top words and create generic phrases
+    const topWords = Array.from(wordFreq.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, targetCount)
+      .slice(0, limitedTargetCount)
       .map(([word]) => word);
 
-    console.log(`⚠️  Fallback extraction: ${keywords.length} keywords`);
+    // Create key phrases with even word distribution
+    const wordsPerPhrase = Math.floor(totalWords / limitedTargetCount);
+    const remainder = totalWords % limitedTargetCount;
+    
+    const keyPhrases: KeyPhrase[] = topWords.map((word, index) => ({
+      phrase: `${word} scene footage`, // Create a searchable phrase
+      wordsCovered: wordsPerPhrase + (index < remainder ? 1 : 0), // Distribute remainder
+    }));
+
+    // Ensure we have enough phrases
+    while (keyPhrases.length < limitedTargetCount) {
+      const wordsLeft = totalWords - keyPhrases.reduce((sum, kp) => sum + kp.wordsCovered, 0);
+      keyPhrases.push({
+        phrase: 'general background footage',
+        wordsCovered: Math.max(1, Math.ceil(wordsLeft / (limitedTargetCount - keyPhrases.length))),
+      });
+    }
+
+    const keywords = keyPhrases.map(kp => kp.phrase);
+    const totalWordsCovered = keyPhrases.reduce((sum, kp) => sum + kp.wordsCovered, 0);
+
+    console.log(`⚠️  Fallback extraction: ${keyPhrases.length} key phrases`);
 
     return {
       keywords,
-      estimatedClipsNeeded: targetCount,
-      audioDuration: 0,
+      keyPhrases,
+      clipCount: keyPhrases.length,
+      audioDuration,
+      totalWordsCovered,
     };
   }
 }
@@ -181,8 +318,8 @@ export function extractKeywordsSimple(narration: string, topN: number = 10): str
   // Lowercase and remove punctuation
   const cleaned = narration
     .toLowerCase()
-    .replace(/[^\w\s]/g, ' ') // Replace punctuation with spaces
-    .replace(/\s+/g, ' ') // Normalize whitespace
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 
   // Split into words
@@ -192,16 +329,13 @@ export function extractKeywordsSimple(narration: string, topN: number = 10): str
   const frequencies = new Map<string, number>();
 
   for (const word of words) {
-    // Filter: ignore stopwords and words <= 3 characters
     if (word.length <= 3 || STOPWORDS.has(word)) {
       continue;
     }
-
-    // Increment frequency
     frequencies.set(word, (frequencies.get(word) || 0) + 1);
   }
 
-  // Sort by frequency (descending) and take top N
+  // Sort by frequency and take top N
   const sortedKeywords = Array.from(frequencies.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, topN)
@@ -212,7 +346,7 @@ export function extractKeywordsSimple(narration: string, topN: number = 10): str
 
 /**
  * Legacy function for backward compatibility
- * @deprecated Use extractKeywordsWithAI instead
+ * @deprecated Use KeywordExtractor.extractKeywords instead
  */
 export function extractKeywords(narration: string, topN: number = 10): string[] {
   return extractKeywordsSimple(narration, topN);

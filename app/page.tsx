@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { VideoScript, VideoAssets, VideoAssemblyResult, ThumbnailResult } from "@/lib/pipeline/types";
 import { PipelineState, initialPipelineState, StepStatus } from "@/components/pipeline/types";
-import PipelineProgress from "@/components/pipeline/PipelineProgress";
+import PipelineProgress, { RetryableStep } from "@/components/pipeline/PipelineProgress";
 import VideoIdeaInput from "@/components/pipeline/VideoIdeaInput";
 import ScriptDisplay from "@/components/pipeline/ScriptDisplay";
 import VideoAssetsDisplay from "@/components/pipeline/VideoAssetsDisplay";
@@ -432,6 +432,170 @@ export default function Home() {
     }
   };
 
+  // Handle retry for failed steps
+  const handleRetryStep = useCallback(async (stepId: RetryableStep) => {
+    const script = pipelineState.script;
+    if (!script) {
+      setError("Cannot retry: No script available. Please start over.");
+      return;
+    }
+
+    // Get or generate videoId
+    const videoId = pipelineState.videoGeneration.assets?.videoId || `video-${Date.now()}`;
+
+    switch (stepId) {
+      case "script":
+        // For script retry, we need to restart the whole pipeline
+        // Get the last video idea from somewhere or ask user to re-enter
+        setError("To retry script generation, please enter your video idea again.");
+        break;
+
+      case "voiceover":
+        try {
+          updateStep("videoGeneration.voiceOverStep", {
+            status: "running", progress: 5, message: "Retrying voice-over generation..."
+          });
+          startProgressAnimation("videoGeneration.voiceOverStep", 85);
+
+          const voiceOverResult = await generateVoiceOver(videoId, script.narration);
+
+          stopProgressAnimation("videoGeneration.voiceOverStep");
+          updateStep("videoGeneration.voiceOverStep", {
+            status: "completed", progress: 100, message: "Voice-over ready!"
+          });
+          setPipelineState(prev => ({
+            ...prev,
+            videoGeneration: { ...prev.videoGeneration, voiceOverPath: voiceOverResult },
+          }));
+
+          // Check if we can now run assembly
+          await tryRunAssemblyAfterRetry(videoId, script);
+        } catch (err) {
+          stopProgressAnimation("videoGeneration.voiceOverStep");
+          updateStep("videoGeneration.voiceOverStep", {
+            status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
+          });
+        }
+        break;
+
+      case "assets":
+        try {
+          updateStep("videoGeneration.assetsStep", {
+            status: "running", progress: 5, message: "Retrying asset download..."
+          });
+          startProgressAnimation("videoGeneration.assetsStep", 85);
+
+          const assetsResult = await generateAssets(videoId, script.title, script.narration);
+
+          stopProgressAnimation("videoGeneration.assetsStep");
+          updateStep("videoGeneration.assetsStep", {
+            status: "completed", progress: 100, message: `${assetsResult.clips.length} clips ready!`
+          });
+          setPipelineState(prev => ({
+            ...prev,
+            videoGeneration: { ...prev.videoGeneration, assets: assetsResult },
+          }));
+
+          // Check if we can now run assembly
+          await tryRunAssemblyAfterRetry(videoId, script);
+        } catch (err) {
+          stopProgressAnimation("videoGeneration.assetsStep");
+          updateStep("videoGeneration.assetsStep", {
+            status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
+          });
+        }
+        break;
+
+      case "assembly":
+        await tryRunAssemblyAfterRetry(videoId, script);
+        break;
+
+      case "thumbnail":
+        try {
+          updateStep("thumbnailStep", {
+            status: "running", progress: 5, message: "Retrying thumbnail generation..."
+          });
+          startProgressAnimation("thumbnailStep", 85);
+
+          const thumbnail = await generateThumbnail(
+            videoId,
+            script.title,
+            script.description,
+            script.narration,
+            script.tags
+          );
+
+          stopProgressAnimation("thumbnailStep");
+          updateStep("thumbnailStep", {
+            status: "completed", progress: 100, message: "Thumbnail ready!"
+          });
+          setPipelineState(prev => ({ ...prev, thumbnail }));
+        } catch (err) {
+          stopProgressAnimation("thumbnailStep");
+          updateStep("thumbnailStep", {
+            status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
+          });
+        }
+        break;
+    }
+  }, [pipelineState.script, pipelineState.videoGeneration.assets?.videoId, updateStep, startProgressAnimation, stopProgressAnimation]);
+
+  // Helper to try running assembly after a dependency is retried
+  const tryRunAssemblyAfterRetry = useCallback(async (videoId: string, script: VideoScript) => {
+    // Get latest state
+    const currentState = pipelineState;
+    const voiceOverPath = currentState.videoGeneration.voiceOverPath;
+    const assets = currentState.videoGeneration.assets;
+
+    // Check if both dependencies are ready
+    if (!voiceOverPath || !assets) {
+      console.log("Assembly waiting for dependencies:", { voiceOverPath: !!voiceOverPath, assets: !!assets });
+      return;
+    }
+
+    // Check if assembly already completed or is running
+    if (currentState.videoGeneration.assemblyStep.status === "completed" ||
+        currentState.videoGeneration.assemblyStep.status === "running") {
+      return;
+    }
+
+    try {
+      updateStep("videoGeneration.assemblyStep", {
+        status: "running", progress: 5, message: "Assembling final video..."
+      });
+      startProgressAnimation("videoGeneration.assemblyStep", 85);
+
+      const assembledVideo = await assembleVideo(
+        videoId,
+        assets.clips,
+        script.narration,
+        voiceOverPath,
+        assets.music,
+        assets.branding
+      );
+
+      stopProgressAnimation("videoGeneration.assemblyStep");
+      updateStep("videoGeneration.assemblyStep", {
+        status: "completed", progress: 100, message: `Video ready! ${assembledVideo.duration.toFixed(0)}s`
+      });
+      setPipelineState(prev => ({
+        ...prev,
+        videoGeneration: {
+          ...prev.videoGeneration,
+          assembledVideo,
+          status: "completed"
+        },
+        currentPhase: "complete",
+        isRunning: false,
+      }));
+    } catch (err) {
+      stopProgressAnimation("videoGeneration.assemblyStep");
+      updateStep("videoGeneration.assemblyStep", {
+        status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
+      });
+    }
+  }, [pipelineState, updateStep, startProgressAnimation, stopProgressAnimation]);
+
   const resetPipeline = () => {
     Object.values(progressIntervals.current).forEach(clearInterval);
     progressIntervals.current = {};
@@ -539,6 +703,7 @@ export default function Home() {
                   }}
                   thumbnailStep={pipelineState.thumbnailStep}
                   overallProgress={overallProgress}
+                  onRetryStep={handleRetryStep}
                 />
               ) : (
                 <Card className="border-2 bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm h-full">
