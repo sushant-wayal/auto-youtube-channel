@@ -93,7 +93,7 @@ export class VideoAssemblyService {
             const proportion = timing / currentTotal;
             const adjustment = difference * proportion;
             const newTiming = timing + adjustment;
-            
+
             // Ensure minimum 1 second per clip
             return Math.max(1.0, newTiming);
         });
@@ -104,7 +104,7 @@ export class VideoAssemblyService {
             // Distribute remaining difference evenly
             const remainingDiff = targetAudioDuration - newTotal;
             const perClipAdjust = remainingDiff / clipCount;
-            
+
             for (let i = 0; i < normalizedTimings.length; i++) {
                 normalizedTimings[i] = Math.max(1.0, normalizedTimings[i] + perClipAdjust);
             }
@@ -220,12 +220,12 @@ export class VideoAssemblyService {
 
         // Determine clip timings
         let clipTimings: number[];
-        
+
         if (input.clipTimings && input.clipTimings.length === input.clips.length) {
             // Use pre-calculated timings from keyword extraction
             console.log('\n📐 Using pre-calculated clip timings from keyword extraction...');
             console.log(`   Original timings: ${input.clipTimings.map(t => t.toFixed(2) + 's').join(', ')}`);
-            
+
             // Normalize timings to match actual audio duration
             if (actualAudioDuration) {
                 clipTimings = this.normalizeClipTimingsToAudio(input.clipTimings, actualAudioDuration);
@@ -236,7 +236,7 @@ export class VideoAssemblyService {
             // Fallback: calculate timings based on narration text
             console.log('\n📐 Calculating clip timings from narration text (fallback)...');
             clipTimings = this.calculateClipTimings(input.narration || '', input.clips.length);
-            
+
             // Normalize to actual audio duration if available
             if (actualAudioDuration) {
                 clipTimings = this.normalizeClipTimingsToAudio(clipTimings, actualAudioDuration);

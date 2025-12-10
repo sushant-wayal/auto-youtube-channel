@@ -1,9 +1,3 @@
-1. improve quality of video
-2. not neccessaeyly only 10 keywords, extarct keywords using ai, and depending on the length of the audio3. loop the background music throughout the video, as it stops in mid.
-3. differ the percentage of the bgm at the outro, kepp the outro concatenated compleetly right after the voice over ends, extending the length of the video.
-4. try to align the audio narrations properly with that keyword clip playing.
-5. proper sanitization of the generated script.
-6. then add the same pipeline for the 3-5 shorts script generated.
-7. add a upload button, that will upload the long form video and 3-5 shorts on the youtube.
-8. automate the whole complete process in one go, with state preservation and try again options to continue from the failed state without re doing all previous steps
-9. integrate the proper scheduler for the uploads, with custom frequency, with minimal approvals.
+1. then add the same pipeline for the 3-5 shorts script generated.
+2. add a upload button, that will upload the long form video and 3-5 shorts on the youtube.
+3. integrate the proper scheduler for the uploads, with custom frequency, with minimal approvals.

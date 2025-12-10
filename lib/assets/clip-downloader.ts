@@ -40,7 +40,7 @@ async function downloadClip(url: string, outputPath: string): Promise<void> {
  * Each clip's duration is proportional to the words it covers in the narration
  */
 function calculateClipDurations(
-  keyPhrases: KeyPhrase[], 
+  keyPhrases: KeyPhrase[],
   audioDuration: number,
   totalWordsCovered: number
 ): number[] {
@@ -80,7 +80,7 @@ async function fetchClipsWithDurationPreference(
 ): Promise<StockClip[]> {
   // Calculate minimum preferred duration (2/3 of target)
   const minPreferredDuration = (targetDuration * 2) / 3;
-  
+
   console.log(`🎯 Target duration: ${targetDuration.toFixed(2)}s, preferred min: ${minPreferredDuration.toFixed(2)}s`);
 
   // First attempt: try to find clips meeting duration requirement
@@ -96,10 +96,10 @@ async function fetchClipsWithDurationPreference(
   if (clips.length === 0) {
     const simplifiedPhrase = keyPhrase.split(' ').slice(0, 2).join(' ');
     console.log(`⚠️ No clips found for "${keyPhrase}", trying simplified: "${simplifiedPhrase}"...`);
-    
+
     // Try simplified with duration filter first
     clips = await fetchClipsForKeyword(simplifiedPhrase, maxClips, minPreferredDuration);
-    
+
     // Then without filter
     if (clips.length === 0) {
       clips = await fetchClipsForKeyword(simplifiedPhrase, maxClips);
@@ -187,13 +187,13 @@ export async function downloadClipsForVideo(
         const outputPath = path.join(outputDir, filename);
 
         const loopingNeeded = clip.duration < targetDuration;
-        const loopInfo = loopingNeeded 
+        const loopInfo = loopingNeeded
           ? ` ⚠️ will loop ${(targetDuration / clip.duration).toFixed(1)}x`
           : ' ✓ no looping needed';
 
         console.log(`⬇️  Downloading clip ${clipCounter}/${result.clipCount} for "${keyPhrase.phrase}"`);
         console.log(`   Target: ${targetDuration.toFixed(2)}s, Clip: ${clip.duration}s${loopInfo}`);
-        
+
         await downloadClip(clip.url, outputPath);
 
         downloadedPaths.push(outputPath);

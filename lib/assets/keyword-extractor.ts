@@ -155,7 +155,7 @@ JSON RESPONSE:`;
     try {
       // Try to extract JSON from response
       let jsonStr = response.trim();
-      
+
       console.log('📄 Raw AI response (first 500 chars):', jsonStr.substring(0, 500));
 
       // Handle markdown code blocks - multiple patterns
@@ -197,10 +197,10 @@ JSON RESPONSE:`;
         .filter((item: unknown) => {
           if (typeof item !== 'object' || item === null) return false;
           const obj = item as Record<string, unknown>;
-          return typeof obj.phrase === 'string' && 
-                 typeof obj.wordsCovered === 'number' &&
-                 obj.phrase.length > 0 &&
-                 obj.wordsCovered > 0;
+          return typeof obj.phrase === 'string' &&
+            typeof obj.wordsCovered === 'number' &&
+            obj.phrase.length > 0 &&
+            obj.wordsCovered > 0;
         })
         .map((item: unknown) => {
           const obj = item as { phrase: string; wordsCovered: number };
@@ -218,13 +218,13 @@ JSON RESPONSE:`;
           keyPhrases.forEach(kp => {
             kp.wordsCovered = Math.max(1, Math.round(kp.wordsCovered * ratio));
           });
-          
+
           // Fine-tune to match exactly
           const newTotal = keyPhrases.reduce((sum, kp) => sum + kp.wordsCovered, 0);
           const diff = totalWords - newTotal;
           if (diff !== 0 && keyPhrases.length > 0) {
             // Add/subtract the difference from the last phrase
-            keyPhrases[keyPhrases.length - 1].wordsCovered = Math.max(1, 
+            keyPhrases[keyPhrases.length - 1].wordsCovered = Math.max(1,
               keyPhrases[keyPhrases.length - 1].wordsCovered + diff
             );
           }
@@ -243,8 +243,8 @@ JSON RESPONSE:`;
    * Fallback key phrase extraction using simple text analysis
    */
   private fallbackExtraction(
-    narration: string, 
-    targetCount: number, 
+    narration: string,
+    targetCount: number,
     totalWords: number,
     audioDuration: number
   ): KeywordExtractionResult {
@@ -278,7 +278,7 @@ JSON RESPONSE:`;
     // Create key phrases with even word distribution
     const wordsPerPhrase = Math.floor(totalWords / limitedTargetCount);
     const remainder = totalWords % limitedTargetCount;
-    
+
     const keyPhrases: KeyPhrase[] = topWords.map((word, index) => ({
       phrase: `${word} scene footage`, // Create a searchable phrase
       wordsCovered: wordsPerPhrase + (index < remainder ? 1 : 0), // Distribute remainder

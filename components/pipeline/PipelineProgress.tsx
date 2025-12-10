@@ -257,8 +257,8 @@ function StepRow({ icon, title, step, color, compact = false, onRetry }: StepRow
             <div className="flex items-center gap-2 mb-2">
                 <StatusIcon status={step.status} />
                 <span className={cn(
-                    "font-medium", 
-                    compact ? "text-sm" : "text-base", 
+                    "font-medium",
+                    compact ? "text-sm" : "text-base",
                     hasError ? "text-red-600" : classes.icon
                 )}>
                     {title}
@@ -285,7 +285,7 @@ function StepRow({ icon, title, step, color, compact = false, onRetry }: StepRow
 
             {step.message && (
                 <p className={cn(
-                    "mb-2", 
+                    "mb-2",
                     compact ? "text-xs" : "text-sm",
                     hasError ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
                 )}>
@@ -298,8 +298,8 @@ function StepRow({ icon, title, step, color, compact = false, onRetry }: StepRow
                     className={cn(
                         "rounded-full transition-all duration-300",
                         compact ? "h-1.5" : "h-2",
-                        step.status === "completed" ? "bg-green-500" : 
-                        step.status === "error" ? "bg-red-500" : classes.progress,
+                        step.status === "completed" ? "bg-green-500" :
+                            step.status === "error" ? "bg-red-500" : classes.progress,
                         step.status === "running" && "animate-pulse"
                     )}
                     style={{ width: `${step.status === "error" ? 100 : animatedProgress}%` }}

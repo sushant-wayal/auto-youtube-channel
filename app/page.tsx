@@ -555,7 +555,7 @@ export default function Home() {
 
     // Check if assembly already completed or is running
     if (currentState.videoGeneration.assemblyStep.status === "completed" ||
-        currentState.videoGeneration.assemblyStep.status === "running") {
+      currentState.videoGeneration.assemblyStep.status === "running") {
       return;
     }
 
