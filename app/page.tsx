@@ -1,936 +1,642 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Video, FileText, Mic, Film, Image, Clapperboard, Sparkles } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Loader2, Sparkles, Video, FileText, Tag, Zap, Copy, Check, Film, Music, Image as ImageIcon, Play, Download, Mic, ImagePlus } from "lucide-react";
 import { VideoScript, VideoAssets, VideoAssemblyResult, ThumbnailResult } from "@/lib/pipeline/types";
+import { PipelineState, initialPipelineState, StepStatus } from "@/components/pipeline/types";
+import PipelineProgress from "@/components/pipeline/PipelineProgress";
+import VideoIdeaInput from "@/components/pipeline/VideoIdeaInput";
+import ScriptDisplay from "@/components/pipeline/ScriptDisplay";
+import VideoAssetsDisplay from "@/components/pipeline/VideoAssetsDisplay";
+import VoiceOverDisplay from "@/components/pipeline/VoiceOverDisplay";
+import VideoResultDisplay from "@/components/pipeline/VideoResultDisplay";
+import ThumbnailDisplay from "@/components/pipeline/ThumbnailDisplay";
+import YouTubeUploadButton from "@/components/pipeline/YouTubeUploadButton";
 
-export default function Home() {
-  const [videoIdea, setVideoIdea] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isGeneratingVoiceOver, setIsGeneratingVoiceOver] = useState(false);
-  const [isGeneratingAssets, setIsGeneratingAssets] = useState(false);
-  const [isAssemblingVideo, setIsAssemblingVideo] = useState(false);
-  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
-  const [generatedScript, setGeneratedScript] = useState<VideoScript | null>(null);
-  const [voiceOverPath, setVoiceOverPath] = useState<string | null>(null);
-  const [generatedAssets, setGeneratedAssets] = useState<VideoAssets | null>(null);
-  const [assembledVideo, setAssembledVideo] = useState<VideoAssemblyResult | null>(null);
-  const [generatedThumbnail, setGeneratedThumbnail] = useState<ThumbnailResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [copiedNarration, setCopiedNarration] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!videoIdea.trim()) return;
-
-    setIsGenerating(true);
-    setGeneratedScript(null);
-    setVoiceOverPath(null);
-    setGeneratedAssets(null);
-    setAssembledVideo(null);
-    setError(null);
-
-    try {
-      const response = await fetch("/api/generate-script", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ videoIdea }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to generate script");
-      }
-
-      setGeneratedScript(data.script);
-    } catch (err) {
-      console.error("Error generating script:", err);
-      setError(err instanceof Error ? err.message : "Failed to generate script");
-    } finally {
-      setIsGenerating(false);
-    }
+// Placeholder component for pending steps
+function PlaceholderCard({
+  icon: Icon,
+  title,
+  description,
+  color = "gray",
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  color?: "gray" | "blue" | "purple" | "pink" | "green";
+}) {
+  const colorClasses = {
+    gray: "from-gray-100 to-gray-50 dark:from-gray-800/50 dark:to-gray-900/50 border-gray-200 dark:border-gray-700",
+    blue: "from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 border-blue-200 dark:border-blue-800",
+    purple: "from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 border-purple-200 dark:border-purple-800",
+    pink: "from-pink-50 to-rose-50 dark:from-pink-950/30 dark:to-rose-950/30 border-pink-200 dark:border-pink-800",
+    green: "from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-200 dark:border-green-800",
   };
 
-  const handleGenerateVoiceOver = async () => {
-    if (!generatedScript) return;
-
-    console.log("🎙️ Starting voice-over generation...");
-    setIsGeneratingVoiceOver(true);
-    setError(null);
-
-    try {
-      // Generate unique video ID for this voice-over
-      const videoId = `video-${Date.now()}`;
-
-      console.log("📤 Sending request to /api/generate-voiceover");
-      const response = await fetch("/api/generate-voiceover", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          videoId,
-          narration: generatedScript.narration,
-        }),
-      });
-
-      console.log("📡 Response status:", response.status);
-      const data = await response.json();
-      console.log("📦 Response data:", data);
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to generate voice-over");
-      }
-
-      if (!data.voiceOverPath) {
-        console.error("❌ No voice-over path in response!");
-        throw new Error("No voice-over path returned from server");
-      }
-
-      console.log("✅ Voice-over generated:", data.voiceOverPath);
-      setVoiceOverPath(data.voiceOverPath);
-    } catch (err) {
-      console.error("❌ Error generating voice-over:", err);
-      setError(err instanceof Error ? err.message : "Failed to generate voice-over");
-    } finally {
-      setIsGeneratingVoiceOver(false);
-    }
-  };
-
-  const handleGenerateAssets = async () => {
-    if (!generatedScript || !voiceOverPath) return;
-
-    console.log("🎬 Starting assets generation...");
-    setIsGeneratingAssets(true);
-    setError(null);
-
-    try {
-      // Extract video ID from voice-over path
-      const videoId = voiceOverPath.split('/')[0];
-
-      console.log("📤 Sending request to /api/generate-assets");
-      const response = await fetch("/api/generate-assets", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          videoId,
-          title: generatedScript.title,
-          narration: generatedScript.narration,
-        }),
-      });
-
-      console.log("📡 Response status:", response.status);
-      const data = await response.json();
-      console.log("📦 Response data:", data);
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to generate assets");
-      }
-
-      if (!data.assets) {
-        console.error("❌ No assets in response!");
-        throw new Error("No assets returned from server");
-      }
-
-      console.log("✅ Assets received:", data.assets);
-      setGeneratedAssets(data.assets);
-    } catch (err) {
-      console.error("❌ Error generating assets:", err);
-      setError(err instanceof Error ? err.message : "Failed to generate assets");
-    } finally {
-      setIsGeneratingAssets(false);
-    }
-  };
-
-  const handleAssembleVideo = async () => {
-    if (!generatedAssets || !generatedScript || !voiceOverPath) return;
-
-    console.log("🎬 Starting video assembly...");
-    setIsAssemblingVideo(true);
-    setError(null);
-
-    try {
-      console.log("📤 Sending request to /api/assemble-video");
-      const response = await fetch("/api/assemble-video", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          videoId: generatedAssets.videoId,
-          clips: generatedAssets.clips,
-          narration: generatedScript.narration,
-          narrationAudio: voiceOverPath,
-          music: generatedAssets.music,
-          branding: generatedAssets.branding,
-        }),
-      });
-
-      console.log("📡 Response status:", response.status);
-      const data = await response.json();
-      console.log("📦 Response data:", data);
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to assemble video");
-      }
-
-      if (!data.result) {
-        console.error("❌ No result in response!");
-        throw new Error("No video result returned from server");
-      }
-
-      console.log("✅ Video assembled:", data.result);
-      setAssembledVideo(data.result);
-    } catch (err) {
-      console.error("❌ Error assembling video:", err);
-      setError(err instanceof Error ? err.message : "Failed to assemble video");
-    } finally {
-      setIsAssemblingVideo(false);
-    }
-  };
-
-  const handleGenerateThumbnail = async () => {
-    if (!generatedScript || !generatedAssets) return;
-
-    console.log("🎨 Starting thumbnail generation...");
-    setIsGeneratingThumbnail(true);
-    setError(null);
-
-    try {
-      console.log("📤 Sending request to /api/generate-thumbnail");
-      const response = await fetch("/api/generate-thumbnail", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          videoId: generatedAssets.videoId,
-          title: generatedScript.title,
-          description: generatedScript.description,
-          narration: generatedScript.narration,
-          tags: generatedScript.tags,
-          style: "vibrant",
-        }),
-      });
-
-      console.log("📡 Response status:", response.status);
-      const data = await response.json();
-      console.log("📦 Response data:", data);
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to generate thumbnail");
-      }
-
-      if (!data.thumbnail) {
-        console.error("❌ No thumbnail in response!");
-        throw new Error("No thumbnail returned from server");
-      }
-
-      console.log("✅ Thumbnail generated:", data.thumbnail);
-      setGeneratedThumbnail(data.thumbnail);
-    } catch (err) {
-      console.error("❌ Error generating thumbnail:", err);
-      setError(err instanceof Error ? err.message : "Failed to generate thumbnail");
-    } finally {
-      setIsGeneratingThumbnail(false);
-    }
-  };
-
-  const copyToClipboard = async (text: string, type: 'narration' | 'short') => {
-    try {
-      await navigator.clipboard.writeText(text);
-      if (type === 'narration') {
-        setCopiedNarration(true);
-        setTimeout(() => setCopiedNarration(false), 2000);
-      }
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  };
-
-  const formatNarration = (narration: string) => {
-    return narration.split('\n\n').map((paragraph, index) => (
-      <p key={index} className="mb-4 last:mb-0">
-        {paragraph.split('[PAUSE]').map((segment, i, arr) => (
-          <span key={i}>
-            {segment}
-            {i < arr.length - 1 && (
-              <span className="inline-flex items-center mx-2 px-2 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400 text-xs font-mono">
-                [PAUSE]
-              </span>
-            )}
-          </span>
-        ))}
-      </p>
-    ));
-  };
-
-  const estimateWordCount = (text: string) => {
-    return text.trim().split(/\s+/).length;
+  const iconColors = {
+    gray: "text-gray-400",
+    blue: "text-blue-400",
+    purple: "text-purple-400",
+    pink: "text-pink-400",
+    green: "text-green-400",
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl space-y-8 py-8">
+    <Card className={`border-2 border-dashed bg-gradient-to-br ${colorClasses[color]} opacity-60 h-full`}>
+      <CardContent className="flex flex-col items-center justify-center text-center py-6 h-full">
+        <div className={`p-3 rounded-full bg-white/50 dark:bg-gray-800/50 mb-2 ${iconColors[color]}`}>
+          <Icon className="w-6 h-6" />
+        </div>
+        <h3 className="font-semibold text-muted-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground/70 mt-1">{description}</p>
+        <Badge variant="outline" className="mt-2">Pending</Badge>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Home() {
+  const [pipelineState, setPipelineState] = useState<PipelineState>(initialPipelineState);
+  const [error, setError] = useState<string | null>(null);
+  const [rightColumnHeight, setRightColumnHeight] = useState<number | null>(null);
+
+  const progressIntervals = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  const rightColumnRef = useRef<HTMLDivElement>(null);
+
+  // Measure right column height
+  useEffect(() => {
+    const measureHeight = () => {
+      if (rightColumnRef.current) {
+        setRightColumnHeight(rightColumnRef.current.offsetHeight);
+      }
+    };
+
+    measureHeight();
+    const resizeObserver = new ResizeObserver(measureHeight);
+    if (rightColumnRef.current) {
+      resizeObserver.observe(rightColumnRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, [pipelineState.currentPhase]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(progressIntervals.current).forEach(clearInterval);
+    };
+  }, []);
+
+  const startProgressAnimation = useCallback((stepPath: string, targetProgress: number = 90) => {
+    if (progressIntervals.current[stepPath]) {
+      clearInterval(progressIntervals.current[stepPath]);
+    }
+
+    let currentProgress = 5;
+    progressIntervals.current[stepPath] = setInterval(() => {
+      currentProgress += Math.random() * 3 + 1;
+      if (currentProgress >= targetProgress) {
+        currentProgress = targetProgress;
+        clearInterval(progressIntervals.current[stepPath]);
+      }
+
+      setPipelineState(prev => {
+        const newState = { ...prev };
+        const pathParts = stepPath.split(".");
+
+        if (pathParts[0] === "scriptStep") {
+          newState.scriptStep = { ...newState.scriptStep, progress: Math.round(currentProgress) };
+        } else if (pathParts[0] === "videoGeneration") {
+          newState.videoGeneration = { ...newState.videoGeneration };
+          if (pathParts[1] === "voiceOverStep") {
+            newState.videoGeneration.voiceOverStep = { ...newState.videoGeneration.voiceOverStep, progress: Math.round(currentProgress) };
+          } else if (pathParts[1] === "assetsStep") {
+            newState.videoGeneration.assetsStep = { ...newState.videoGeneration.assetsStep, progress: Math.round(currentProgress) };
+          } else if (pathParts[1] === "assemblyStep") {
+            newState.videoGeneration.assemblyStep = { ...newState.videoGeneration.assemblyStep, progress: Math.round(currentProgress) };
+          }
+        } else if (pathParts[0] === "thumbnailStep") {
+          newState.thumbnailStep = { ...newState.thumbnailStep, progress: Math.round(currentProgress) };
+        }
+
+        return newState;
+      });
+    }, 500);
+  }, []);
+
+  const stopProgressAnimation = useCallback((stepPath: string) => {
+    if (progressIntervals.current[stepPath]) {
+      clearInterval(progressIntervals.current[stepPath]);
+      delete progressIntervals.current[stepPath];
+    }
+  }, []);
+
+  const calculateOverallProgress = useCallback((state: PipelineState): number => {
+    let progress = 0;
+
+    if (state.scriptStep.status === "completed") progress += 20;
+    else if (state.scriptStep.status === "running") progress += state.scriptStep.progress * 0.2;
+
+    if (state.videoGeneration.voiceOverStep.status === "completed") progress += 15;
+    else if (state.videoGeneration.voiceOverStep.status === "running")
+      progress += state.videoGeneration.voiceOverStep.progress * 0.15;
+
+    if (state.videoGeneration.assetsStep.status === "completed") progress += 15;
+    else if (state.videoGeneration.assetsStep.status === "running")
+      progress += state.videoGeneration.assetsStep.progress * 0.15;
+
+    if (state.videoGeneration.assemblyStep.status === "completed") progress += 20;
+    else if (state.videoGeneration.assemblyStep.status === "running")
+      progress += state.videoGeneration.assemblyStep.progress * 0.2;
+
+    if (state.thumbnailStep.status === "completed") progress += 30;
+    else if (state.thumbnailStep.status === "running")
+      progress += state.thumbnailStep.progress * 0.3;
+
+    return Math.round(progress);
+  }, []);
+
+  const updateStep = useCallback((
+    stepPath: string,
+    updates: Partial<{ status: StepStatus; progress: number; message: string }>
+  ) => {
+    setPipelineState(prev => {
+      const newState = { ...prev };
+      const pathParts = stepPath.split(".");
+
+      if (pathParts[0] === "scriptStep") {
+        newState.scriptStep = { ...newState.scriptStep, ...updates };
+      } else if (pathParts[0] === "videoGeneration") {
+        newState.videoGeneration = { ...newState.videoGeneration };
+        if (pathParts[1] === "voiceOverStep") {
+          newState.videoGeneration.voiceOverStep = { ...newState.videoGeneration.voiceOverStep, ...updates };
+        } else if (pathParts[1] === "assetsStep") {
+          newState.videoGeneration.assetsStep = { ...newState.videoGeneration.assetsStep, ...updates };
+        } else if (pathParts[1] === "assemblyStep") {
+          newState.videoGeneration.assemblyStep = { ...newState.videoGeneration.assemblyStep, ...updates };
+        }
+        const voStatus = newState.videoGeneration.voiceOverStep.status;
+        const asStatus = newState.videoGeneration.assetsStep.status;
+        const asmStatus = newState.videoGeneration.assemblyStep.status;
+        if (asmStatus === "completed") {
+          newState.videoGeneration.status = "completed";
+        } else if (voStatus === "running" || asStatus === "running" || asmStatus === "running") {
+          newState.videoGeneration.status = "running";
+        } else if (voStatus === "error" || asStatus === "error" || asmStatus === "error") {
+          newState.videoGeneration.status = "error";
+        }
+      } else if (pathParts[0] === "thumbnailStep") {
+        newState.thumbnailStep = { ...newState.thumbnailStep, ...updates };
+      }
+
+      return newState;
+    });
+  }, []);
+
+  // API Calls
+  const generateScript = async (videoIdea: string): Promise<VideoScript> => {
+    const response = await fetch("/api/generate-script", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoIdea }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to generate script");
+    return data.script;
+  };
+
+  const generateVoiceOver = async (videoId: string, narration: string): Promise<string> => {
+    const response = await fetch("/api/generate-voiceover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, narration }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to generate voice-over");
+    return data.voiceOverPath;
+  };
+
+  const generateAssets = async (videoId: string, title: string, narration: string): Promise<VideoAssets> => {
+    const response = await fetch("/api/generate-assets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, title, narration }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to generate assets");
+    return data.assets;
+  };
+
+  const assembleVideo = async (
+    videoId: string,
+    clips: string[],
+    narration: string,
+    narrationAudio: string,
+    music: string,
+    branding: VideoAssets["branding"]
+  ): Promise<VideoAssemblyResult> => {
+    const response = await fetch("/api/assemble-video", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, clips, narration, narrationAudio, music, branding }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to assemble video");
+    return data.result;
+  };
+
+  const generateThumbnail = async (
+    videoId: string,
+    title: string,
+    description: string,
+    narration: string,
+    tags: string[]
+  ): Promise<ThumbnailResult> => {
+    const response = await fetch("/api/generate-thumbnail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, title, description, narration, tags, style: "vibrant" }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to generate thumbnail");
+    return data.thumbnail;
+  };
+
+  // Main pipeline execution
+  const runPipeline = async (videoIdea: string) => {
+    setError(null);
+    setPipelineState({ ...initialPipelineState, isRunning: true, currentPhase: "script" });
+
+    try {
+      updateStep("scriptStep", { status: "running", progress: 5, message: "Generating script with AI..." });
+      startProgressAnimation("scriptStep", 85);
+
+      const script = await generateScript(videoIdea);
+
+      stopProgressAnimation("scriptStep");
+      setPipelineState(prev => ({
+        ...prev,
+        script,
+        scriptStep: { ...prev.scriptStep, status: "completed", progress: 100, message: "Script generated!" },
+        currentPhase: "video-thumbnail",
+      }));
+
+      const videoId = `video-${Date.now()}`;
+
+      const videoGenerationPromise = runVideoGeneration(videoId, script);
+      const thumbnailPromise = runThumbnailGeneration(videoId, script);
+
+      await Promise.allSettled([videoGenerationPromise, thumbnailPromise]);
+
+      setPipelineState(prev => ({
+        ...prev,
+        isRunning: false,
+        currentPhase: "complete",
+      }));
+
+    } catch (err) {
+      console.error("Pipeline error:", err);
+      setError(err instanceof Error ? err.message : "Pipeline failed");
+      stopProgressAnimation("scriptStep");
+      setPipelineState(prev => ({ ...prev, isRunning: false }));
+    }
+  };
+
+  const runVideoGeneration = async (videoId: string, script: VideoScript) => {
+    try {
+      updateStep("videoGeneration.voiceOverStep", {
+        status: "running", progress: 5, message: "Generating AI voice-over..."
+      });
+      updateStep("videoGeneration.assetsStep", {
+        status: "running", progress: 5, message: "Downloading stock footage..."
+      });
+
+      startProgressAnimation("videoGeneration.voiceOverStep", 85);
+      startProgressAnimation("videoGeneration.assetsStep", 85);
+
+      const voiceOverPromise = generateVoiceOver(videoId, script.narration)
+        .then(result => {
+          stopProgressAnimation("videoGeneration.voiceOverStep");
+          updateStep("videoGeneration.voiceOverStep", {
+            status: "completed", progress: 100, message: "Voice-over ready!"
+          });
+          setPipelineState(prev => ({
+            ...prev,
+            videoGeneration: { ...prev.videoGeneration, voiceOverPath: result },
+          }));
+          return result;
+        })
+        .catch(err => {
+          stopProgressAnimation("videoGeneration.voiceOverStep");
+          updateStep("videoGeneration.voiceOverStep", {
+            status: "error", progress: 0, message: err?.message || "Failed"
+          });
+          return null;
+        });
+
+      const assetsPromise = generateAssets(videoId, script.title, script.narration)
+        .then(result => {
+          stopProgressAnimation("videoGeneration.assetsStep");
+          updateStep("videoGeneration.assetsStep", {
+            status: "completed", progress: 100, message: `${result.clips.length} clips ready!`
+          });
+          setPipelineState(prev => ({
+            ...prev,
+            videoGeneration: { ...prev.videoGeneration, assets: result },
+          }));
+          return result;
+        })
+        .catch(err => {
+          stopProgressAnimation("videoGeneration.assetsStep");
+          updateStep("videoGeneration.assetsStep", {
+            status: "error", progress: 0, message: err?.message || "Failed"
+          });
+          return null;
+        });
+
+      const [voiceOverResult, assetsResult] = await Promise.all([voiceOverPromise, assetsPromise]);
+
+      if (voiceOverResult && assetsResult) {
+        updateStep("videoGeneration.assemblyStep", {
+          status: "running", progress: 5, message: "Assembling final video..."
+        });
+        startProgressAnimation("videoGeneration.assemblyStep", 85);
+
+        const assembledVideo = await assembleVideo(
+          videoId,
+          assetsResult.clips,
+          script.narration,
+          voiceOverResult,
+          assetsResult.music,
+          assetsResult.branding
+        );
+
+        stopProgressAnimation("videoGeneration.assemblyStep");
+        updateStep("videoGeneration.assemblyStep", {
+          status: "completed", progress: 100, message: `Video ready! ${assembledVideo.duration.toFixed(0)}s`
+        });
+        setPipelineState(prev => ({
+          ...prev,
+          videoGeneration: {
+            ...prev.videoGeneration,
+            assembledVideo,
+            status: "completed"
+          },
+        }));
+      } else {
+        updateStep("videoGeneration.assemblyStep", {
+          status: "error", progress: 0, message: "Cannot assemble: missing dependencies"
+        });
+      }
+
+    } catch (err) {
+      console.error("Video generation error:", err);
+      stopProgressAnimation("videoGeneration.voiceOverStep");
+      stopProgressAnimation("videoGeneration.assetsStep");
+      stopProgressAnimation("videoGeneration.assemblyStep");
+      setPipelineState(prev => ({
+        ...prev,
+        videoGeneration: { ...prev.videoGeneration, status: "error" },
+      }));
+    }
+  };
+
+  const runThumbnailGeneration = async (videoId: string, script: VideoScript) => {
+    try {
+      updateStep("thumbnailStep", {
+        status: "running", progress: 5, message: "Generating thumbnail with AI..."
+      });
+      startProgressAnimation("thumbnailStep", 85);
+
+      const thumbnail = await generateThumbnail(
+        videoId,
+        script.title,
+        script.description,
+        script.narration,
+        script.tags
+      );
+
+      stopProgressAnimation("thumbnailStep");
+      updateStep("thumbnailStep", {
+        status: "completed", progress: 100, message: "Thumbnail ready!"
+      });
+      setPipelineState(prev => ({ ...prev, thumbnail }));
+
+    } catch (err) {
+      console.error("Thumbnail generation error:", err);
+      stopProgressAnimation("thumbnailStep");
+      updateStep("thumbnailStep", {
+        status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
+      });
+    }
+  };
+
+  const resetPipeline = () => {
+    Object.values(progressIntervals.current).forEach(clearInterval);
+    progressIntervals.current = {};
+    setPipelineState(initialPipelineState);
+    setError(null);
+  };
+
+  const exportScript = () => {
+    if (!pipelineState.script) return;
+    const scriptText = JSON.stringify(pipelineState.script, null, 2);
+    const blob = new Blob([scriptText], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "video-script.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const overallProgress = calculateOverallProgress(pipelineState);
+  const showPipelineProgress = pipelineState.currentPhase !== "idle";
+  const isComplete = pipelineState.currentPhase === "complete";
+  const hasVideo = !!pipelineState.videoGeneration.assembledVideo;
+
+  return (
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950" />
+        <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 dark:bg-purple-900 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob" />
+        <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 dark:bg-yellow-900 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-2000" />
+        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 dark:bg-pink-900 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-4000" />
+        <div className="absolute bottom-20 right-20 w-72 h-72 bg-blue-300 dark:bg-blue-900 rounded-full mix-blend-multiply dark:mix-blend-soft-light filter blur-xl opacity-70 animate-blob animation-delay-2000" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:50px_50px]" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Video className="w-10 h-10 text-primary" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-              AI Video Production Pipeline
+        <div className="text-center space-y-3 mb-8">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-primary to-purple-600 rounded-xl shadow-lg">
+              <Video className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-purple-600 to-pink-600 bg-clip-text text-transparent">
+              AI Video Pipeline
             </h1>
           </div>
-          <p className="text-muted-foreground text-lg">
-            Generate scripts, download footage, and prepare video assets automatically
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            Generate complete YouTube videos with AI-powered parallel processing
           </p>
         </div>
 
-        {/* Input Card */}
-        <Card className="shadow-xl border-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-yellow-500" />
-              Create Your Video
-            </CardTitle>
-            <CardDescription>
-              Enter your video topic to generate script and download stock footage
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="video-idea" className="text-base">
-                  Video Topic
-                </Label>
-                <Input
-                  id="video-idea"
-                  type="text"
-                  placeholder="e.g., How React Hooks Work"
-                  value={videoIdea}
-                  onChange={(e) => setVideoIdea(e.target.value)}
-                  disabled={isGenerating}
-                  className="h-12 text-base"
+        {/* Error Display */}
+        {error && (
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-center mb-6 backdrop-blur-sm">
+            <p className="text-sm font-medium text-destructive">{error}</p>
+          </div>
+        )}
+
+        {/* Main Layout */}
+        <div className="space-y-6">
+
+          {/* Row 1: Input + Thumbnail (left) | Pipeline Progress (right) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:grid-rows-1">
+            {/* Left Column: Input + Thumbnail stacked - constrained to row height */}
+            <div
+              className="lg:col-span-1 lg:row-span-1 flex flex-col gap-4 lg:overflow-hidden"
+              style={rightColumnHeight ? { height: rightColumnHeight } : undefined}
+            >
+              <div className="flex-shrink-0">
+                <VideoIdeaInput
+                  onSubmit={runPipeline}
+                  isGenerating={pipelineState.isRunning}
+                  disabled={pipelineState.isRunning}
                 />
               </div>
 
-              <Button
-                type="submit"
-                disabled={isGenerating || !videoIdea.trim()}
-                className="w-full h-12 text-base font-semibold"
-                size="lg"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Generating Script...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-5 w-5" />
-                    Generate Script
-                  </>
-                )}
-              </Button>
-
-              {/* Error Message */}
-              {error && (
-                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-center">
-                  <p className="text-sm font-medium text-destructive">
-                    {error}
-                  </p>
+              {/* Thumbnail - constrained to remaining space */}
+              {showPipelineProgress && (
+                <div className="lg:flex-1 lg:min-h-0 lg:overflow-hidden">
+                  {pipelineState.thumbnail ? (
+                    <ThumbnailDisplay thumbnail={pipelineState.thumbnail} className="lg:max-h-full" />
+                  ) : pipelineState.scriptStep.status === "completed" ? (
+                    <PlaceholderCard
+                      icon={Image}
+                      title="Thumbnail"
+                      description="AI-generated thumbnail"
+                      color="pink"
+                    />
+                  ) : null}
                 </div>
               )}
-            </form>
-          </CardContent>
-        </Card>
+            </div>
 
-        {/* Script Display Card */}
-        {generatedScript && (
-          <Card className="shadow-xl border-2 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="space-y-1 flex-1">
-                  <CardTitle className="flex items-center gap-2 text-2xl">
-                    <FileText className="w-6 h-6 text-green-500" />
-                    {generatedScript.title}
-                  </CardTitle>
-                  <CardDescription className="text-base">
-                    {generatedScript.description}
-                  </CardDescription>
-                </div>
-                <Badge variant="secondary" className="ml-4">
-                  {estimateWordCount(generatedScript.narration)} words
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Tags */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Tag className="w-4 h-4" />
-                  SEO Tags
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {generatedScript.tags.map((tag, index) => (
-                    <Badge key={index} variant="outline">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Voice-Over Generation */}
-              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 rounded-lg p-6 border-2 border-blue-200 dark:border-blue-800">
-                <div className="flex items-center gap-2 mb-4">
-                  <Mic className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <h3 className="font-semibold text-lg">Generate Voice-Over</h3>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Generate professional AI voice-over for the script narration.
-                    </p>
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      ⚠️ Requires TTS API key configured in the backend
-                    </p>
-                  </div>
-
-                  <Button
-                    onClick={handleGenerateVoiceOver}
-                    disabled={isGeneratingVoiceOver || voiceOverPath !== null}
-                    className="w-full h-12"
-                    size="lg"
-                  >
-                    {isGeneratingVoiceOver ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Generating Voice-Over...
-                      </>
-                    ) : voiceOverPath ? (
-                      <>
-                        <Check className="mr-2 h-5 w-5" />
-                        Voice-Over Generated!
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="mr-2 h-5 w-5" />
-                        Generate Voice-Over
-                      </>
-                    )}
-                  </Button>
-
-                  {/* Audio Player - Display after generation */}
-                  {voiceOverPath && (
-                    <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border-2 border-blue-300 dark:border-blue-700 animate-in fade-in slide-in-from-top-4 duration-500">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Music className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="font-semibold text-sm">Voice-Over Audio Preview</span>
-                        <Badge variant="secondary" className="ml-auto">Ready</Badge>
+            {/* Right Column: Pipeline Progress - determines row height */}
+            <div className="lg:col-span-2 lg:row-span-1" ref={rightColumnRef}>
+              {showPipelineProgress ? (
+                <PipelineProgress
+                  scriptStep={pipelineState.scriptStep}
+                  videoGeneration={{
+                    status: pipelineState.videoGeneration.status,
+                    voiceOverStep: pipelineState.videoGeneration.voiceOverStep,
+                    assetsStep: pipelineState.videoGeneration.assetsStep,
+                    assemblyStep: pipelineState.videoGeneration.assemblyStep,
+                  }}
+                  thumbnailStep={pipelineState.thumbnailStep}
+                  overallProgress={overallProgress}
+                />
+              ) : (
+                <Card className="border-2 bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm h-full">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-yellow-500" />
+                      Ready to Create
+                    </CardTitle>
+                    <CardDescription>
+                      Enter a video topic to start the AI-powered generation pipeline
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex items-center justify-center py-8">
+                    <div className="text-center space-y-4">
+                      <div className="flex justify-center gap-4">
+                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <FileText className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                          <Video className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <div className="p-3 bg-pink-100 dark:bg-pink-900/30 rounded-lg">
+                          <Image className="w-6 h-6 text-pink-600" />
+                        </div>
                       </div>
-
-                      {/* Audio Player */}
-                      <audio
-                        controls
-                        className="w-full"
-                        src={`/api/videos/${voiceOverPath}`}
-                        preload="metadata"
-                      >
-                        Your browser does not support the audio element.
-                      </audio>
-
-                      <p className="text-xs text-muted-foreground mt-2">
-                        📁 Saved at: {voiceOverPath}
-                      </p>
-
-                      {/* Download Button */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full mt-3"
-                        onClick={() => {
-                          const link = document.createElement('a');
-                          link.href = `/api/videos/${voiceOverPath}`;
-                          link.download = `narration-${Date.now()}.wav`;
-                          link.click();
-                        }}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download Voice-Over
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Assets Generation */}
-              {voiceOverPath && (
-                <div className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 rounded-lg p-6 border-2 border-orange-200 dark:border-orange-800">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Film className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                    <h3 className="font-semibold text-lg">Generate Video Assets</h3>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">
-                        Download stock footage from Pexels and prepare background music & branding assets.
-                      </p>
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
-                        💡 Add PEXELS_API_KEY to .env.local (<a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" className="underline">get free API key</a>)
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        📁 Place .mp3 files in assets/music/ and logo/intro/outro in assets/branding/
+                        Script → Voice-Over + Assets → Video + Thumbnail
                       </p>
                     </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
 
-                    <Button
-                      onClick={handleGenerateAssets}
-                      disabled={isGeneratingAssets || generatedAssets !== null}
-                      className="w-full h-12"
-                      size="lg"
-                    >
-                      {isGeneratingAssets ? (
-                        <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Downloading Footage... (This may take a minute)
-                        </>
-                      ) : generatedAssets ? (
-                        <>
-                          <Check className="mr-2 h-5 w-5" />
-                          Assets Generated!
-                        </>
-                      ) : (
-                        <>
-                          <Film className="mr-2 h-5 w-5" />
-                          Generate Assets
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
+          {/* Row 2: Final Video - Full Width (when ready) */}
+          {hasVideo && (
+            <VideoResultDisplay assembledVideo={pipelineState.videoGeneration.assembledVideo!} />
+          )}
+
+          {/* Row 3: Script - Full Width */}
+          {showPipelineProgress && (
+            pipelineState.script ? (
+              <ScriptDisplay
+                script={pipelineState.script}
+                onExport={exportScript}
+                onReset={resetPipeline}
+              />
+            ) : (
+              <PlaceholderCard
+                icon={FileText}
+                title="Script"
+                description="AI-generated video script with title, narration, and SEO tags"
+                color="blue"
+              />
+            )
+          )}
+
+          {/* Row 4: Voice-over + Video Assets - Side by Side */}
+          {showPipelineProgress && pipelineState.scriptStep.status === "completed" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Voice Over */}
+              {pipelineState.videoGeneration.voiceOverPath ? (
+                <VoiceOverDisplay voiceOverPath={pipelineState.videoGeneration.voiceOverPath} />
+              ) : (
+                <PlaceholderCard
+                  icon={Mic}
+                  title="Voice-Over"
+                  description="AI-generated narration audio"
+                  color="blue"
+                />
               )}
 
-              {/* Assets Display */}
-              {generatedAssets && (
-                <>
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 rounded-lg p-6 border-2 border-green-200 dark:border-green-800 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Film className="w-5 h-5 text-green-600 dark:text-green-400" />
-                      <h3 className="font-semibold text-lg">Assets Ready</h3>
-                      <Badge className="ml-auto bg-green-600">Complete</Badge>
-                    </div>
-
-                    <div className="space-y-4">
-                      {/* Clips */}
-                      <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Video className="w-4 h-4 text-blue-600" />
-                          <span className="font-semibold text-sm">Stock Footage Clips</span>
-                          <Badge variant="secondary" className="ml-auto">{generatedAssets.clips.length} clips</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Downloaded to: tmp/footage/{generatedAssets.videoId}/
-                        </p>
-                      </div>
-
-                      {/* Music */}
-                      {generatedAssets.music && (
-                        <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Music className="w-4 h-4 text-purple-600" />
-                            <span className="font-semibold text-sm">Background Music</span>
-                            <Badge variant="secondary" className="ml-auto">✓</Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {generatedAssets.music.split('/').pop()}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Branding */}
-                      {Object.keys(generatedAssets.branding).length > 0 && (
-                        <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <ImageIcon className="w-4 h-4 text-pink-600" />
-                            <span className="font-semibold text-sm">Branding Assets</span>
-                            <Badge variant="secondary" className="ml-auto">{Object.keys(generatedAssets.branding).length} files</Badge>
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {generatedAssets.branding.logo && <Badge variant="outline">Logo</Badge>}
-                            {generatedAssets.branding.intro && <Badge variant="outline">Intro</Badge>}
-                            {generatedAssets.branding.outro && <Badge variant="outline">Outro</Badge>}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 mt-4">
-                        <p className="text-sm text-blue-800 dark:text-blue-300">
-                          🎉 All assets are ready for video editing! Next step: FFmpeg video composition.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Video Assembly Section */}
-                  <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 rounded-lg p-6 border-2 border-purple-200 dark:border-purple-800">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Play className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                      <h3 className="font-semibold text-lg">Assemble Final Video</h3>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          Combine video clips, voice-over narration, background music, and branding into the final video.
-                        </p>
-
-                        <p className="text-xs text-amber-600 dark:text-amber-400">
-                          ⚠️ Requires FFmpeg installed on your system
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          ⏱️ This process may take 2-5 minutes depending on clip count
-                        </p>
-                      </div>
-
-                      <Button
-                        onClick={handleAssembleVideo}
-                        disabled={isAssemblingVideo || assembledVideo !== null}
-                        className="w-full h-12"
-                        size="lg"
-                      >
-                        {isAssemblingVideo ? (
-                          <>
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            Assembling Video...
-                          </>
-                        ) : assembledVideo ? (
-                          <>
-                            <Check className="mr-2 h-5 w-5" />
-                            Video Assembled!
-                          </>
-                        ) : (
-                          <>
-                            <Play className="mr-2 h-5 w-5" />
-                            Assemble Video
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Final Video Display */}
-                  {assembledVideo && (
-                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 rounded-lg p-6 border-2 border-emerald-200 dark:border-emerald-800 animate-in fade-in slide-in-from-top-4 duration-500">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Video className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                        <h3 className="font-semibold text-lg">Final Video Ready!</h3>
-                        <Badge className="ml-auto bg-emerald-600">Complete</Badge>
-                      </div>
-
-                      <div className="space-y-4">
-                        {/* Video Stats */}
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">Duration</p>
-                            <p className="text-lg font-bold">{assembledVideo.duration.toFixed(0)}s</p>
-                          </div>
-                          <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">Clips</p>
-                            <p className="text-lg font-bold">{assembledVideo.clipCount}</p>
-                          </div>
-                          <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">Resolution</p>
-                            <p className="text-lg font-bold">1080p</p>
-                          </div>
-                        </div>
-
-                        {/* Video Player */}
-                        <div className="bg-black rounded-lg overflow-hidden">
-                          <video
-                            controls
-                            autoPlay={false}
-                            className="w-full"
-                            src={`/api/videos/${assembledVideo.outputPath}`}
-                          >
-                            Your browser does not support the video element.
-                          </video>
-                        </div>
-
-                        {/* Download Button */}
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => {
-                            const link = document.createElement('a');
-                            link.href = `/api/videos/${assembledVideo.outputPath}`;
-                            link.download = `final-video-${generatedAssets.videoId}.mp4`;
-                            link.click();
-                          }}
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          Download Final Video
-                        </Button>
-
-                        <div className="bg-emerald-100 dark:bg-emerald-900/30 rounded-lg p-4">
-                          <p className="text-sm text-emerald-800 dark:text-emerald-300">
-                            🎉 Your video is ready! The file is saved at: <code className="text-xs bg-white/50 dark:bg-black/30 px-2 py-1 rounded">{assembledVideo.outputPath}</code>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Thumbnail Generation Section - After Video Assembly */}
-                  {assembledVideo && (
-                    <div className="bg-gradient-to-r from-pink-50 to-rose-50 dark:from-pink-950/30 dark:to-rose-950/30 rounded-lg p-6 border-2 border-pink-200 dark:border-pink-800">
-                      <div className="flex items-center gap-2 mb-4">
-                        <ImagePlus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
-                        <h3 className="font-semibold text-lg">Generate Thumbnail</h3>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground">
-                            Generate an eye-catching YouTube thumbnail using AI. The thumbnail will be created based on your video&apos;s title, description, and content.
-                          </p>
-                          <p className="text-xs text-amber-600 dark:text-amber-400">
-                            🎨 Uses Gemini Imagen 3.0 for high-quality image generation
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            📐 Output: 16:9 aspect ratio, optimized for YouTube
-                          </p>
-                        </div>
-
-                        <Button
-                          onClick={handleGenerateThumbnail}
-                          disabled={isGeneratingThumbnail || generatedThumbnail !== null}
-                          className="w-full h-12"
-                          size="lg"
-                        >
-                          {isGeneratingThumbnail ? (
-                            <>
-                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                              Generating Thumbnail...
-                            </>
-                          ) : generatedThumbnail ? (
-                            <>
-                              <Check className="mr-2 h-5 w-5" />
-                              Thumbnail Generated!
-                            </>
-                          ) : (
-                            <>
-                              <ImagePlus className="mr-2 h-5 w-5" />
-                              Generate Thumbnail
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Generated Thumbnail Display */}
-                  {generatedThumbnail && (
-                    <div className="bg-gradient-to-r from-fuchsia-50 to-violet-50 dark:from-fuchsia-950/30 dark:to-violet-950/30 rounded-lg p-6 border-2 border-fuchsia-200 dark:border-fuchsia-800 animate-in fade-in slide-in-from-top-4 duration-500">
-                      <div className="flex items-center gap-2 mb-4">
-                        <ImageIcon className="w-5 h-5 text-fuchsia-600 dark:text-fuchsia-400" />
-                        <h3 className="font-semibold text-lg">Thumbnail Ready!</h3>
-                        <Badge className="ml-auto bg-fuchsia-600">Complete</Badge>
-                      </div>
-
-                      <div className="space-y-4">
-                        {/* Thumbnail Preview */}
-                        <div className="bg-black rounded-lg overflow-hidden">
-                          <img
-                            src={`/api/videos/${generatedThumbnail.thumbnailPath}`}
-                            alt="Generated YouTube Thumbnail"
-                            className="w-full object-contain"
-                          />
-                        </div>
-
-                        {/* Thumbnail Info */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">Aspect Ratio</p>
-                            <p className="text-lg font-bold">16:9</p>
-                          </div>
-                          <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-3 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">Format</p>
-                            <p className="text-lg font-bold">PNG</p>
-                          </div>
-                        </div>
-
-                        {/* Download Button */}
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => {
-                            const link = document.createElement('a');
-                            link.href = `/api/videos/${generatedThumbnail.thumbnailPath}`;
-                            link.download = `thumbnail-${generatedThumbnail.videoId}.png`;
-                            link.click();
-                          }}
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          Download Thumbnail
-                        </Button>
-
-                        <div className="bg-fuchsia-100 dark:bg-fuchsia-900/30 rounded-lg p-4">
-                          <p className="text-sm text-fuchsia-800 dark:text-fuchsia-300">
-                            🎨 Your thumbnail is ready! Perfect for YouTube uploads. File saved at: <code className="text-xs bg-white/50 dark:bg-black/30 px-2 py-1 rounded">{generatedThumbnail.thumbnailPath}</code>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
+              {/* Video Assets */}
+              {pipelineState.videoGeneration.assets ? (
+                <VideoAssetsDisplay assets={pipelineState.videoGeneration.assets} />
+              ) : (
+                <PlaceholderCard
+                  icon={Film}
+                  title="Video Assets"
+                  description="Stock footage and branding"
+                  color="purple"
+                />
               )}
+            </div>
+          )}
 
-              <Separator />
-
-              {/* Script Content */}
-              <Accordion type="single" collapsible className="w-full" defaultValue="narration">
-                {/* Main Narration */}
-                <AccordionItem value="narration">
-                  <AccordionTrigger className="text-left">
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-blue-500">Main Script</Badge>
-                      <span className="font-semibold">Full Narration</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-4">
-                      <div className="bg-muted rounded-lg p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase">
-                            Ready for AI Voiceover
-                          </p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyToClipboard(generatedScript.narration, 'narration')}
-                          >
-                            {copiedNarration ? (
-                              <>
-                                <Check className="w-4 h-4 mr-2" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-4 h-4 mr-2" />
-                                Copy
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                        <ScrollArea className="h-[400px] pr-4">
-                          <div className="text-base leading-relaxed space-y-4">
-                            {formatNarration(generatedScript.narration)}
-                          </div>
-                        </ScrollArea>
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-
-                {/* YouTube Shorts */}
-                {generatedScript.shorts && generatedScript.shorts.length > 0 && (
-                  <AccordionItem value="shorts">
-                    <AccordionTrigger className="text-left">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-purple-500">Bonus</Badge>
-                        <span className="font-semibold">YouTube Shorts ({generatedScript.shorts.length})</span>
-                        <Zap className="w-4 h-4 text-yellow-500" />
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="space-y-4">
-                        {generatedScript.shorts.map((short, index) => (
-                          <div
-                            key={index}
-                            className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800"
-                          >
-                            <div className="flex items-center justify-between mb-3">
-                              <Badge variant="secondary">Short {index + 1}</Badge>
-                              <span className="text-xs text-muted-foreground">15-20s</span>
-                            </div>
-
-                            {/* Hook */}
-                            <div className="mb-3">
-                              <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 mb-1 uppercase">
-                                Hook
-                              </p>
-                              <p className="text-sm font-medium">{short.hook}</p>
-                            </div>
-
-                            {/* Script */}
-                            <div>
-                              <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 mb-1 uppercase">
-                                Script
-                              </p>
-                              <p className="text-sm leading-relaxed">{short.script}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-              </Accordion>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    const scriptText = JSON.stringify(generatedScript, null, 2);
-                    const blob = new Blob([scriptText], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = 'video-script.json';
-                    link.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Export Script
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setGeneratedScript(null);
-                    setVoiceOverPath(null);
-                    setGeneratedAssets(null);
-                    setAssembledVideo(null);
-                    setGeneratedThumbnail(null);
-                    setVideoIdea("");
-                  }}
-                >
-                  Create New Video
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+          {/* Row 5: YouTube Upload Button (when complete) */}
+          {isComplete && (
+            <div className="max-w-md mx-auto">
+              <YouTubeUploadButton
+                videoReady={!!pipelineState.videoGeneration.assembledVideo}
+                thumbnailReady={!!pipelineState.thumbnail}
+                disabled={pipelineState.isRunning}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
