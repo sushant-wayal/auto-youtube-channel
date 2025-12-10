@@ -148,18 +148,50 @@ export class VideoAssemblyService {
         const normalizedClips = await this.normalizeClipsWithTiming(input.clips, clipTimings, outputDir);
         console.log(`✅ Normalized ${normalizedClips.length} clips`);
 
-        // Step 2: Add intro and outro to normalized clips
-        console.log('\n🎬 Step 2: Adding intro/outro videos...');
-        const clipsWithBranding = await this.addIntroOutro(
-            normalizedClips,
+        // Step 2: Concatenate main clips (without intro/outro)
+        console.log('\n🔗 Step 2: Concatenating main clips...');
+        const mainClipsVideo = path.join(outputDir, 'main_clips.mp4');
+        await this.concatClips(normalizedClips, mainClipsVideo);
+        console.log(`✅ Created main clips video`);
+
+        // Get main clips duration for audio preparation
+        const mainClipsDuration = await getVideoDuration(mainClipsVideo);
+        console.log(`📊 Main clips duration: ${mainClipsDuration.toFixed(2)}s`);
+
+        // Step 3: Prepare audio (mix narration and background music) for main clips only
+        console.log('\n🎵 Step 3: Preparing audio for main clips...');
+        let finalAudio: string;
+        if (input.narrationAudio && input.music) {
+            finalAudio = await this.mixNarrationWithMusic(input.narrationAudio, input.music, mainClipsDuration, outputDir);
+            console.log(`✅ Narration and background music mixed`);
+        } else if (input.music) {
+            finalAudio = await this.prepareBackgroundMusic(input.music, mainClipsDuration, outputDir);
+            console.log(`✅ Background music prepared`);
+        } else {
+            // Generate silence
+            finalAudio = path.join(outputDir, 'silence.mp3');
+            await this.generatePlaceholderNarration(mainClipsDuration, finalAudio);
+            console.log(`✅ Using silence (no music provided)`);
+        }
+
+        // Step 4: Add audio to main clips video
+        console.log('\n🎬 Step 4: Adding audio to main clips...');
+        const mainClipsWithAudio = path.join(outputDir, 'main_clips_with_audio.mp4');
+        await this.addAudioToVideo(mainClipsVideo, finalAudio, mainClipsWithAudio);
+        console.log(`✅ Audio added to main clips`);
+
+        // Step 5: Normalize and add intro/outro (preserving their original audio)
+        console.log('\n🎬 Step 5: Adding intro/outro with original audio...');
+        const clipsWithBranding = await this.addIntroOutroWithOriginalAudio(
+            mainClipsWithAudio,
             input.branding?.intro,
             input.branding?.outro,
             outputDir
         );
         console.log(`✅ Branding videos processed`);
 
-        // Step 3: Concatenate all clips
-        console.log('\n🔗 Step 3: Concatenating clips...');
+        // Step 6: Concatenate intro + main + outro
+        console.log('\n🔗 Step 6: Concatenating final video...');
         const combinedVideo = path.join(outputDir, 'combined.mp4');
         await this.concatClips(clipsWithBranding, combinedVideo);
         console.log(`✅ Created combined video`);
@@ -168,32 +200,10 @@ export class VideoAssemblyService {
         const videoDuration = await getVideoDuration(combinedVideo);
         console.log(`📊 Total video duration: ${videoDuration.toFixed(2)}s`);
 
-        // Step 4: Prepare audio (mix narration and background music)
-        console.log('\n🎵 Step 4: Preparing audio...');
-        let finalAudio: string;
-        if (input.narrationAudio && input.music) {
-            finalAudio = await this.mixNarrationWithMusic(input.narrationAudio, input.music, videoDuration, outputDir);
-            console.log(`✅ Narration and background music mixed`);
-        } else if (input.music) {
-            finalAudio = await this.prepareBackgroundMusic(input.music, videoDuration, outputDir);
-            console.log(`✅ Background music prepared`);
-        } else {
-            // Generate silence
-            finalAudio = path.join(outputDir, 'silence.mp3');
-            await this.generatePlaceholderNarration(videoDuration, finalAudio);
-            console.log(`✅ Using silence (no music provided)`);
-        }
-
-        // Step 5: Combine video with audio
-        console.log('\n🎬 Step 5: Combining video and audio...');
-        const videoWithAudio = path.join(outputDir, 'video_with_audio.mp4');
-        await this.addAudioToVideo(combinedVideo, finalAudio, videoWithAudio);
-        console.log(`✅ Audio added to video`);
-
-        // Step 6: Overlay logo
-        console.log('\n🎨 Step 6: Overlaying logo...');
+        // Step 7: Overlay logo
+        console.log('\n🎨 Step 7: Overlaying logo...');
         const finalOutput = path.join(outputDir, 'final.mp4');
-        await this.overlayLogo(videoWithAudio, input.branding?.logo, finalOutput);
+        await this.overlayLogo(combinedVideo, input.branding?.logo, finalOutput);
         console.log(`✅ Logo overlay complete`);
 
         console.log('\n✅ === VIDEO ASSEMBLY COMPLETE ===');
@@ -350,6 +360,62 @@ export class VideoAssemblyService {
     }
 
     /**
+     * Add intro and outro videos while preserving their original audio
+     * Takes the main video (already with audio) and adds intro/outro around it
+     */
+    async addIntroOutroWithOriginalAudio(
+        mainVideoPath: string,
+        introPath: string | undefined,
+        outroPath: string | undefined,
+        outputDir: string
+    ): Promise<string[]> {
+        const result: string[] = [];
+
+        // Normalize intro if exists (keeping original audio)
+        if (introPath) {
+            const normalizedIntro = path.join(outputDir, 'normalized', 'intro.mp4');
+            console.log('  Normalizing intro video (preserving original audio)...');
+            await this.normalizeClipWithAudio(introPath, normalizedIntro);
+            result.push(normalizedIntro);
+            console.log('  ✓ Intro added with original audio');
+        }
+
+        // Add main video (already has narration + music)
+        result.push(mainVideoPath);
+
+        // Normalize outro if exists (keeping original audio)
+        if (outroPath) {
+            const normalizedOutro = path.join(outputDir, 'normalized', 'outro.mp4');
+            console.log('  Normalizing outro video (preserving original audio)...');
+            await this.normalizeClipWithAudio(outroPath, normalizedOutro);
+            result.push(normalizedOutro);
+            console.log('  ✓ Outro added with original audio');
+        }
+
+        return result;
+    }
+
+    /**
+     * Normalize a clip to 1920x1080 while preserving original audio
+     */
+    async normalizeClipWithAudio(inputPath: string, outputPath: string): Promise<void> {
+        await runFFmpeg({
+            inputs: [inputPath],
+            output: outputPath,
+            args: [
+                '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30',
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '23',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-ar', '48000',
+                '-movflags', '+faststart',
+            ],
+        });
+    }
+
+    /**
      * Prepare background music - loop to match video duration
      */
     async prepareBackgroundMusic(
@@ -494,7 +560,7 @@ export class VideoAssemblyService {
     }
 
     /**
-     * Add audio track to video
+     * Add audio track to video (replaces existing audio)
      */
     async addAudioToVideo(
         videoPath: string,
@@ -505,6 +571,8 @@ export class VideoAssemblyService {
             inputs: [videoPath, audioPath],
             output: outputPath,
             args: [
+                '-map', '0:v',      // Take video from first input
+                '-map', '1:a',      // Take audio from second input (narration + music)
                 '-c:v', 'copy',
                 '-c:a', 'aac',
                 '-b:a', '192k',
