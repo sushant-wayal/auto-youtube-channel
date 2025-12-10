@@ -1,9 +1,9 @@
-import { GoogleGenerativeAI, GenerativeModel, RequestOptions } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 // Gemini client singleton
 class GeminiClient {
     private static instance: GeminiClient;
-    private genAI: GoogleGenerativeAI;
+    private genAI: GoogleGenAI;
     private apiKey: string;
 
     private constructor() {
@@ -15,7 +15,11 @@ class GeminiClient {
             );
         }
 
-        this.genAI = new GoogleGenerativeAI(this.apiKey);
+        this.genAI = new GoogleGenAI({
+            apiKey: process.env.GEMINI_API_KEY,
+            // Force the client to use the Alpha API version
+            apiVersion: 'v1alpha'
+        });
     }
 
     public static getInstance(): GeminiClient {
@@ -26,23 +30,17 @@ class GeminiClient {
     }
 
     /**
-     * Get a specific Gemini model
-     * @param modelName - The name of the model (default: gemini-2.0-flash-exp)
-     * @param timeout - Optional timeout in milliseconds (default: 300000 = 5 minutes)
+     * Get the Google GenAI instance
      */
-    public getModel(modelName: string = "gemini-2.5-flash", timeout: number = 300000): GenerativeModel {
-        return this.genAI.getGenerativeModel({
-            model: modelName
-        }, {
-            timeout // 5 minutes timeout for TTS and long operations
-        } as RequestOptions);
+    public getGenAI(): GoogleGenAI {
+        return this.genAI;
     }
 
     /**
-     * Get the Google Generative AI instance
+     * Get API key for direct API usage
      */
-    public getGenAI(): GoogleGenerativeAI {
-        return this.genAI;
+    public getApiKey(): string {
+        return this.apiKey;
     }
 }
 

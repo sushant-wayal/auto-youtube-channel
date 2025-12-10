@@ -9,8 +9,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Sparkles, Video, FileText, Tag, Zap, Copy, Check, Film, Music, Image as ImageIcon, Play, Download, Mic } from "lucide-react";
-import { VideoScript, VideoAssets, VideoAssemblyResult } from "@/lib/pipeline/types";
+import { Loader2, Sparkles, Video, FileText, Tag, Zap, Copy, Check, Film, Music, Image as ImageIcon, Play, Download, Mic, ImagePlus } from "lucide-react";
+import { VideoScript, VideoAssets, VideoAssemblyResult, ThumbnailResult } from "@/lib/pipeline/types";
 
 export default function Home() {
   const [videoIdea, setVideoIdea] = useState("");
@@ -18,10 +18,12 @@ export default function Home() {
   const [isGeneratingVoiceOver, setIsGeneratingVoiceOver] = useState(false);
   const [isGeneratingAssets, setIsGeneratingAssets] = useState(false);
   const [isAssemblingVideo, setIsAssemblingVideo] = useState(false);
+  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
   const [generatedScript, setGeneratedScript] = useState<VideoScript | null>(null);
   const [voiceOverPath, setVoiceOverPath] = useState<string | null>(null);
   const [generatedAssets, setGeneratedAssets] = useState<VideoAssets | null>(null);
   const [assembledVideo, setAssembledVideo] = useState<VideoAssemblyResult | null>(null);
+  const [generatedThumbnail, setGeneratedThumbnail] = useState<ThumbnailResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedNarration, setCopiedNarration] = useState(false);
 
@@ -172,7 +174,7 @@ export default function Home() {
           videoId: generatedAssets.videoId,
           clips: generatedAssets.clips,
           narration: generatedScript.narration,
-          narrationAudio: voiceOverPath, // Pass the pre-generated voice-over
+          narrationAudio: voiceOverPath,
           music: generatedAssets.music,
           branding: generatedAssets.branding,
         }),
@@ -198,6 +200,53 @@ export default function Home() {
       setError(err instanceof Error ? err.message : "Failed to assemble video");
     } finally {
       setIsAssemblingVideo(false);
+    }
+  };
+
+  const handleGenerateThumbnail = async () => {
+    if (!generatedScript || !generatedAssets) return;
+
+    console.log("🎨 Starting thumbnail generation...");
+    setIsGeneratingThumbnail(true);
+    setError(null);
+
+    try {
+      console.log("📤 Sending request to /api/generate-thumbnail");
+      const response = await fetch("/api/generate-thumbnail", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          videoId: generatedAssets.videoId,
+          title: generatedScript.title,
+          description: generatedScript.description,
+          narration: generatedScript.narration,
+          tags: generatedScript.tags,
+          style: "vibrant",
+        }),
+      });
+
+      console.log("📡 Response status:", response.status);
+      const data = await response.json();
+      console.log("📦 Response data:", data);
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate thumbnail");
+      }
+
+      if (!data.thumbnail) {
+        console.error("❌ No thumbnail in response!");
+        throw new Error("No thumbnail returned from server");
+      }
+
+      console.log("✅ Thumbnail generated:", data.thumbnail);
+      setGeneratedThumbnail(data.thumbnail);
+    } catch (err) {
+      console.error("❌ Error generating thumbnail:", err);
+      setError(err instanceof Error ? err.message : "Failed to generate thumbnail");
+    } finally {
+      setIsGeneratingThumbnail(false);
     }
   };
 
@@ -647,6 +696,109 @@ export default function Home() {
                       </div>
                     </div>
                   )}
+
+                  {/* Thumbnail Generation Section - After Video Assembly */}
+                  {assembledVideo && (
+                    <div className="bg-gradient-to-r from-pink-50 to-rose-50 dark:from-pink-950/30 dark:to-rose-950/30 rounded-lg p-6 border-2 border-pink-200 dark:border-pink-800">
+                      <div className="flex items-center gap-2 mb-4">
+                        <ImagePlus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                        <h3 className="font-semibold text-lg">Generate Thumbnail</h3>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <p className="text-sm text-muted-foreground">
+                            Generate an eye-catching YouTube thumbnail using AI. The thumbnail will be created based on your video&apos;s title, description, and content.
+                          </p>
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            🎨 Uses Gemini Imagen 3.0 for high-quality image generation
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            📐 Output: 16:9 aspect ratio, optimized for YouTube
+                          </p>
+                        </div>
+
+                        <Button
+                          onClick={handleGenerateThumbnail}
+                          disabled={isGeneratingThumbnail || generatedThumbnail !== null}
+                          className="w-full h-12"
+                          size="lg"
+                        >
+                          {isGeneratingThumbnail ? (
+                            <>
+                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                              Generating Thumbnail...
+                            </>
+                          ) : generatedThumbnail ? (
+                            <>
+                              <Check className="mr-2 h-5 w-5" />
+                              Thumbnail Generated!
+                            </>
+                          ) : (
+                            <>
+                              <ImagePlus className="mr-2 h-5 w-5" />
+                              Generate Thumbnail
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Generated Thumbnail Display */}
+                  {generatedThumbnail && (
+                    <div className="bg-gradient-to-r from-fuchsia-50 to-violet-50 dark:from-fuchsia-950/30 dark:to-violet-950/30 rounded-lg p-6 border-2 border-fuchsia-200 dark:border-fuchsia-800 animate-in fade-in slide-in-from-top-4 duration-500">
+                      <div className="flex items-center gap-2 mb-4">
+                        <ImageIcon className="w-5 h-5 text-fuchsia-600 dark:text-fuchsia-400" />
+                        <h3 className="font-semibold text-lg">Thumbnail Ready!</h3>
+                        <Badge className="ml-auto bg-fuchsia-600">Complete</Badge>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Thumbnail Preview */}
+                        <div className="bg-black rounded-lg overflow-hidden">
+                          <img
+                            src={`/api/videos/${generatedThumbnail.thumbnailPath}`}
+                            alt="Generated YouTube Thumbnail"
+                            className="w-full object-contain"
+                          />
+                        </div>
+
+                        {/* Thumbnail Info */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-muted-foreground mb-1">Aspect Ratio</p>
+                            <p className="text-lg font-bold">16:9</p>
+                          </div>
+                          <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-3 text-center">
+                            <p className="text-xs text-muted-foreground mb-1">Format</p>
+                            <p className="text-lg font-bold">PNG</p>
+                          </div>
+                        </div>
+
+                        {/* Download Button */}
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = `/api/videos/${generatedThumbnail.thumbnailPath}`;
+                            link.download = `thumbnail-${generatedThumbnail.videoId}.png`;
+                            link.click();
+                          }}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          Download Thumbnail
+                        </Button>
+
+                        <div className="bg-fuchsia-100 dark:bg-fuchsia-900/30 rounded-lg p-4">
+                          <p className="text-sm text-fuchsia-800 dark:text-fuchsia-300">
+                            🎨 Your thumbnail is ready! Perfect for YouTube uploads. File saved at: <code className="text-xs bg-white/50 dark:bg-black/30 px-2 py-1 rounded">{generatedThumbnail.thumbnailPath}</code>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -769,6 +921,7 @@ export default function Home() {
                     setVoiceOverPath(null);
                     setGeneratedAssets(null);
                     setAssembledVideo(null);
+                    setGeneratedThumbnail(null);
                     setVideoIdea("");
                   }}
                 >

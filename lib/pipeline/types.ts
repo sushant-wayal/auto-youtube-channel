@@ -14,7 +14,7 @@ export interface Short {
 }
 
 export interface GenerationProgress {
-    stage: "script" | "assets" | "assembly" | "audio" | "visuals" | "editing" | "rendering" | "complete";
+    stage: "script" | "assets" | "assembly" | "thumbnail" | "audio" | "visuals" | "editing" | "rendering" | "complete";
     message: string;
     progress: number; // 0-100
 }
@@ -37,10 +37,19 @@ export interface VideoAssemblyResult {
     clipCount: number;
 }
 
+export interface ThumbnailResult {
+    thumbnailPath: string;
+    prompt: string;
+    videoId: string;
+    provider: "gemini" | "huggingface";
+    model?: string;
+}
+
 export interface VideoGenerationResult {
     script?: VideoScript;
     assets?: VideoAssets;
     video?: VideoAssemblyResult;
+    thumbnail?: ThumbnailResult;
     audioUrl?: string;
     videoUrl?: string;
     error?: string;

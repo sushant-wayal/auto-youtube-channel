@@ -5,6 +5,7 @@
  */
 
 import GeminiClient from "../ai/gemini-client";
+import type { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
 
@@ -14,7 +15,7 @@ export interface GeminiTTSConfig {
 }
 
 class GeminiTTSService {
-    private client: GeminiClient;
+    private genAI: GoogleGenAI;
     private readonly MODEL_NAME = "gemini-2.5-flash-preview-tts"; // Correct TTS model name
 
     // Available voices for Gemini TTS
@@ -27,7 +28,7 @@ class GeminiTTSService {
     };
 
     constructor() {
-        this.client = GeminiClient.getInstance();
+        this.genAI = GeminiClient.getInstance().getGenAI();
     }
 
     /**
@@ -44,19 +45,10 @@ class GeminiTTSService {
         console.log(`⚡ Speed: ${config?.speed || 1.0}x`);
 
         try {
-            const model = this.client.getModel(this.MODEL_NAME);
-
             // Process text for better TTS output
             const processedText = this.processNarrationForTTS(text);
 
-            // Prepare the TTS request with audio modality
-            const generationConfig: any = {
-                temperature: 1,
-                maxOutputTokens: 8192,
-                responseModalities: ["AUDIO"], // Request audio output
-            };
-
-            // Add speech config if provided
+            // Build speech config
             const speechConfig: any = {};
 
             if (config?.voice) {
@@ -71,34 +63,29 @@ class GeminiTTSService {
                 speechConfig.speed = config.speed;
             }
 
-            // Only add speechConfig if we have voice or speed settings
-            if (Object.keys(speechConfig).length > 0) {
-                generationConfig.speechConfig = speechConfig;
-            }
-
             console.log(`🚀 Generating audio with Gemini 2.5 Flash Preview TTS...`);
             console.log(`⏳ This may take 10-30 seconds for long narrations...`);
 
-            const result = await model.generateContent({
-                contents: [{
-                    role: "user",
-                    parts: [{ text: processedText }]
-                }],
-                generationConfig,
+            const result = await this.genAI.models.generateContent({
+                model: this.MODEL_NAME,
+                contents: processedText,
+                config: {
+                    temperature: 1,
+                    maxOutputTokens: 8192,
+                    responseModalities: ["AUDIO"],
+                    speechConfig: Object.keys(speechConfig).length > 0 ? speechConfig : undefined,
+                },
             });
 
             // Extract audio data from response
-            const response = result.response;
-
-            // Check if audio is available in the response
-            if (!response.candidates || response.candidates.length === 0) {
+            if (!result.candidates || result.candidates.length === 0) {
                 throw new Error("No audio generated in response");
             }
 
-            const candidate = response.candidates[0];
+            const candidate = result.candidates[0];
 
             // Extract audio from inline data
-            if (candidate.content.parts && candidate.content.parts.length > 0) {
+            if (candidate.content?.parts && candidate.content.parts.length > 0) {
                 const audioPart = candidate.content.parts.find((part: any) => part.inlineData);
 
                 if (!audioPart || !audioPart.inlineData) {
@@ -107,6 +94,9 @@ class GeminiTTSService {
 
                 // Convert base64 audio to buffer
                 const audioBase64 = audioPart.inlineData.data;
+                if (!audioBase64) {
+                    throw new Error("No audio data in inline data");
+                }
                 const audioBuffer = Buffer.from(audioBase64, 'base64');
 
                 console.log(`✅ Generated ${audioBuffer.length} bytes of audio`);

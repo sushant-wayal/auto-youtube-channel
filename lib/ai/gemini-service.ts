@@ -1,8 +1,5 @@
 import GeminiClient from "./gemini-client";
-import {
-    GenerateContentResult,
-    GenerativeModel,
-} from "@google/generative-ai";
+import type { GoogleGenAI, GenerateContentResponse, Chat } from "@google/genai";
 
 export interface GeminiConfig {
     model?: string;
@@ -14,9 +11,11 @@ export interface GeminiConfig {
 
 class GeminiService {
     private client: GeminiClient;
+    private genAI: GoogleGenAI;
 
     constructor() {
         this.client = GeminiClient.getInstance();
+        this.genAI = this.client.getGenAI();
     }
 
     /**
@@ -29,10 +28,18 @@ class GeminiService {
         config?: GeminiConfig
     ): Promise<string> {
         try {
-            const model = this.getConfiguredModel(config);
-            const result = await model.generateContent(prompt);
-            const response = result.response;
-            return response.text();
+            const modelName = config?.model || "gemini-2.5-flash";
+            const result = await this.genAI.models.generateContent({
+                model: modelName,
+                contents: prompt,
+                config: {
+                    temperature: config?.temperature,
+                    maxOutputTokens: config?.maxOutputTokens,
+                    topP: config?.topP,
+                    topK: config?.topK,
+                },
+            });
+            return result.text || "";
         } catch (error) {
             console.error("Error generating text:", error);
             throw new Error(`Failed to generate text: ${error}`);
@@ -49,12 +56,23 @@ class GeminiService {
         config?: GeminiConfig
     ): AsyncGenerator<string, void, unknown> {
         try {
-            const model = this.getConfiguredModel(config);
-            const result = await model.generateContentStream(prompt);
+            const modelName = config?.model || "gemini-2.5-flash";
+            const response = await this.genAI.models.generateContentStream({
+                model: modelName,
+                contents: prompt,
+                config: {
+                    temperature: config?.temperature,
+                    maxOutputTokens: config?.maxOutputTokens,
+                    topP: config?.topP,
+                    topK: config?.topK,
+                },
+            });
 
-            for await (const chunk of result.stream) {
-                const chunkText = chunk.text();
-                yield chunkText;
+            for await (const chunk of response) {
+                const chunkText = chunk.text || "";
+                if (chunkText) {
+                    yield chunkText;
+                }
             }
         } catch (error) {
             console.error("Error generating text stream:", error);
@@ -70,13 +88,20 @@ class GeminiService {
     startChat(
         config?: GeminiConfig,
         history?: Array<{ role: string; parts: string }>
-    ) {
-        const model = this.getConfiguredModel(config);
-        return model.startChat({
+    ): Chat {
+        const modelName = config?.model || "gemini-2.5-flash";
+        return this.genAI.chats.create({
+            model: modelName,
             history: history?.map((msg) => ({
-                role: msg.role,
+                role: msg.role as "user" | "model",
                 parts: [{ text: msg.parts }],
             })),
+            config: {
+                temperature: config?.temperature,
+                maxOutputTokens: config?.maxOutputTokens,
+                topP: config?.topP,
+                topK: config?.topK,
+            },
         });
     }
 
@@ -92,7 +117,7 @@ class GeminiService {
         config?: GeminiConfig
     ): Promise<string> {
         try {
-            const model = this.getConfiguredModel(config);
+            const modelName = config?.model || "gemini-2.5-flash";
 
             const imageParts = images.map((img) => ({
                 inlineData: {
@@ -101,9 +126,22 @@ class GeminiService {
                 },
             }));
 
-            const result = await model.generateContent([prompt, ...imageParts]);
-            const response = result.response;
-            return response.text();
+            const result = await this.genAI.models.generateContent({
+                model: modelName,
+                contents: [
+                    {
+                        role: "user",
+                        parts: [{ text: prompt }, ...imageParts],
+                    },
+                ],
+                config: {
+                    temperature: config?.temperature,
+                    maxOutputTokens: config?.maxOutputTokens,
+                    topP: config?.topP,
+                    topK: config?.topK,
+                },
+            });
+            return result.text || "";
         } catch (error) {
             console.error("Error generating multimodal content:", error);
             throw new Error(`Failed to generate multimodal content: ${error}`);
@@ -120,39 +158,16 @@ class GeminiService {
         config?: GeminiConfig
     ): Promise<number> {
         try {
-            const model = this.getConfiguredModel(config);
-            const result = await model.countTokens(prompt);
-            return result.totalTokens;
+            const modelName = config?.model || "gemini-2.5-flash";
+            const result = await this.genAI.models.countTokens({
+                model: modelName,
+                contents: prompt,
+            });
+            return result.totalTokens || 0;
         } catch (error) {
             console.error("Error counting tokens:", error);
             throw new Error(`Failed to count tokens: ${error}`);
         }
-    }
-
-    /**
-     * Get a configured model with generation settings
-     */
-    private getConfiguredModel(config?: GeminiConfig): GenerativeModel {
-        const modelName = config?.model || "gemini-2.5-flash";
-        const model = this.client.getModel(modelName);
-
-        // If additional config is provided, we need to get a new model instance with config
-        if (config?.temperature !== undefined ||
-            config?.maxOutputTokens !== undefined ||
-            config?.topP !== undefined ||
-            config?.topK !== undefined) {
-            return this.client.getGenAI().getGenerativeModel({
-                model: modelName,
-                generationConfig: {
-                    temperature: config.temperature,
-                    maxOutputTokens: config.maxOutputTokens,
-                    topP: config.topP,
-                    topK: config.topK,
-                },
-            });
-        }
-
-        return model;
     }
 }
 

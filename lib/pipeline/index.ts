@@ -161,7 +161,7 @@ class VideoGenerationPipeline {
 
         // Download stock footage clips
         console.log("\n📹 Step 1: Downloading stock footage clips...");
-        const clips = await downloadClipsForVideo(videoId, narration, 10);
+        const clips = await downloadClipsForVideo(videoId, narration);
         console.log(`✅ Downloaded ${clips.length} clips`);
 
         // Select background music
