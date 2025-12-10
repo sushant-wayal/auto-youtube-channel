@@ -58,12 +58,12 @@ class GeminiTTSService {
 
             // Add speech config if provided
             const speechConfig: any = {};
-            
+
             if (config?.voice) {
-                speechConfig.voiceConfig = { 
-                    prebuiltVoiceConfig: { 
-                        voiceName: config.voice 
-                    } 
+                speechConfig.voiceConfig = {
+                    prebuiltVoiceConfig: {
+                        voiceName: config.voice
+                    }
                 };
             }
 
@@ -89,18 +89,18 @@ class GeminiTTSService {
 
             // Extract audio data from response
             const response = result.response;
-            
+
             // Check if audio is available in the response
             if (!response.candidates || response.candidates.length === 0) {
                 throw new Error("No audio generated in response");
             }
 
             const candidate = response.candidates[0];
-            
+
             // Extract audio from inline data
             if (candidate.content.parts && candidate.content.parts.length > 0) {
                 const audioPart = candidate.content.parts.find((part: any) => part.inlineData);
-                
+
                 if (!audioPart || !audioPart.inlineData) {
                     throw new Error("No audio data found in response");
                 }
@@ -155,7 +155,7 @@ class GeminiTTSService {
 
             console.log(`💾 Audio saved to: ${wavPath}`);
             console.log(`📊 File size: ${(wavBuffer.length / 1024 / 1024).toFixed(2)} MB`);
-            
+
             return wavPath;
 
         } catch (error) {

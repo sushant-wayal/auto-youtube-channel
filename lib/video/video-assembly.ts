@@ -350,7 +350,7 @@ export class VideoAssemblyService {
     }
 
     /**
-     * Prepare background music - loop if shorter than video
+     * Prepare background music - loop to match video duration
      */
     async prepareBackgroundMusic(
         musicPath: string,
@@ -359,52 +359,28 @@ export class VideoAssemblyService {
     ): Promise<string> {
         const outputPath = path.join(outputDir, 'background_music.mp3');
 
-        // Get music duration
-        let musicDuration: number;
-        try {
-            musicDuration = await getVideoDuration(musicPath);
-        } catch (error) {
-            console.warn('  Could not get music duration, using as-is');
-            await fs.copyFile(musicPath, outputPath);
-            return outputPath;
-        }
+        console.log(`  Preparing background music to loop for ${videoDuration.toFixed(2)}s...`);
 
-        console.log(`  Music duration: ${musicDuration.toFixed(2)}s, Video duration: ${videoDuration.toFixed(2)}s`);
+        // Always loop the music to match video duration
+        await runFFmpeg({
+            inputs: [musicPath],
+            output: outputPath,
+            args: [
+                '-filter_complex', `aloop=loop=-1:size=2e+09,atrim=0:${videoDuration}`,
+                '-c:a', 'libmp3lame',
+                '-b:a', '192k',
+                '-ar', '48000',
+            ],
+        });
 
-        if (musicDuration >= videoDuration) {
-            // Music is long enough, just trim to video length
-            console.log('  Trimming music to match video duration...');
-            await runFFmpeg({
-                inputs: [musicPath],
-                output: outputPath,
-                args: [
-                    '-t', videoDuration.toString(),
-                    '-c:a', 'libmp3lame',
-                    '-b:a', '192k',
-                ],
-            });
-        } else {
-            // Music is shorter, loop it
-            console.log('  Looping music to match video duration...');
-            await runFFmpeg({
-                inputs: [musicPath],
-                output: outputPath,
-                args: [
-                    '-filter_complex', `aloop=loop=-1:size=2e+09`,
-                    '-t', videoDuration.toString(),
-                    '-c:a', 'libmp3lame',
-                    '-b:a', '192k',
-                ],
-            });
-        }
-
-        console.log('  ✓ Background music ready');
+        console.log('  ✓ Background music looped to match video duration');
         return outputPath;
     }
 
     /**
      * Mix narration audio with background music
      * Narration is primary, music is lowered to background level
+     * Music loops throughout entire video with different volume for outro
      */
     async mixNarrationWithMusic(
         narrationPath: string,
@@ -421,21 +397,41 @@ export class VideoAssemblyService {
         // Get narration duration
         const narrationDuration = await getVideoDuration(narrationPath);
         console.log(`  Narration duration: ${narrationDuration.toFixed(2)}s`);
+        console.log(`  Total video duration: ${videoDuration.toFixed(2)}s`);
 
-        // Mix audio: narration at full volume, music at 20% volume in background
+        // Calculate outro duration (time after narration ends)
+        const outroDuration = Math.max(0, videoDuration - narrationDuration);
+        console.log(`  Outro duration: ${outroDuration.toFixed(2)}s`);
+
+        // Create filter complex for proper audio mixing:
+        // 1. Loop music throughout entire video
+        // 2. BGM at 15% during narration
+        // 3. BGM at 30% during outro (after narration ends)
+        const filterComplex = outroDuration > 0
+            ? `[1:a]aloop=loop=-1:size=2e+09,atrim=0:${videoDuration}[music];` +
+            `anullsrc=r=48000:cl=stereo,atrim=0:${outroDuration}[silence];` +
+            `[0:a][silence]concat=n=2:v=0:a=1[narration_padded];` +
+            `[music]asplit=2[music1][music2];` +
+            `[music1]volume=0.15,atrim=0:${narrationDuration}[bgm_narration];` +
+            `[music2]volume=0.30,atrim=${narrationDuration}:${videoDuration},asetpts=PTS-STARTPTS[bgm_outro];` +
+            `[narration_padded][bgm_narration]amix=inputs=2:duration=first[main];` +
+            `[main][bgm_outro]concat=n=2:v=0:a=1[out]`
+            : `[1:a]aloop=loop=-1:size=2e+09,atrim=0:${videoDuration},volume=0.15[music];` +
+            `[0:a][music]amix=inputs=2:duration=first[out]`;
+
         await runFFmpeg({
             inputs: [narrationPath, musicPath],
             output: outputPath,
             args: [
-                '-filter_complex',
-                `[0:a]volume=1.0[narration];[1:a]volume=0.2[music];[narration][music]amix=inputs=2:duration=longest`,
+                '-filter_complex', filterComplex,
+                '-map', '[out]',
                 '-c:a', 'libmp3lame',
                 '-b:a', '192k',
-                '-t', videoDuration.toString(),
+                '-ar', '48000',
             ],
         });
 
-        console.log(`  ✓ Audio mixing complete`);
+        console.log(`  ✓ Audio mixing complete (BGM loops throughout, louder at outro)`);
         return outputPath;
     }
 

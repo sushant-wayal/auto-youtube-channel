@@ -22,9 +22,9 @@ export async function POST(request: NextRequest) {
         // Create output directory
         const audioOutputDir = path.join(process.cwd(), 'videos', videoId);
         await fs.mkdir(audioOutputDir, { recursive: true });
-        
+
         const audioOutputPath = path.join(audioOutputDir, 'narration.wav');
-        
+
         // Generate voice-over with Gemini TTS
         const ttsService = new GeminiTTSService();
         const voiceOverPath = await ttsService.generateNarrationAudio(

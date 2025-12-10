@@ -153,22 +153,56 @@ CRITICAL RULES:
     }
 
     /**
-     * Preprocess narration to clean up [PAUSE] markers
-     * Replaces [PAUSE] with commas for natural TTS flow
+     * Preprocess narration to clean up [PAUSE] markers and sanitize text
+     * Replaces [PAUSE] with natural pauses and removes unwanted characters
      */
     private preprocessNarration(narration: string): string {
-        // Replace [PAUSE] with comma
+        // Step 1: Replace [PAUSE] with comma for natural TTS flow
         let processed = narration.replace(/\[PAUSE\]/gi, ',');
-        
-        // Clean up multiple commas (in case there was already a comma before [PAUSE])
-        processed = processed.replace(/,\s*,+/g, ',');
-        
-        // Clean up comma followed by period
-        processed = processed.replace(/,\s*\./g, '.');
-        
-        // Clean up extra whitespace
-        processed = processed.replace(/\s+/g, ' ').trim();
-        
+
+        // Step 2: Remove any remaining square brackets with content (e.g., [SFX], [MUSIC])
+        processed = processed.replace(/\[[^\]]*\]/g, '');
+
+        // Step 3: Remove markdown formatting
+        processed = processed.replace(/\*\*([^*]+)\*\*/g, '$1'); // Bold
+        processed = processed.replace(/\*([^*]+)\*/g, '$1'); // Italic
+        processed = processed.replace(/__([^_]+)__/g, '$1'); // Underline
+        processed = processed.replace(/_([^_]+)_/g, '$1'); // Underline alt
+
+        // Step 4: Remove hashtags
+        processed = processed.replace(/#\w+/g, '');
+
+        // Step 5: Clean up multiple punctuation marks
+        processed = processed.replace(/[!?]{2,}/g, '!'); // Multiple exclamation/question marks
+        processed = processed.replace(/\.{2,}/g, '.'); // Multiple periods (except ellipsis)
+        processed = processed.replace(/,\s*,+/g, ','); // Multiple commas
+
+        // Step 6: Fix spacing around punctuation
+        processed = processed.replace(/\s+([,.!?;:])/g, '$1'); // Remove space before punctuation
+        processed = processed.replace(/([,.!?;:])\s*([,.!?;:])/g, '$1 '); // Fix multiple punctuation
+        processed = processed.replace(/,\s*\./g, '.'); // Comma before period
+
+        // Step 7: Clean up quotes
+        processed = processed.replace(/[""](?=\s|$)/g, ''); // Remove standalone quotes
+        processed = processed.replace(/[""]/g, '"'); // Normalize curly quotes
+
+        // Step 8: Remove URLs
+        processed = processed.replace(/https?:\/\/[^\s]+/g, '');
+
+        // Step 9: Remove special characters that TTS might struggle with
+        processed = processed.replace(/[<>{}|\\^~`]/g, '');
+
+        // Step 10: Normalize whitespace
+        processed = processed.replace(/\s+/g, ' '); // Multiple spaces to single
+        processed = processed.replace(/\n\s*\n\s*\n+/g, '\n\n'); // Max 2 newlines
+        processed = processed.trim();
+
+        // Step 11: Ensure sentences end with proper punctuation
+        processed = processed.replace(/([a-zA-Z0-9])\s*\n/g, '$1.\n');
+
+        // Step 12: Remove any remaining control characters
+        processed = processed.replace(/[\x00-\x1F\x7F]/g, '');
+
         return processed;
     }
 

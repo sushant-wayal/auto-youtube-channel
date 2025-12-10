@@ -156,4 +156,61 @@ class GeminiService {
     }
 }
 
+/**
+ * Sanitize and clean generated script text
+ * Removes unwanted formatting, special characters, and ensures proper structure
+ */
+export function sanitizeScript(script: string): string {
+    let sanitized = script;
+
+    // Remove markdown code blocks
+    sanitized = sanitized.replace(/```[\w]*\n?/g, '');
+
+    // Remove common AI response prefixes
+    sanitized = sanitized.replace(/^(Here's|Here is|Script:|Narration:|Output:)\s*/gim, '');
+
+    // Remove asterisks used for emphasis
+    sanitized = sanitized.replace(/\*\*/g, '');
+    sanitized = sanitized.replace(/\*/g, '');
+
+    // Remove underscores used for emphasis
+    sanitized = sanitized.replace(/__/g, '');
+    sanitized = sanitized.replace(/_/g, '');
+
+    // Remove square brackets with content (except [PAUSE])
+    sanitized = sanitized.replace(/\[(?!PAUSE\])[^\]]*\]/g, '');
+
+    // Remove parenthetical stage directions
+    sanitized = sanitized.replace(/\([^)]*\)/g, '');
+
+    // Remove HTML tags
+    sanitized = sanitized.replace(/<[^>]*>/g, '');
+
+    // Remove quotes at the start and end of the entire text
+    sanitized = sanitized.replace(/^["']+|["']+$/g, '');
+
+    // Remove multiple consecutive spaces
+    sanitized = sanitized.replace(/ +/g, ' ');
+
+    // Remove multiple consecutive newlines (keep max 2)
+    sanitized = sanitized.replace(/\n{3,}/g, '\n\n');
+
+    // Trim whitespace from each line
+    sanitized = sanitized.split('\n')
+        .map(line => line.trim())
+        .join('\n');
+
+    // Remove leading/trailing whitespace
+    sanitized = sanitized.trim();
+
+    // Ensure proper sentence spacing
+    sanitized = sanitized.replace(/([.!?])\s*([A-Z])/g, '$1 $2');
+
+    // Fix common punctuation issues
+    sanitized = sanitized.replace(/\s+([.,!?;:])/g, '$1');
+    sanitized = sanitized.replace(/([.,!?;:])\s*$/gm, '$1');
+
+    return sanitized;
+}
+
 export default GeminiService;

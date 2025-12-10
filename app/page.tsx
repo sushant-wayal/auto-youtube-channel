@@ -395,7 +395,7 @@ export default function Home() {
                         <span className="font-semibold text-sm">Voice-Over Audio Preview</span>
                         <Badge variant="secondary" className="ml-auto">Ready</Badge>
                       </div>
-                      
+
                       {/* Audio Player */}
                       <audio
                         controls

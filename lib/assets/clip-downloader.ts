@@ -5,8 +5,9 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { extractKeywords } from './keyword-extractor';
+import { KeywordExtractor } from './keyword-extractor';
 import { fetchClipsForKeyword, StockClip } from './pexels-client';
+import { getVideoDuration } from '../video/ffmpeg-utils';
 
 /**
  * Download a single clip from URL to file path
@@ -28,22 +29,41 @@ async function downloadClip(url: string, outputPath: string): Promise<void> {
  * Download stock footage clips for a video based on narration keywords
  * @param videoId - Unique identifier for the video
  * @param narration - Full narration text
- * @param targetCount - Target number of clips to download (default: 10)
+ * @param narrationAudioPath - Path to the narration audio file (to calculate duration)
  * @returns Array of absolute file paths to downloaded clips
  */
 export async function downloadClipsForVideo(
   videoId: string,
   narration: string,
-  targetCount: number = 10
+  narrationAudioPath?: string
 ): Promise<string[]> {
   console.log(`\n🎬 Starting clip download for video: ${videoId}`);
-  console.log(`🎯 Target: ${targetCount} clips`);
 
-  // Extract keywords from narration
-  const keywords = extractKeywords(narration, 10);
-  console.log(`📝 Extracted keywords:`, keywords);
+  // Get audio duration if path is provided
+  let audioDuration: number = 0;
+  if (narrationAudioPath) {
+    try {
+      audioDuration = await getVideoDuration(narrationAudioPath);
+      console.log(`🎵 Audio duration: ${audioDuration.toFixed(2)}s`);
+    } catch (error) {
+      console.warn('⚠️  Could not determine audio duration, using default keyword count');
+      audioDuration = 60; // Default to 60 seconds if we can't determine
+    }
+  } else {
+    // Estimate duration based on word count (average 150 words per minute)
+    const wordCount = narration.split(/\s+/).length;
+    audioDuration = (wordCount / 150) * 60;
+    console.log(`📊 Estimated audio duration: ${audioDuration.toFixed(2)}s (based on ${wordCount} words)`);
+  }
 
-  if (keywords.length === 0) {
+  // Extract keywords using AI based on content and duration
+  const keywordExtractor = new KeywordExtractor();
+  const result = await keywordExtractor.extractKeywords(narration, audioDuration);
+
+  console.log(`🎯 Target: ${result.estimatedClipsNeeded} clips`);
+  console.log(`📝 Extracted keywords:`, result.keywords);
+
+  if (result.keywords.length === 0) {
     throw new Error('No keywords could be extracted from narration');
   }
 
@@ -56,12 +76,12 @@ export async function downloadClipsForVideo(
   let clipCounter = 1;
 
   // Iterate through keywords and download clips
-  for (const keyword of keywords) {
-    if (downloadedPaths.length >= targetCount) {
+  for (const keyword of result.keywords) {
+    if (downloadedPaths.length >= result.estimatedClipsNeeded) {
       break;
     }
 
-    const remainingClips = targetCount - downloadedPaths.length;
+    const remainingClips = result.estimatedClipsNeeded - downloadedPaths.length;
     const clipsToFetch = Math.min(3, remainingClips);
 
     // Fetch clips for this keyword
@@ -69,7 +89,7 @@ export async function downloadClipsForVideo(
 
     // Download each clip
     for (const clip of clips) {
-      if (downloadedPaths.length >= targetCount) {
+      if (downloadedPaths.length >= result.estimatedClipsNeeded) {
         break;
       }
 
@@ -78,7 +98,7 @@ export async function downloadClipsForVideo(
         const filename = `clip-${clipNumber}.mp4`;
         const outputPath = path.join(outputDir, filename);
 
-        console.log(`⬇️  Downloading clip ${clipCounter}/${targetCount} (${keyword})...`);
+        console.log(`⬇️  Downloading clip ${clipCounter}/${result.estimatedClipsNeeded} (${keyword})...`);
         await downloadClip(clip.url, outputPath);
 
         downloadedPaths.push(outputPath);
@@ -92,7 +112,7 @@ export async function downloadClipsForVideo(
     }
 
     // Small delay to be nice to the API
-    if (downloadedPaths.length < targetCount) {
+    if (downloadedPaths.length < result.estimatedClipsNeeded) {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
