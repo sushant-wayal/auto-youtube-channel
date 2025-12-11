@@ -889,7 +889,7 @@ export default function Home() {
       // ========== STEP 4: Video Assembly (depends on voice-over and assets) ==========
       if (voiceOverResult && assetsResult) {
         console.log(`🎥 Short #${shortIndex + 1}: Starting video assembly...`);
-        
+
         updateShortStep('assemblyStep', { status: "running", progress: 10, message: "Assembling video..." });
         startShortProgressAnimation(shortIndex, 'assemblyStep', 85);
 
@@ -913,10 +913,10 @@ export default function Home() {
         }
 
         stopShortProgressAnimation(shortIndex, 'assemblyStep');
-        updateShortStep('assemblyStep', { 
-          status: "completed", 
-          progress: 100, 
-          message: `Video ready! ${assemblyData.result.duration.toFixed(0)}s` 
+        updateShortStep('assemblyStep', {
+          status: "completed",
+          progress: 100,
+          message: `Video ready! ${assemblyData.result.duration.toFixed(0)}s`
         });
 
         console.log(`✅ Short #${shortIndex + 1}: Assembly complete! Duration: ${assemblyData.result.duration.toFixed(1)}s`);
@@ -947,10 +947,10 @@ export default function Home() {
       } else {
         // Cannot assemble - missing dependencies
         stopShortProgressAnimation(shortIndex, 'assemblyStep');
-        updateShortStep('assemblyStep', { 
-          status: "error", 
-          progress: 0, 
-          message: "Cannot assemble: missing voice-over or assets" 
+        updateShortStep('assemblyStep', {
+          status: "error",
+          progress: 0,
+          message: "Cannot assemble: missing voice-over or assets"
         });
 
         setPipelineState(prev => {
@@ -972,7 +972,7 @@ export default function Home() {
       setPipelineState(prev => {
         const newShorts = [...prev.shortsGeneration.shorts];
         const shortState = { ...newShorts[shortIndex] };
-        
+
         if (shortState.voiceOverStep.status !== "completed") {
           shortState.voiceOverStep = { ...shortState.voiceOverStep, status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed" };
         }
@@ -985,10 +985,10 @@ export default function Home() {
         if (shortState.thumbnailStep.status !== "completed") {
           shortState.thumbnailStep = { ...shortState.thumbnailStep, status: "error", progress: 0, message: "Failed" };
         }
-        
+
         shortState.status = "error";
         newShorts[shortIndex] = shortState;
-        
+
         return {
           ...prev,
           shortsGeneration: { ...prev.shortsGeneration, shorts: newShorts },
