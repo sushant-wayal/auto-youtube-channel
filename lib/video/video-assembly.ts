@@ -19,6 +19,7 @@ export interface VideoAssemblyInput {
         intro?: string;
         outro?: string;
     };
+    isShort?: boolean;           // If true, output vertical 9:16 format for YouTube Shorts
 }
 
 export interface VideoAssemblyResult {
@@ -33,8 +34,30 @@ export class VideoAssemblyService {
     private readonly WORDS_PER_MINUTE = 150; // Average speaking rate
     private readonly WORDS_PER_SECOND = this.WORDS_PER_MINUTE / 60;
 
+    // Video format configurations
+    private readonly LANDSCAPE_FORMAT = {
+        width: 1920,
+        height: 1080,
+        scale: 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black',
+    };
+
+    private readonly VERTICAL_FORMAT = {
+        width: 1080,
+        height: 1920,
+        // For vertical: crop center of landscape video, then scale to 1080x1920
+        scale: 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+    };
+
     constructor(workDir?: string) {
         this.workDir = workDir || path.join(process.cwd(), 'videos');
+    }
+
+    /**
+     * Get video filter string based on format (landscape or vertical for shorts)
+     */
+    private getVideoFilter(isShort: boolean = false): string {
+        const format = isShort ? this.VERTICAL_FORMAT : this.LANDSCAPE_FORMAT;
+        return `${format.scale},fps=30`;
     }
 
     /**
@@ -196,6 +219,7 @@ export class VideoAssemblyService {
         console.log(`Narration Audio: ${input.narrationAudio ? '✓' : '✗'}`);
         console.log(`Music: ${input.music ? '✓' : '✗'}`);
         console.log(`Branding: ${input.branding ? Object.keys(input.branding).length : 0} asset(s)`);
+        console.log(`Shorts Format: ${input.isShort ? '✓ (9:16 vertical, no intro/outro)' : '✗'}`);
 
         // Check FFmpeg availability
         const hasFFmpeg = await checkFFmpeg();
@@ -248,7 +272,7 @@ export class VideoAssemblyService {
 
         // Step 1: Normalize all clips with calculated timing
         console.log('\n📐 Step 1: Normalizing clips with dynamic timing...');
-        const normalizedClips = await this.normalizeClipsWithTiming(input.clips, clipTimings, outputDir);
+        const normalizedClips = await this.normalizeClipsWithTiming(input.clips, clipTimings, outputDir, input.isShort);
         console.log(`✅ Normalized ${normalizedClips.length} clips`);
 
         // Step 2: Concatenate main clips (without intro/outro)
@@ -283,27 +307,40 @@ export class VideoAssemblyService {
         await this.addAudioToVideo(mainClipsVideo, finalAudio, mainClipsWithAudio);
         console.log(`✅ Audio added to main clips`);
 
-        // Step 5: Normalize and add intro/outro (preserving their original audio)
-        console.log('\n🎬 Step 5: Adding intro/outro with original audio...');
-        const clipsWithBranding = await this.addIntroOutroWithOriginalAudio(
-            mainClipsWithAudio,
-            input.branding?.intro,
-            input.branding?.outro,
-            outputDir
-        );
-        console.log(`✅ Branding videos processed`);
+        let combinedVideo: string;
 
-        // Step 6: Concatenate intro + main + outro
-        console.log('\n🔗 Step 6: Concatenating final video...');
-        const combinedVideo = path.join(outputDir, 'combined.mp4');
-        await this.concatClips(clipsWithBranding, combinedVideo);
-        console.log(`✅ Created combined video`);
+        // Step 5 & 6: Skip intro/outro for shorts, add them for long-form videos
+        if (input.isShort) {
+            // For shorts: skip intro/outro entirely
+            console.log('\n🎬 Step 5: Skipping intro/outro (shorts format)...');
+            console.log(`✅ No intro/outro added for short video`);
+
+            console.log('\n🔗 Step 6: Using main video as combined video...');
+            combinedVideo = mainClipsWithAudio;
+            console.log(`✅ Main video ready for logo overlay`);
+        } else {
+            // For long-form: add intro/outro
+            console.log('\n🎬 Step 5: Adding intro/outro with original audio...');
+            const clipsWithBranding = await this.addIntroOutroWithOriginalAudio(
+                mainClipsWithAudio,
+                input.branding?.intro,
+                input.branding?.outro,
+                outputDir
+            );
+            console.log(`✅ Branding videos processed`);
+
+            // Step 6: Concatenate intro + main + outro
+            console.log('\n🔗 Step 6: Concatenating final video...');
+            combinedVideo = path.join(outputDir, 'combined.mp4');
+            await this.concatClips(clipsWithBranding, combinedVideo);
+            console.log(`✅ Created combined video`);
+        }
 
         // Get total video duration
         const videoDuration = await getVideoDuration(combinedVideo);
         console.log(`📊 Total video duration: ${videoDuration.toFixed(2)}s`);
 
-        // Step 7: Overlay logo
+        // Step 7: Overlay logo (for both shorts and long-form)
         console.log('\n🎨 Step 7: Overlaying logo...');
         const finalOutput = path.join(outputDir, 'final.mp4');
         await this.overlayLogo(combinedVideo, input.branding?.logo, finalOutput);
@@ -313,6 +350,9 @@ export class VideoAssemblyService {
         console.log(`📁 Output: ${finalOutput}`);
         console.log(`⏱️  Duration: ${videoDuration.toFixed(2)}s`);
         console.log(`🎞️  Clips: ${input.clips.length}`);
+        if (input.isShort) {
+            console.log(`📱 Format: 9:16 vertical (YouTube Shorts)`);
+        }
 
         return {
             videoId: input.videoId,
@@ -328,7 +368,8 @@ export class VideoAssemblyService {
     async normalizeClipsWithTiming(
         clips: string[],
         timings: number[],
-        outputDir: string
+        outputDir: string,
+        isShort: boolean = false
     ): Promise<string[]> {
         const normalizedDir = path.join(outputDir, 'normalized');
         await fs.mkdir(normalizedDir, { recursive: true });
@@ -341,7 +382,7 @@ export class VideoAssemblyService {
             const outputPath = path.join(normalizedDir, `clip_${i + 1}.mp4`);
 
             console.log(`  Normalizing clip ${i + 1}/${clips.length} (target: ${targetDuration.toFixed(2)}s)...`);
-            await this.normalizeClipWithDuration(clipPath, outputPath, targetDuration);
+            await this.normalizeClipWithDuration(clipPath, outputPath, targetDuration, isShort);
 
             normalizedClips.push(outputPath);
         }
@@ -355,7 +396,8 @@ export class VideoAssemblyService {
     async normalizeClipWithDuration(
         inputPath: string,
         outputPath: string,
-        targetDuration: number
+        targetDuration: number,
+        isShort: boolean = false
     ): Promise<void> {
         // Get original duration
         let originalDuration: number;
@@ -365,6 +407,8 @@ export class VideoAssemblyService {
             console.warn(`  Could not get duration for ${inputPath}, using target duration`);
             originalDuration = targetDuration;
         }
+
+        const videoFilter = this.getVideoFilter(isShort);
 
         if (originalDuration < targetDuration) {
             // Clip is too short, loop it
@@ -376,7 +420,7 @@ export class VideoAssemblyService {
                 output: outputPath,
                 args: [
                     '-t', targetDuration.toString(),
-                    '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30',
+                    '-vf', videoFilter,
                     '-c:v', 'libx264',
                     '-preset', 'medium',
                     '-crf', '23',
@@ -394,7 +438,7 @@ export class VideoAssemblyService {
                 output: outputPath,
                 args: [
                     '-t', targetDuration.toString(),
-                    '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30',
+                    '-vf', videoFilter,
                     '-c:v', 'libx264',
                     '-preset', 'medium',
                     '-crf', '23',

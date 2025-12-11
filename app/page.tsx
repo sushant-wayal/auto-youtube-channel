@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Video, FileText, Mic, Film, Image, Clapperboard, Sparkles } from "lucide-react";
+import { Video, FileText, Mic, Film, Image, Clapperboard, Sparkles, Smartphone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { VideoScript, VideoAssets, VideoAssemblyResult, ThumbnailResult } from "@/lib/pipeline/types";
-import { PipelineState, initialPipelineState, StepStatus } from "@/components/pipeline/types";
+import { PipelineState, initialPipelineState, StepStatus, createShortGenerationState, ShortGenerationState } from "@/components/pipeline/types";
 import PipelineProgress, { RetryableStep } from "@/components/pipeline/PipelineProgress";
 import VideoIdeaInput from "@/components/pipeline/VideoIdeaInput";
 import ScriptDisplay from "@/components/pipeline/ScriptDisplay";
@@ -14,6 +14,8 @@ import VoiceOverDisplay from "@/components/pipeline/VoiceOverDisplay";
 import VideoResultDisplay from "@/components/pipeline/VideoResultDisplay";
 import ThumbnailDisplay from "@/components/pipeline/ThumbnailDisplay";
 import YouTubeUploadButton from "@/components/pipeline/YouTubeUploadButton";
+import ShortsProgressDisplay from "@/components/pipeline/ShortsProgressDisplay";
+import ShortsResultDisplay from "@/components/pipeline/ShortsResultDisplay";
 
 // Placeholder component for pending steps
 function PlaceholderCard({
@@ -288,6 +290,16 @@ export default function Home() {
       const thumbnailPromise = runThumbnailGeneration(videoId, script);
 
       await Promise.allSettled([videoGenerationPromise, thumbnailPromise]);
+
+      // After long-form video completes, start shorts generation if there are shorts in the script
+      if (script.shorts && script.shorts.length > 0) {
+        setPipelineState(prev => ({
+          ...prev,
+          currentPhase: "shorts",
+        }));
+
+        await runShortsGeneration(videoId, script);
+      }
 
       setPipelineState(prev => ({
         ...prev,
@@ -596,6 +608,409 @@ export default function Home() {
     }
   }, [pipelineState, updateStep, startProgressAnimation, stopProgressAnimation]);
 
+  // Progress animation specifically for shorts steps
+  const startShortProgressAnimation = useCallback((
+    shortIndex: number,
+    stepKey: 'voiceOverStep' | 'assetsStep' | 'assemblyStep' | 'thumbnailStep',
+    targetProgress: number = 85
+  ) => {
+    const animationKey = `short-${shortIndex}-${stepKey}`;
+
+    if (progressIntervals.current[animationKey]) {
+      clearInterval(progressIntervals.current[animationKey]);
+    }
+
+    let currentProgress = 10;
+    progressIntervals.current[animationKey] = setInterval(() => {
+      currentProgress += Math.random() * 4 + 2;
+      if (currentProgress >= targetProgress) {
+        currentProgress = targetProgress;
+        clearInterval(progressIntervals.current[animationKey]);
+      }
+
+      setPipelineState(prev => {
+        const newShorts = [...prev.shortsGeneration.shorts];
+        if (newShorts[shortIndex]) {
+          const shortState = { ...newShorts[shortIndex] };
+          shortState[stepKey] = {
+            ...shortState[stepKey],
+            progress: Math.round(currentProgress)
+          };
+          newShorts[shortIndex] = shortState;
+        }
+        return {
+          ...prev,
+          shortsGeneration: {
+            ...prev.shortsGeneration,
+            shorts: newShorts,
+          },
+        };
+      });
+    }, 400);
+  }, []);
+
+  const stopShortProgressAnimation = useCallback((
+    shortIndex: number,
+    stepKey: 'voiceOverStep' | 'assetsStep' | 'assemblyStep' | 'thumbnailStep'
+  ) => {
+    const animationKey = `short-${shortIndex}-${stepKey}`;
+    if (progressIntervals.current[animationKey]) {
+      clearInterval(progressIntervals.current[animationKey]);
+      delete progressIntervals.current[animationKey];
+    }
+  }, []);
+
+  const stopAllShortProgressAnimations = useCallback((shortIndex: number) => {
+    ['voiceOverStep', 'assetsStep', 'assemblyStep', 'thumbnailStep'].forEach(stepKey => {
+      stopShortProgressAnimation(shortIndex, stepKey as any);
+    });
+  }, [stopShortProgressAnimation]);
+
+  // Shorts generation - runs all shorts in parallel
+  const runShortsGeneration = async (videoId: string, script: VideoScript) => {
+    const shorts = script.shorts;
+    if (!shorts || shorts.length === 0) return;
+
+    console.log(`\n🎬 Starting parallel shorts generation for ${shorts.length} shorts...`);
+
+    // Initialize shorts state
+    const initialShorts = shorts.map((short, index) => createShortGenerationState(index, short));
+
+    setPipelineState(prev => ({
+      ...prev,
+      shortsGeneration: {
+        status: "running",
+        shorts: initialShorts,
+        completedCount: 0,
+        totalCount: shorts.length,
+      },
+    }));
+
+    // Generate all shorts in parallel
+    const shortPromises = shorts.map((short, index) =>
+      generateSingleShort(videoId, index, short, script.title)
+    );
+
+    await Promise.allSettled(shortPromises);
+
+    // Update final status
+    setPipelineState(prev => {
+      const completedCount = prev.shortsGeneration.shorts.filter(s => s.status === "completed").length;
+      const hasErrors = prev.shortsGeneration.shorts.some(s => s.status === "error");
+
+      return {
+        ...prev,
+        shortsGeneration: {
+          ...prev.shortsGeneration,
+          status: completedCount === shorts.length ? "completed" : hasErrors ? "error" : "completed",
+          completedCount,
+        },
+      };
+    });
+
+    console.log(`\n✅ Shorts generation complete!`);
+  };
+
+  // Generate a single short video - uses 4 separate API calls like long-form video
+  const generateSingleShort = async (
+    parentVideoId: string,
+    shortIndex: number,
+    short: { hook: string; script: string },
+    parentTitle: string
+  ) => {
+    const updateShortStep = (
+      stepKey: 'voiceOverStep' | 'assetsStep' | 'assemblyStep' | 'thumbnailStep',
+      updates: Partial<{ status: StepStatus; progress: number; message: string }>
+    ) => {
+      setPipelineState(prev => {
+        const newShorts = [...prev.shortsGeneration.shorts];
+        const shortState = { ...newShorts[shortIndex] };
+        shortState[stepKey] = { ...shortState[stepKey], ...updates };
+
+        // Update overall short status based on steps
+        const allCompleted =
+          shortState.voiceOverStep.status === "completed" &&
+          shortState.assetsStep.status === "completed" &&
+          shortState.assemblyStep.status === "completed" &&
+          shortState.thumbnailStep.status === "completed";
+
+        const hasError =
+          shortState.voiceOverStep.status === "error" ||
+          shortState.assetsStep.status === "error" ||
+          shortState.assemblyStep.status === "error" ||
+          shortState.thumbnailStep.status === "error";
+
+        const isRunning =
+          shortState.voiceOverStep.status === "running" ||
+          shortState.assetsStep.status === "running" ||
+          shortState.assemblyStep.status === "running" ||
+          shortState.thumbnailStep.status === "running";
+
+        shortState.status = allCompleted ? "completed" : hasError ? "error" : isRunning ? "running" : "idle";
+
+        newShorts[shortIndex] = shortState;
+
+        // Count completed shorts
+        const completedCount = newShorts.filter(s => s.status === "completed").length;
+
+        return {
+          ...prev,
+          shortsGeneration: {
+            ...prev.shortsGeneration,
+            shorts: newShorts,
+            completedCount,
+          },
+        };
+      });
+    };
+
+    // Store results for assembly
+    let voiceOverResult: { shortVideoId: string; voiceOverPath: string; fullNarration: string } | null = null;
+    let assetsResult: { shortVideoId: string; assets: any } | null = null;
+    let thumbnailResult: { shortVideoId: string; thumbnail: any } | null = null;
+
+    try {
+      // Mark short as running
+      setPipelineState(prev => {
+        const newShorts = [...prev.shortsGeneration.shorts];
+        newShorts[shortIndex] = { ...newShorts[shortIndex], status: "running" };
+        return {
+          ...prev,
+          shortsGeneration: { ...prev.shortsGeneration, shorts: newShorts },
+        };
+      });
+
+      console.log(`🎬 Short #${shortIndex + 1}: Starting generation with 4 parallel steps...`);
+
+      // ========== STEP 1, 2, 3: Voice-over, Assets, and Thumbnail (all in parallel) ==========
+      startShortProgressAnimation(shortIndex, 'voiceOverStep', 85);
+      startShortProgressAnimation(shortIndex, 'assetsStep', 85);
+      startShortProgressAnimation(shortIndex, 'thumbnailStep', 85);
+
+      updateShortStep('voiceOverStep', { status: "running", progress: 10, message: "Generating voice-over..." });
+      updateShortStep('assetsStep', { status: "running", progress: 10, message: "Downloading clips..." });
+      updateShortStep('thumbnailStep', { status: "running", progress: 10, message: "Generating thumbnail..." });
+
+      // API Call 1: Voice-over (/api/generate-voiceover/shorts)
+      const voiceOverPromise = fetch("/api/generate-voiceover/shorts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoId: parentVideoId,
+          shortIndex,
+          hook: short.hook,
+          script: short.script,
+        }),
+      }).then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to generate voice-over");
+        stopShortProgressAnimation(shortIndex, 'voiceOverStep');
+        updateShortStep('voiceOverStep', { status: "completed", progress: 100, message: "Voice-over ready!" });
+        console.log(`✅ Short #${shortIndex + 1}: Voice-over complete`);
+        return data.result;
+      }).catch((err) => {
+        stopShortProgressAnimation(shortIndex, 'voiceOverStep');
+        updateShortStep('voiceOverStep', { status: "error", progress: 0, message: err.message || "Failed" });
+        console.error(`❌ Short #${shortIndex + 1}: Voice-over failed:`, err);
+        return null;
+      });
+
+      // API Call 2: Assets (/api/generate-assets/shorts)
+      const assetsPromise = fetch("/api/generate-assets/shorts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoId: parentVideoId,
+          shortIndex,
+          hook: short.hook,
+          script: short.script,
+          parentTitle,
+        }),
+      }).then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to generate assets");
+        stopShortProgressAnimation(shortIndex, 'assetsStep');
+        updateShortStep('assetsStep', { status: "completed", progress: 100, message: `${data.result.assets.clips.length} clips ready!` });
+        console.log(`✅ Short #${shortIndex + 1}: Assets complete (${data.result.assets.clips.length} clips)`);
+        return data.result;
+      }).catch((err) => {
+        stopShortProgressAnimation(shortIndex, 'assetsStep');
+        updateShortStep('assetsStep', { status: "error", progress: 0, message: err.message || "Failed" });
+        console.error(`❌ Short #${shortIndex + 1}: Assets failed:`, err);
+        return null;
+      });
+
+      // API Call 3: Thumbnail (/api/generate-thumbnail/shorts)
+      const thumbnailPromise = fetch("/api/generate-thumbnail/shorts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoId: parentVideoId,
+          shortIndex,
+          hook: short.hook,
+          script: short.script,
+        }),
+      }).then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to generate thumbnail");
+        stopShortProgressAnimation(shortIndex, 'thumbnailStep');
+        updateShortStep('thumbnailStep', { status: "completed", progress: 100, message: "Thumbnail ready!" });
+        console.log(`✅ Short #${shortIndex + 1}: Thumbnail complete`);
+        return data.result;
+      }).catch((err) => {
+        stopShortProgressAnimation(shortIndex, 'thumbnailStep');
+        updateShortStep('thumbnailStep', { status: "error", progress: 0, message: err.message || "Failed" });
+        console.error(`❌ Short #${shortIndex + 1}: Thumbnail failed:`, err);
+        return null;
+      });
+
+      // Wait for all 3 parallel steps to complete
+      [voiceOverResult, assetsResult, thumbnailResult] = await Promise.all([
+        voiceOverPromise,
+        assetsPromise,
+        thumbnailPromise,
+      ]);
+
+      // Store results in state
+      setPipelineState(prev => {
+        const newShorts = [...prev.shortsGeneration.shorts];
+        newShorts[shortIndex] = {
+          ...newShorts[shortIndex],
+          voiceOverPath: voiceOverResult?.voiceOverPath ?? null,
+          assets: assetsResult?.assets ?? null,
+          thumbnail: thumbnailResult?.thumbnail ?? null,
+        };
+        return {
+          ...prev,
+          shortsGeneration: { ...prev.shortsGeneration, shorts: newShorts },
+        };
+      });
+
+      // ========== STEP 4: Video Assembly (depends on voice-over and assets) ==========
+      if (voiceOverResult && assetsResult) {
+        console.log(`🎥 Short #${shortIndex + 1}: Starting video assembly...`);
+        
+        updateShortStep('assemblyStep', { status: "running", progress: 10, message: "Assembling video..." });
+        startShortProgressAnimation(shortIndex, 'assemblyStep', 85);
+
+        // API Call 4: Assembly (/api/assemble-video/shorts)
+        const assemblyResponse = await fetch("/api/assemble-video/shorts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            shortVideoId: voiceOverResult.shortVideoId,
+            shortIndex,
+            voiceOverPath: voiceOverResult.voiceOverPath,
+            fullNarration: voiceOverResult.fullNarration,
+            assets: assetsResult.assets,
+          }),
+        });
+
+        const assemblyData = await assemblyResponse.json();
+
+        if (!assemblyResponse.ok) {
+          throw new Error(assemblyData.error || "Failed to assemble video");
+        }
+
+        stopShortProgressAnimation(shortIndex, 'assemblyStep');
+        updateShortStep('assemblyStep', { 
+          status: "completed", 
+          progress: 100, 
+          message: `Video ready! ${assemblyData.result.duration.toFixed(0)}s` 
+        });
+
+        console.log(`✅ Short #${shortIndex + 1}: Assembly complete! Duration: ${assemblyData.result.duration.toFixed(1)}s`);
+
+        // Update final short state with assembled video
+        setPipelineState(prev => {
+          const newShorts = [...prev.shortsGeneration.shorts];
+          newShorts[shortIndex] = {
+            ...newShorts[shortIndex],
+            status: "completed",
+            assembledVideo: assemblyData.result,
+          };
+
+          const completedCount = newShorts.filter(s => s.status === "completed").length;
+
+          return {
+            ...prev,
+            shortsGeneration: {
+              ...prev.shortsGeneration,
+              shorts: newShorts,
+              completedCount,
+            },
+          };
+        });
+
+        console.log(`✅ Short #${shortIndex + 1} completed successfully!`);
+
+      } else {
+        // Cannot assemble - missing dependencies
+        stopShortProgressAnimation(shortIndex, 'assemblyStep');
+        updateShortStep('assemblyStep', { 
+          status: "error", 
+          progress: 0, 
+          message: "Cannot assemble: missing voice-over or assets" 
+        });
+
+        setPipelineState(prev => {
+          const newShorts = [...prev.shortsGeneration.shorts];
+          newShorts[shortIndex] = { ...newShorts[shortIndex], status: "error" };
+          return {
+            ...prev,
+            shortsGeneration: { ...prev.shortsGeneration, shorts: newShorts },
+          };
+        });
+      }
+
+    } catch (err) {
+      console.error(`❌ Error generating short #${shortIndex + 1}:`, err);
+
+      stopAllShortProgressAnimations(shortIndex);
+
+      // Only mark steps as error if they haven't completed
+      setPipelineState(prev => {
+        const newShorts = [...prev.shortsGeneration.shorts];
+        const shortState = { ...newShorts[shortIndex] };
+        
+        if (shortState.voiceOverStep.status !== "completed") {
+          shortState.voiceOverStep = { ...shortState.voiceOverStep, status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed" };
+        }
+        if (shortState.assetsStep.status !== "completed") {
+          shortState.assetsStep = { ...shortState.assetsStep, status: "error", progress: 0, message: "Failed" };
+        }
+        if (shortState.assemblyStep.status !== "completed") {
+          shortState.assemblyStep = { ...shortState.assemblyStep, status: "error", progress: 0, message: "Failed" };
+        }
+        if (shortState.thumbnailStep.status !== "completed") {
+          shortState.thumbnailStep = { ...shortState.thumbnailStep, status: "error", progress: 0, message: "Failed" };
+        }
+        
+        shortState.status = "error";
+        newShorts[shortIndex] = shortState;
+        
+        return {
+          ...prev,
+          shortsGeneration: { ...prev.shortsGeneration, shorts: newShorts },
+        };
+      });
+    }
+  };
+
+  // Retry a failed short
+  const handleRetryShort = useCallback(async (shortIndex: number) => {
+    const script = pipelineState.script;
+    const videoId = pipelineState.videoGeneration.assets?.videoId;
+
+    if (!script || !videoId || !script.shorts || !script.shorts[shortIndex]) {
+      setError("Cannot retry: Missing required data.");
+      return;
+    }
+
+    const short = script.shorts[shortIndex];
+    await generateSingleShort(videoId, shortIndex, short, script.title);
+  }, [pipelineState.script, pipelineState.videoGeneration.assets?.videoId]);
+
   const resetPipeline = () => {
     Object.values(progressIntervals.current).forEach(clearInterval);
     progressIntervals.current = {};
@@ -741,7 +1156,10 @@ export default function Home() {
 
           {/* Row 2: Final Video - Full Width (when ready) */}
           {hasVideo && (
-            <VideoResultDisplay assembledVideo={pipelineState.videoGeneration.assembledVideo!} />
+            <VideoResultDisplay
+              assembledVideo={pipelineState.videoGeneration.assembledVideo!}
+              thumbnailPath={pipelineState.thumbnail?.thumbnailPath}
+            />
           )}
 
           {/* Row 3: Script - Full Width */}
@@ -791,7 +1209,20 @@ export default function Home() {
             </div>
           )}
 
-          {/* Row 5: YouTube Upload Button (when complete) */}
+          {/* Row 5: Shorts Generation Progress (when generating shorts) */}
+          {(pipelineState.currentPhase === "shorts" || pipelineState.shortsGeneration.totalCount > 0) && (
+            <ShortsProgressDisplay
+              shortsGeneration={pipelineState.shortsGeneration}
+              onRetryShort={handleRetryShort}
+            />
+          )}
+
+          {/* Row 6: Shorts Results (when complete) */}
+          {pipelineState.shortsGeneration.completedCount > 0 && (
+            <ShortsResultDisplay shorts={pipelineState.shortsGeneration.shorts} />
+          )}
+
+          {/* Row 7: YouTube Upload Button (when complete) */}
           {isComplete && (
             <div className="max-w-md mx-auto">
               <YouTubeUploadButton
