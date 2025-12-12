@@ -1,9 +1,9 @@
 import ScriptGenerationService from "./script-generation";
 import { VideoScript, GenerationProgress, VideoGenerationResult, VideoAssets } from "./types";
-import TTSService from "@/lib/audio/tts-service";
-import { downloadClipsForVideo, ClipDownloadResult } from "@/lib/assets/clip-downloader";
-import { pickBackgroundTrack, getBrandingAssets } from "@/lib/assets/music-branding";
-import VideoAssemblyService from "@/lib/video/video-assembly";
+import TTSService from "../audio/tts-service";
+import { downloadClipsForVideo, ClipDownloadResult } from "../assets/clip-downloader";
+import { pickBackgroundTrack, getBrandingAssets } from "../assets/music-branding";
+import VideoAssemblyService from "../video/video-assembly";
 import path from "path";
 
 class VideoGenerationPipeline {

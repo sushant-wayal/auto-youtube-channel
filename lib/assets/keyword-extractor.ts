@@ -5,7 +5,7 @@
  * AI decides the optimal number of clips based on content
  */
 
-import { GeminiService } from "@/lib/ai";
+import { GeminiService } from "../ai";
 
 const STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'this', 'that', 'you', 'we', 'they',

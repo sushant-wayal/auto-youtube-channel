@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, Circle, AlertCircle, FileText, Video, Image, Mic, Film, Clapperboard, Clock, Zap, ArrowRight, RotateCcw } from "lucide-react";
+import { Check, Loader2, Circle, AlertCircle, FileText, Video, Image, Mic, Film, Clapperboard, Clock, Zap, ArrowRight, RotateCcw, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Step IDs for retry functionality
@@ -60,12 +60,19 @@ export default function PipelineProgress({
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+    // Check if parallel phase is active (after script, before assembly)
+    const isParallelPhaseActive = scriptStep.status === "completed" &&
+        videoGeneration.assemblyStep.status !== "completed" &&
+        (videoGeneration.voiceOverStep.status === "running" ||
+            videoGeneration.assetsStep.status === "running" ||
+            thumbnailStep.status === "running");
+
     const completedSteps = [
         scriptStep.status === "completed",
         videoGeneration.voiceOverStep.status === "completed",
         videoGeneration.assetsStep.status === "completed",
-        videoGeneration.assemblyStep.status === "completed",
         thumbnailStep.status === "completed",
+        videoGeneration.assemblyStep.status === "completed",
     ].filter(Boolean).length;
 
     return (
@@ -101,26 +108,47 @@ export default function PipelineProgress({
 
                 <div className="flex items-center justify-between mt-3 text-sm">
                     <span className="text-muted-foreground">{completedSteps}/5 steps completed</span>
-                    <span className="text-muted-foreground flex items-center gap-1">
-                        <Zap className="w-3.5 h-3.5 text-yellow-500" />
-                        Parallel processing active
-                    </span>
+                    {isParallelPhaseActive && (
+                        <span className="text-muted-foreground flex items-center gap-1">
+                            <Zap className="w-3.5 h-3.5 text-yellow-500 animate-pulse" />
+                            Parallel processing active
+                        </span>
+                    )}
                 </div>
             </CardHeader>
 
             <CardContent className="space-y-4 pt-2">
-                <div className="flex items-center justify-between px-2 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                    <StepDot status={scriptStep.status} label="Script" />
-                    <ArrowRight className="w-4 h-4 text-gray-400" />
-                    <StepDot status={videoGeneration.voiceOverStep.status} label="Voice" />
-                    <ArrowRight className="w-4 h-4 text-gray-400" />
-                    <StepDot status={videoGeneration.assetsStep.status} label="Assets" />
-                    <ArrowRight className="w-4 h-4 text-gray-400" />
-                    <StepDot status={videoGeneration.assemblyStep.status} label="Video" />
-                    <ArrowRight className="w-4 h-4 text-gray-400" />
-                    <StepDot status={thumbnailStep.status} label="Thumb" />
+                {/* Visual Pipeline Flow */}
+                <div className="flex flex-col items-center gap-2 px-2 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                    {/* Script Step */}
+                    <div className="flex items-center gap-2">
+                        <StepDot status={scriptStep.status} label="Script" />
+                    </div>
+
+                    <ArrowDown className="w-4 h-4 text-gray-400" />
+
+                    {/* Parallel Steps: Voice-over, Assets, Thumbnail */}
+                    <div className="flex items-center gap-4">
+                        <StepDot status={videoGeneration.voiceOverStep.status} label="Voice" />
+                        <StepDot status={videoGeneration.assetsStep.status} label="Assets" />
+                        <StepDot status={thumbnailStep.status} label="Thumb" />
+                    </div>
+
+                    {isParallelPhaseActive && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300">
+                            ⚡ Running in parallel
+                        </Badge>
+                    )}
+
+                    <ArrowDown className="w-4 h-4 text-gray-400" />
+
+                    {/* Assembly Step (waits for Voice-over + Assets) */}
+                    <div className="flex items-center gap-2">
+                        <StepDot status={videoGeneration.assemblyStep.status} label="Assembly" />
+                    </div>
                 </div>
 
+                {/* Step 1: Script Generation */}
                 <StepRow
                     icon={<FileText className="w-5 h-5" />}
                     title="Script Generation"
@@ -131,63 +159,72 @@ export default function PipelineProgress({
 
                 <Separator className="my-2" />
 
+                {/* Parallel Phase: Voice-over + Assets + Thumbnail */}
                 <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs px-2 py-0.5">
-                            ⚡ Parallel
+                        <Badge variant="outline" className={cn(
+                            "text-xs px-2 py-0.5",
+                            isParallelPhaseActive && "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400 animate-pulse"
+                        )}>
+                            ⚡ Parallel Phase
                         </Badge>
-                        <span className="text-xs text-muted-foreground">Running simultaneously</span>
+                        <span className="text-xs text-muted-foreground">
+                            {isParallelPhaseActive ? "Running simultaneously" : "Voice-over + Assets + Thumbnail"}
+                        </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Video className="w-4 h-4 text-purple-600" />
-                                <span className="text-sm font-semibold text-purple-700 dark:text-purple-400">Video</span>
-                                <StatusBadge status={videoGeneration.status} small />
-                            </div>
-                            <StepRow
-                                icon={<Mic className="w-4 h-4" />}
-                                title="Voice-Over"
-                                step={videoGeneration.voiceOverStep}
-                                color="purple"
-                                compact
-                                onRetry={onRetryStep ? () => onRetryStep("voiceover") : undefined}
-                            />
-                            <StepRow
-                                icon={<Film className="w-4 h-4" />}
-                                title="Assets"
-                                step={videoGeneration.assetsStep}
-                                color="purple"
-                                compact
-                                onRetry={onRetryStep ? () => onRetryStep("assets") : undefined}
-                            />
-                            <StepRow
-                                icon={<Clapperboard className="w-4 h-4" />}
-                                title="Assembly"
-                                step={videoGeneration.assemblyStep}
-                                color="green"
-                                compact
-                                onRetry={onRetryStep ? () => onRetryStep("assembly") : undefined}
-                            />
-                        </div>
+                    <div className="grid grid-cols-3 gap-3">
+                        {/* Voice-Over */}
+                        <StepRow
+                            icon={<Mic className="w-4 h-4" />}
+                            title="Voice-Over"
+                            step={videoGeneration.voiceOverStep}
+                            color="purple"
+                            compact
+                            onRetry={onRetryStep ? () => onRetryStep("voiceover") : undefined}
+                        />
 
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Image className="w-4 h-4 text-pink-600" />
-                                <span className="text-sm font-semibold text-pink-700 dark:text-pink-400">Thumbnail</span>
-                                <StatusBadge status={thumbnailStep.status} small />
-                            </div>
-                            <StepRow
-                                icon={<Image className="w-4 h-4" />}
-                                title="AI Generation"
-                                step={thumbnailStep}
-                                color="pink"
-                                compact
-                                onRetry={onRetryStep ? () => onRetryStep("thumbnail") : undefined}
-                            />
-                        </div>
+                        {/* Assets */}
+                        <StepRow
+                            icon={<Film className="w-4 h-4" />}
+                            title="Assets"
+                            step={videoGeneration.assetsStep}
+                            color="purple"
+                            compact
+                            onRetry={onRetryStep ? () => onRetryStep("assets") : undefined}
+                        />
+
+                        {/* Thumbnail */}
+                        <StepRow
+                            icon={<Image className="w-4 h-4" />}
+                            title="Thumbnail"
+                            step={thumbnailStep}
+                            color="pink"
+                            compact
+                            onRetry={onRetryStep ? () => onRetryStep("thumbnail") : undefined}
+                        />
                     </div>
+                </div>
+
+                <Separator className="my-2" />
+
+                {/* Video Assembly (waits for Voice-over + Assets only) */}
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs px-2 py-0.5">
+                            🎬 Assembly
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                            Waits for Voice-over + Assets (not Thumbnail)
+                        </span>
+                    </div>
+                    <StepRow
+                        icon={<Clapperboard className="w-5 h-5" />}
+                        title="Video Assembly"
+                        step={videoGeneration.assemblyStep}
+                        color="green"
+                        onRetry={onRetryStep ? () => onRetryStep("assembly") : undefined}
+                    />
                 </div>
             </CardContent>
         </Card>
@@ -258,7 +295,7 @@ function StepRow({ icon, title, step, color, compact = false, onRetry }: StepRow
                 <StatusIcon status={step.status} />
                 <span className={cn(
                     "font-medium",
-                    compact ? "text-sm" : "text-base",
+                    compact ? "text-xs" : "text-base",
                     hasError ? "text-red-600" : classes.icon
                 )}>
                     {title}
@@ -274,30 +311,29 @@ function StepRow({ icon, title, step, color, compact = false, onRetry }: StepRow
                         variant="ghost"
                         size="sm"
                         onClick={onRetry}
-                        className="ml-auto h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30"
+                        className="ml-auto h-6 px-1.5 text-red-600 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30"
                         title="Retry this step"
                     >
-                        <RotateCcw className="w-4 h-4 mr-1" />
-                        <span className={cn(compact ? "text-xs" : "text-sm")}>Retry</span>
+                        <RotateCcw className="w-3 h-3" />
                     </Button>
                 )}
             </div>
 
             {step.message && (
                 <p className={cn(
-                    "mb-2",
-                    compact ? "text-xs" : "text-sm",
+                    "mb-2 truncate",
+                    compact ? "text-[10px]" : "text-sm",
                     hasError ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
                 )}>
                     {step.message}
                 </p>
             )}
 
-            <div className={cn("w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden", compact ? "h-1.5" : "h-2")}>
+            <div className={cn("w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden", compact ? "h-1" : "h-2")}>
                 <div
                     className={cn(
                         "rounded-full transition-all duration-300",
-                        compact ? "h-1.5" : "h-2",
+                        compact ? "h-1" : "h-2",
                         step.status === "completed" ? "bg-green-500" :
                             step.status === "error" ? "bg-red-500" : classes.progress,
                         step.status === "running" && "animate-pulse"
@@ -320,21 +356,4 @@ function StatusIcon({ status }: { status: StepStatus }) {
         default:
             return <Circle className="w-4 h-4 text-gray-400" />;
     }
-}
-
-function StatusBadge({ status, small = false }: { status: StepStatus; small?: boolean }) {
-    const variants: Record<StepStatus, { className: string; label: string }> = {
-        idle: { className: "bg-gray-200 text-gray-700", label: "Pending" },
-        running: { className: "bg-blue-500 text-white animate-pulse", label: "Running" },
-        completed: { className: "bg-green-500 text-white", label: "Done" },
-        error: { className: "bg-red-500 text-white", label: "Error" },
-    };
-
-    const { className, label } = variants[status];
-
-    return (
-        <Badge className={cn("ml-auto", className, small && "text-[10px] px-1.5 py-0")}>
-            {label}
-        </Badge>
-    );
 }

@@ -17,6 +17,59 @@ import YouTubeUploadButton from "@/components/pipeline/YouTubeUploadButton";
 import ShortsProgressDisplay from "@/components/pipeline/ShortsProgressDisplay";
 import ShortsResultDisplay from "@/components/pipeline/ShortsResultDisplay";
 
+// Job status type from worker
+type JobStatus =
+  | 'pending'
+  | 'processing'
+  | 'script_generating'
+  | 'voiceover_generating'
+  | 'assets_generating'
+  | 'video_assembling'
+  | 'shorts_generating'
+  | 'uploading'
+  | 'completed'
+  | 'failed';
+
+// Short step progress from worker
+interface ShortStepProgress {
+  status: 'idle' | 'running' | 'completed' | 'error';
+  progress: number;
+  message: string;
+}
+
+// Short generation progress from worker
+interface WorkerShortProgress {
+  shortIndex: number;
+  status: 'idle' | 'running' | 'completed' | 'error';
+  voiceOverStep: ShortStepProgress;
+  assetsStep: ShortStepProgress;
+  assemblyStep: ShortStepProgress;
+  uploadStep: ShortStepProgress;
+}
+
+// Job data from Redis
+interface JobData {
+  jobId: string;
+  videoIdea: string;
+  createdAt: number;
+  updatedAt: number;
+  status: JobStatus;
+  progress: number;
+  message: string;
+  script?: VideoScript;
+  voiceOverUrl?: string;
+  thumbnailUrl?: string;
+  mainVideoUrl?: string;
+  shortsVideos?: Array<{
+    shortIndex: number;
+    shortVideoId: string;
+    videoUrl: string;
+    duration: number;
+  }>;
+  shortsProgress?: WorkerShortProgress[];
+  error?: string;
+}
+
 // Placeholder component for pending steps
 function PlaceholderCard({
   icon: Icon,
@@ -64,7 +117,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [rightColumnHeight, setRightColumnHeight] = useState<number | null>(null);
 
-  const progressIntervals = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  // Job tracking state
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const rightColumnRef = useRef<HTMLDivElement>(null);
 
   // Measure right column height
@@ -84,55 +139,424 @@ export default function Home() {
     return () => resizeObserver.disconnect();
   }, [pipelineState.currentPhase]);
 
+  // Cleanup polling on unmount
   useEffect(() => {
     return () => {
-      Object.values(progressIntervals.current).forEach(clearInterval);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
     };
   }, []);
 
-  const startProgressAnimation = useCallback((stepPath: string, targetProgress: number = 90) => {
-    if (progressIntervals.current[stepPath]) {
-      clearInterval(progressIntervals.current[stepPath]);
-    }
+  // Map job status to pipeline state
+  const mapJobStatusToPipelineState = useCallback((job: JobData) => {
+    setPipelineState(prev => {
+      const newState = { ...prev };
 
-    let currentProgress = 5;
-    progressIntervals.current[stepPath] = setInterval(() => {
-      currentProgress += Math.random() * 3 + 1;
-      if (currentProgress >= targetProgress) {
-        currentProgress = targetProgress;
-        clearInterval(progressIntervals.current[stepPath]);
+      // Update based on job status
+      switch (job.status) {
+        case 'pending':
+        case 'processing':
+          newState.isRunning = true;
+          newState.currentPhase = 'script';
+          newState.scriptStep = { ...prev.scriptStep, status: 'running', progress: 5, message: 'Starting...' };
+          break;
+
+        case 'script_generating':
+          newState.isRunning = true;
+          newState.currentPhase = 'script';
+          newState.scriptStep = {
+            ...prev.scriptStep,
+            status: 'running',
+            progress: Math.min(job.progress * 5, 90),
+            message: job.message
+          };
+          break;
+
+        case 'voiceover_generating':
+          // After script completes, Voice-over + Assets + Thumbnail run IN PARALLEL
+          newState.isRunning = true;
+          newState.currentPhase = 'video-thumbnail';
+          newState.scriptStep = { ...prev.scriptStep, status: 'completed', progress: 100, message: 'Script generated!' };
+          if (job.script) newState.script = job.script;
+
+          // All three parallel steps start running together
+          newState.videoGeneration = {
+            ...prev.videoGeneration,
+            status: 'running',
+            voiceOverStep: {
+              ...prev.videoGeneration.voiceOverStep,
+              status: 'running',
+              progress: Math.min((job.progress - 15) * 3, 80),
+              message: job.message || 'Generating voice-over...'
+            },
+            assetsStep: {
+              ...prev.videoGeneration.assetsStep,
+              status: 'running',
+              progress: Math.min((job.progress - 15) * 2, 60),
+              message: 'Downloading video assets...'
+            },
+          };
+          // Thumbnail also starts in parallel
+          newState.thumbnailStep = {
+            ...prev.thumbnailStep,
+            status: 'running',
+            progress: Math.min((job.progress - 15) * 2, 50),
+            message: 'Generating thumbnail...'
+          };
+          break;
+
+        case 'assets_generating':
+          // Parallel phase continues - some steps may complete before others
+          newState.isRunning = true;
+          newState.currentPhase = 'video-thumbnail';
+          newState.scriptStep = { ...prev.scriptStep, status: 'completed', progress: 100, message: 'Script generated!' };
+          if (job.script) newState.script = job.script;
+
+          // Voice-over likely completed, assets still running, thumbnail may be done
+          newState.videoGeneration = {
+            ...prev.videoGeneration,
+            status: 'running',
+            voiceOverStep: {
+              ...prev.videoGeneration.voiceOverStep,
+              status: job.voiceOverUrl ? 'completed' : 'running',
+              progress: job.voiceOverUrl ? 100 : 90,
+              message: job.voiceOverUrl ? 'Voice-over ready!' : 'Finalizing voice-over...'
+            },
+            voiceOverPath: job.voiceOverUrl || null,
+            assetsStep: {
+              ...prev.videoGeneration.assetsStep,
+              status: 'running',
+              progress: Math.min((job.progress - 30) * 4, 90),
+              message: job.message || 'Downloading clips...'
+            },
+          };
+          // Thumbnail continues in parallel (may complete independently)
+          newState.thumbnailStep = {
+            ...prev.thumbnailStep,
+            status: job.thumbnailUrl ? 'completed' : 'running',
+            progress: job.thumbnailUrl ? 100 : Math.min((job.progress - 20) * 3, 80),
+            message: job.thumbnailUrl ? 'Thumbnail ready!' : 'Generating thumbnail...'
+          };
+          if (job.thumbnailUrl) {
+            newState.thumbnail = {
+              thumbnailPath: job.thumbnailUrl,
+              prompt: '',
+              videoId: job.jobId,
+              provider: 'gemini'
+            };
+          }
+          break;
+
+        case 'video_assembling':
+          // Assembly starts after Voice-over + Assets complete (Thumbnail may still be running)
+          newState.isRunning = true;
+          newState.currentPhase = 'video-thumbnail';
+          newState.scriptStep = { ...prev.scriptStep, status: 'completed', progress: 100, message: 'Script generated!' };
+          if (job.script) newState.script = job.script;
+
+          newState.videoGeneration = {
+            ...prev.videoGeneration,
+            status: 'running',
+            voiceOverStep: { ...prev.videoGeneration.voiceOverStep, status: 'completed', progress: 100, message: 'Voice-over ready!' },
+            voiceOverPath: job.voiceOverUrl || null,
+            assetsStep: { ...prev.videoGeneration.assetsStep, status: 'completed', progress: 100, message: 'Assets ready!' },
+            assemblyStep: {
+              ...prev.videoGeneration.assemblyStep,
+              status: 'running',
+              progress: Math.min((job.progress - 50) * 6, 90),
+              message: job.message || 'Assembling video with FFmpeg...'
+            },
+          };
+          // Thumbnail should be complete by now (or close to it)
+          newState.thumbnailStep = {
+            ...prev.thumbnailStep,
+            status: job.thumbnailUrl ? 'completed' : 'running',
+            progress: job.thumbnailUrl ? 100 : 95,
+            message: job.thumbnailUrl ? 'Thumbnail ready!' : 'Finalizing thumbnail...'
+          };
+          if (job.thumbnailUrl) {
+            newState.thumbnail = {
+              thumbnailPath: job.thumbnailUrl,
+              prompt: '',
+              videoId: job.jobId,
+              provider: 'gemini'
+            };
+          }
+          break;
+
+        case 'shorts_generating':
+          newState.isRunning = true;
+          newState.currentPhase = 'shorts';
+          newState.scriptStep = { ...prev.scriptStep, status: 'completed', progress: 100, message: 'Script generated!' };
+          if (job.script) newState.script = job.script;
+          newState.videoGeneration = {
+            ...prev.videoGeneration,
+            status: 'completed',
+            voiceOverStep: { ...prev.videoGeneration.voiceOverStep, status: 'completed', progress: 100, message: 'Voice-over ready!' },
+            voiceOverPath: job.voiceOverUrl || null,
+            assetsStep: { ...prev.videoGeneration.assetsStep, status: 'completed', progress: 100, message: 'Assets ready!' },
+            assemblyStep: { ...prev.videoGeneration.assemblyStep, status: 'completed', progress: 100, message: 'Video assembled!' },
+            assembledVideo: job.mainVideoUrl ? {
+              videoId: job.jobId,
+              outputPath: job.mainVideoUrl,
+              duration: 0,
+              clipCount: 0,
+            } : null,
+          };
+          newState.thumbnailStep = { ...prev.thumbnailStep, status: 'completed', progress: 100, message: 'Thumbnail ready!' };
+          if (job.thumbnailUrl) {
+            newState.thumbnail = {
+              thumbnailPath: job.thumbnailUrl,
+              prompt: '',
+              videoId: job.jobId,
+              provider: 'gemini'
+            };
+          }
+          // Update shorts progress from worker's detailed progress data
+          if (job.script?.shorts) {
+            const totalShorts = job.script.shorts.length;
+            const completedShorts = job.shortsVideos?.length || 0;
+
+            newState.shortsGeneration = {
+              status: 'running',
+              totalCount: totalShorts,
+              completedCount: completedShorts,
+              shorts: job.script.shorts.map((short, index) => {
+                const completedShort = job.shortsVideos?.find(s => s.shortIndex === index);
+                const workerProgress = job.shortsProgress?.find(p => p.shortIndex === index);
+                const baseState = createShortGenerationState(index, short);
+
+                // If we have detailed progress from worker, use it
+                if (workerProgress) {
+                  return {
+                    ...baseState,
+                    status: workerProgress.status as StepStatus,
+                    voiceOverStep: {
+                      ...baseState.voiceOverStep,
+                      status: workerProgress.voiceOverStep.status as StepStatus,
+                      progress: workerProgress.voiceOverStep.progress,
+                      message: workerProgress.voiceOverStep.message,
+                    },
+                    assetsStep: {
+                      ...baseState.assetsStep,
+                      status: workerProgress.assetsStep.status as StepStatus,
+                      progress: workerProgress.assetsStep.progress,
+                      message: workerProgress.assetsStep.message,
+                    },
+                    assemblyStep: {
+                      ...baseState.assemblyStep,
+                      status: workerProgress.assemblyStep.status as StepStatus,
+                      progress: workerProgress.assemblyStep.progress,
+                      message: workerProgress.assemblyStep.message,
+                    },
+                    // Map uploadStep to thumbnailStep for UI compatibility
+                    thumbnailStep: {
+                      ...baseState.thumbnailStep,
+                      status: workerProgress.uploadStep.status as StepStatus,
+                      progress: workerProgress.uploadStep.progress,
+                      message: workerProgress.uploadStep.message,
+                    },
+                    assembledVideo: completedShort ? {
+                      videoId: completedShort.shortVideoId,
+                      outputPath: completedShort.videoUrl,
+                      duration: completedShort.duration,
+                      clipCount: 0,
+                    } : null,
+                  };
+                }
+
+                // Fallback: use basic status based on completed shorts
+                return {
+                  ...baseState,
+                  status: completedShort ? 'completed' as StepStatus : (index <= completedShorts ? 'running' as StepStatus : 'idle' as StepStatus),
+                  assembledVideo: completedShort ? {
+                    videoId: completedShort.shortVideoId,
+                    outputPath: completedShort.videoUrl,
+                    duration: completedShort.duration,
+                    clipCount: 0,
+                  } : null,
+                };
+              }),
+            };
+          }
+          break;
+
+        case 'completed':
+          newState.isRunning = false;
+          newState.currentPhase = 'complete';
+          newState.scriptStep = { ...prev.scriptStep, status: 'completed', progress: 100, message: 'Script generated!' };
+          if (job.script) newState.script = job.script;
+          newState.videoGeneration = {
+            ...prev.videoGeneration,
+            status: 'completed',
+            voiceOverStep: { ...prev.videoGeneration.voiceOverStep, status: 'completed', progress: 100, message: 'Voice-over ready!' },
+            voiceOverPath: job.voiceOverUrl || null,
+            assetsStep: { ...prev.videoGeneration.assetsStep, status: 'completed', progress: 100, message: 'Assets ready!' },
+            assemblyStep: { ...prev.videoGeneration.assemblyStep, status: 'completed', progress: 100, message: 'Video assembled!' },
+            assembledVideo: job.mainVideoUrl ? {
+              videoId: job.jobId,
+              outputPath: job.mainVideoUrl,
+              duration: 0,
+              clipCount: 0,
+            } : null,
+          };
+          newState.thumbnailStep = { ...prev.thumbnailStep, status: 'completed', progress: 100, message: 'Thumbnail ready!' };
+          if (job.thumbnailUrl) {
+            newState.thumbnail = {
+              thumbnailPath: job.thumbnailUrl,
+              prompt: '',
+              videoId: job.jobId,
+              provider: 'gemini'
+            };
+          }
+          // Update shorts with final completed state
+          if (job.script?.shorts) {
+            newState.shortsGeneration = {
+              status: 'completed',
+              totalCount: job.script.shorts.length,
+              completedCount: job.shortsVideos?.length || 0,
+              shorts: job.script.shorts.map((short, index) => {
+                const completedShort = job.shortsVideos?.find(s => s.shortIndex === index);
+                const workerProgress = job.shortsProgress?.find(p => p.shortIndex === index);
+                const baseState = createShortGenerationState(index, short);
+
+                if (workerProgress) {
+                  return {
+                    ...baseState,
+                    status: completedShort ? 'completed' as StepStatus : 'error' as StepStatus,
+                    voiceOverStep: {
+                      ...baseState.voiceOverStep,
+                      status: workerProgress.voiceOverStep.status as StepStatus,
+                      progress: workerProgress.voiceOverStep.progress,
+                      message: workerProgress.voiceOverStep.message,
+                    },
+                    assetsStep: {
+                      ...baseState.assetsStep,
+                      status: workerProgress.assetsStep.status as StepStatus,
+                      progress: workerProgress.assetsStep.progress,
+                      message: workerProgress.assetsStep.message,
+                    },
+                    assemblyStep: {
+                      ...baseState.assemblyStep,
+                      status: workerProgress.assemblyStep.status as StepStatus,
+                      progress: workerProgress.assemblyStep.progress,
+                      message: workerProgress.assemblyStep.message,
+                    },
+                    thumbnailStep: {
+                      ...baseState.thumbnailStep,
+                      status: workerProgress.uploadStep.status as StepStatus,
+                      progress: workerProgress.uploadStep.progress,
+                      message: workerProgress.uploadStep.message,
+                    },
+                    assembledVideo: completedShort ? {
+                      videoId: completedShort.shortVideoId,
+                      outputPath: completedShort.videoUrl,
+                      duration: completedShort.duration,
+                      clipCount: 0,
+                    } : null,
+                  };
+                }
+
+                return {
+                  ...baseState,
+                  status: completedShort ? 'completed' as StepStatus : 'error' as StepStatus,
+                  assembledVideo: completedShort ? {
+                    videoId: completedShort.shortVideoId,
+                    outputPath: completedShort.videoUrl,
+                    duration: completedShort.duration,
+                    clipCount: 0,
+                  } : null,
+                };
+              }),
+            };
+          }
+          // Stop polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          break;
+
+        case 'failed':
+          newState.isRunning = false;
+          setError(job.error || 'Job failed');
+          // Stop polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          break;
       }
 
-      setPipelineState(prev => {
-        const newState = { ...prev };
-        const pathParts = stepPath.split(".");
-
-        if (pathParts[0] === "scriptStep") {
-          newState.scriptStep = { ...newState.scriptStep, progress: Math.round(currentProgress) };
-        } else if (pathParts[0] === "videoGeneration") {
-          newState.videoGeneration = { ...newState.videoGeneration };
-          if (pathParts[1] === "voiceOverStep") {
-            newState.videoGeneration.voiceOverStep = { ...newState.videoGeneration.voiceOverStep, progress: Math.round(currentProgress) };
-          } else if (pathParts[1] === "assetsStep") {
-            newState.videoGeneration.assetsStep = { ...newState.videoGeneration.assetsStep, progress: Math.round(currentProgress) };
-          } else if (pathParts[1] === "assemblyStep") {
-            newState.videoGeneration.assemblyStep = { ...newState.videoGeneration.assemblyStep, progress: Math.round(currentProgress) };
-          }
-        } else if (pathParts[0] === "thumbnailStep") {
-          newState.thumbnailStep = { ...newState.thumbnailStep, progress: Math.round(currentProgress) };
-        }
-
-        return newState;
-      });
-    }, 500);
+      return newState;
+    });
   }, []);
 
-  const stopProgressAnimation = useCallback((stepPath: string) => {
-    if (progressIntervals.current[stepPath]) {
-      clearInterval(progressIntervals.current[stepPath]);
-      delete progressIntervals.current[stepPath];
+  // Poll for job status
+  const pollJobStatus = useCallback(async (jobId: string) => {
+    try {
+      const response = await fetch(`/api/jobs/${jobId}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get job status');
+      }
+
+      mapJobStatusToPipelineState(data.job);
+    } catch (err) {
+      console.error('Polling error:', err);
+      // Don't stop polling on transient errors
     }
-  }, []);
+  }, [mapJobStatusToPipelineState]);
+
+  // Start polling for a job
+  const startPolling = useCallback((jobId: string) => {
+    // Clear any existing polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Poll immediately
+    pollJobStatus(jobId);
+
+    // Then poll every 2 seconds
+    pollingIntervalRef.current = setInterval(() => {
+      pollJobStatus(jobId);
+    }, 2000);
+  }, [pollJobStatus]);
+
+  // Create job and start pipeline
+  const runPipeline = async (videoIdea: string) => {
+    setError(null);
+    setPipelineState({ ...initialPipelineState, isRunning: true, currentPhase: 'script' });
+
+    try {
+      // Create job via API
+      const response = await fetch('/api/jobs/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoIdea }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create job');
+      }
+
+      console.log(`✅ Job created: ${data.jobId}`);
+      setCurrentJobId(data.jobId);
+
+      // Start polling for job status
+      startPolling(data.jobId);
+
+    } catch (err) {
+      console.error('Pipeline error:', err);
+      setError(err instanceof Error ? err.message : 'Pipeline failed');
+      setPipelineState(prev => ({ ...prev, isRunning: false }));
+    }
+  };
 
   const calculateOverallProgress = useCallback((state: PipelineState): number => {
     let progress = 0;
@@ -159,861 +583,18 @@ export default function Home() {
     return Math.round(progress);
   }, []);
 
-  const updateStep = useCallback((
-    stepPath: string,
-    updates: Partial<{ status: StepStatus; progress: number; message: string }>
-  ) => {
-    setPipelineState(prev => {
-      const newState = { ...prev };
-      const pathParts = stepPath.split(".");
-
-      if (pathParts[0] === "scriptStep") {
-        newState.scriptStep = { ...newState.scriptStep, ...updates };
-      } else if (pathParts[0] === "videoGeneration") {
-        newState.videoGeneration = { ...newState.videoGeneration };
-        if (pathParts[1] === "voiceOverStep") {
-          newState.videoGeneration.voiceOverStep = { ...newState.videoGeneration.voiceOverStep, ...updates };
-        } else if (pathParts[1] === "assetsStep") {
-          newState.videoGeneration.assetsStep = { ...newState.videoGeneration.assetsStep, ...updates };
-        } else if (pathParts[1] === "assemblyStep") {
-          newState.videoGeneration.assemblyStep = { ...newState.videoGeneration.assemblyStep, ...updates };
-        }
-        const voStatus = newState.videoGeneration.voiceOverStep.status;
-        const asStatus = newState.videoGeneration.assetsStep.status;
-        const asmStatus = newState.videoGeneration.assemblyStep.status;
-        if (asmStatus === "completed") {
-          newState.videoGeneration.status = "completed";
-        } else if (voStatus === "running" || asStatus === "running" || asmStatus === "running") {
-          newState.videoGeneration.status = "running";
-        } else if (voStatus === "error" || asStatus === "error" || asmStatus === "error") {
-          newState.videoGeneration.status = "error";
-        }
-      } else if (pathParts[0] === "thumbnailStep") {
-        newState.thumbnailStep = { ...newState.thumbnailStep, ...updates };
-      }
-
-      return newState;
-    });
-  }, []);
-
-  // API Calls
-  const generateScript = async (videoIdea: string): Promise<VideoScript> => {
-    const response = await fetch("/api/generate-script", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ videoIdea }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to generate script");
-    return data.script;
-  };
-
-  const generateVoiceOver = async (videoId: string, narration: string): Promise<string> => {
-    const response = await fetch("/api/generate-voiceover", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ videoId, narration }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to generate voice-over");
-    return data.voiceOverPath;
-  };
-
-  const generateAssets = async (videoId: string, title: string, narration: string): Promise<VideoAssets> => {
-    const response = await fetch("/api/generate-assets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ videoId, title, narration }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to generate assets");
-    return data.assets;
-  };
-
-  const assembleVideo = async (
-    videoId: string,
-    clips: string[],
-    narration: string,
-    narrationAudio: string,
-    music: string,
-    branding: VideoAssets["branding"]
-  ): Promise<VideoAssemblyResult> => {
-    const response = await fetch("/api/assemble-video", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ videoId, clips, narration, narrationAudio, music, branding }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to assemble video");
-    return data.result;
-  };
-
-  const generateThumbnail = async (
-    videoId: string,
-    title: string,
-    description: string,
-    narration: string,
-    tags: string[]
-  ): Promise<ThumbnailResult> => {
-    const response = await fetch("/api/generate-thumbnail", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ videoId, title, description, narration, tags, style: "vibrant" }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to generate thumbnail");
-    return data.thumbnail;
-  };
-
-  // Main pipeline execution
-  const runPipeline = async (videoIdea: string) => {
-    setError(null);
-    setPipelineState({ ...initialPipelineState, isRunning: true, currentPhase: "script" });
-
-    try {
-      updateStep("scriptStep", { status: "running", progress: 5, message: "Generating script with AI..." });
-      startProgressAnimation("scriptStep", 85);
-
-      const script = await generateScript(videoIdea);
-
-      stopProgressAnimation("scriptStep");
-      setPipelineState(prev => ({
-        ...prev,
-        script,
-        scriptStep: { ...prev.scriptStep, status: "completed", progress: 100, message: "Script generated!" },
-        currentPhase: "video-thumbnail",
-      }));
-
-      const videoId = `video-${Date.now()}`;
-
-      const videoGenerationPromise = runVideoGeneration(videoId, script);
-      const thumbnailPromise = runThumbnailGeneration(videoId, script);
-
-      await Promise.allSettled([videoGenerationPromise, thumbnailPromise]);
-
-      // After long-form video completes, start shorts generation if there are shorts in the script
-      if (script.shorts && script.shorts.length > 0) {
-        setPipelineState(prev => ({
-          ...prev,
-          currentPhase: "shorts",
-        }));
-
-        await runShortsGeneration(videoId, script);
-      }
-
-      setPipelineState(prev => ({
-        ...prev,
-        isRunning: false,
-        currentPhase: "complete",
-      }));
-
-    } catch (err) {
-      console.error("Pipeline error:", err);
-      setError(err instanceof Error ? err.message : "Pipeline failed");
-      stopProgressAnimation("scriptStep");
-      setPipelineState(prev => ({ ...prev, isRunning: false }));
-    }
-  };
-
-  const runVideoGeneration = async (videoId: string, script: VideoScript) => {
-    try {
-      updateStep("videoGeneration.voiceOverStep", {
-        status: "running", progress: 5, message: "Generating AI voice-over..."
-      });
-      updateStep("videoGeneration.assetsStep", {
-        status: "running", progress: 5, message: "Downloading stock footage..."
-      });
-
-      startProgressAnimation("videoGeneration.voiceOverStep", 85);
-      startProgressAnimation("videoGeneration.assetsStep", 85);
-
-      const voiceOverPromise = generateVoiceOver(videoId, script.narration)
-        .then(result => {
-          stopProgressAnimation("videoGeneration.voiceOverStep");
-          updateStep("videoGeneration.voiceOverStep", {
-            status: "completed", progress: 100, message: "Voice-over ready!"
-          });
-          setPipelineState(prev => ({
-            ...prev,
-            videoGeneration: { ...prev.videoGeneration, voiceOverPath: result },
-          }));
-          return result;
-        })
-        .catch(err => {
-          stopProgressAnimation("videoGeneration.voiceOverStep");
-          updateStep("videoGeneration.voiceOverStep", {
-            status: "error", progress: 0, message: err?.message || "Failed"
-          });
-          return null;
-        });
-
-      const assetsPromise = generateAssets(videoId, script.title, script.narration)
-        .then(result => {
-          stopProgressAnimation("videoGeneration.assetsStep");
-          updateStep("videoGeneration.assetsStep", {
-            status: "completed", progress: 100, message: `${result.clips.length} clips ready!`
-          });
-          setPipelineState(prev => ({
-            ...prev,
-            videoGeneration: { ...prev.videoGeneration, assets: result },
-          }));
-          return result;
-        })
-        .catch(err => {
-          stopProgressAnimation("videoGeneration.assetsStep");
-          updateStep("videoGeneration.assetsStep", {
-            status: "error", progress: 0, message: err?.message || "Failed"
-          });
-          return null;
-        });
-
-      const [voiceOverResult, assetsResult] = await Promise.all([voiceOverPromise, assetsPromise]);
-
-      if (voiceOverResult && assetsResult) {
-        updateStep("videoGeneration.assemblyStep", {
-          status: "running", progress: 5, message: "Assembling final video..."
-        });
-        startProgressAnimation("videoGeneration.assemblyStep", 85);
-
-        const assembledVideo = await assembleVideo(
-          videoId,
-          assetsResult.clips,
-          script.narration,
-          voiceOverResult,
-          assetsResult.music,
-          assetsResult.branding
-        );
-
-        stopProgressAnimation("videoGeneration.assemblyStep");
-        updateStep("videoGeneration.assemblyStep", {
-          status: "completed", progress: 100, message: `Video ready! ${assembledVideo.duration.toFixed(0)}s`
-        });
-        setPipelineState(prev => ({
-          ...prev,
-          videoGeneration: {
-            ...prev.videoGeneration,
-            assembledVideo,
-            status: "completed"
-          },
-        }));
-      } else {
-        updateStep("videoGeneration.assemblyStep", {
-          status: "error", progress: 0, message: "Cannot assemble: missing dependencies"
-        });
-      }
-
-    } catch (err) {
-      console.error("Video generation error:", err);
-      stopProgressAnimation("videoGeneration.voiceOverStep");
-      stopProgressAnimation("videoGeneration.assetsStep");
-      stopProgressAnimation("videoGeneration.assemblyStep");
-      setPipelineState(prev => ({
-        ...prev,
-        videoGeneration: { ...prev.videoGeneration, status: "error" },
-      }));
-    }
-  };
-
-  const runThumbnailGeneration = async (videoId: string, script: VideoScript) => {
-    try {
-      updateStep("thumbnailStep", {
-        status: "running", progress: 5, message: "Generating thumbnail with AI..."
-      });
-      startProgressAnimation("thumbnailStep", 85);
-
-      const thumbnail = await generateThumbnail(
-        videoId,
-        script.title,
-        script.description,
-        script.narration,
-        script.tags
-      );
-
-      stopProgressAnimation("thumbnailStep");
-      updateStep("thumbnailStep", {
-        status: "completed", progress: 100, message: "Thumbnail ready!"
-      });
-      setPipelineState(prev => ({ ...prev, thumbnail }));
-
-    } catch (err) {
-      console.error("Thumbnail generation error:", err);
-      stopProgressAnimation("thumbnailStep");
-      updateStep("thumbnailStep", {
-        status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
-      });
-    }
-  };
-
-  // Handle retry for failed steps
+  // Handle retry - not supported in worker mode, show message
   const handleRetryStep = useCallback(async (stepId: RetryableStep) => {
-    const script = pipelineState.script;
-    if (!script) {
-      setError("Cannot retry: No script available. Please start over.");
-      return;
-    }
-
-    // Get or generate videoId
-    const videoId = pipelineState.videoGeneration.assets?.videoId || `video-${Date.now()}`;
-
-    switch (stepId) {
-      case "script":
-        // For script retry, we need to restart the whole pipeline
-        // Get the last video idea from somewhere or ask user to re-enter
-        setError("To retry script generation, please enter your video idea again.");
-        break;
-
-      case "voiceover":
-        try {
-          updateStep("videoGeneration.voiceOverStep", {
-            status: "running", progress: 5, message: "Retrying voice-over generation..."
-          });
-          startProgressAnimation("videoGeneration.voiceOverStep", 85);
-
-          const voiceOverResult = await generateVoiceOver(videoId, script.narration);
-
-          stopProgressAnimation("videoGeneration.voiceOverStep");
-          updateStep("videoGeneration.voiceOverStep", {
-            status: "completed", progress: 100, message: "Voice-over ready!"
-          });
-          setPipelineState(prev => ({
-            ...prev,
-            videoGeneration: { ...prev.videoGeneration, voiceOverPath: voiceOverResult },
-          }));
-
-          // Check if we can now run assembly
-          await tryRunAssemblyAfterRetry(videoId, script);
-        } catch (err) {
-          stopProgressAnimation("videoGeneration.voiceOverStep");
-          updateStep("videoGeneration.voiceOverStep", {
-            status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
-          });
-        }
-        break;
-
-      case "assets":
-        try {
-          updateStep("videoGeneration.assetsStep", {
-            status: "running", progress: 5, message: "Retrying asset download..."
-          });
-          startProgressAnimation("videoGeneration.assetsStep", 85);
-
-          const assetsResult = await generateAssets(videoId, script.title, script.narration);
-
-          stopProgressAnimation("videoGeneration.assetsStep");
-          updateStep("videoGeneration.assetsStep", {
-            status: "completed", progress: 100, message: `${assetsResult.clips.length} clips ready!`
-          });
-          setPipelineState(prev => ({
-            ...prev,
-            videoGeneration: { ...prev.videoGeneration, assets: assetsResult },
-          }));
-
-          // Check if we can now run assembly
-          await tryRunAssemblyAfterRetry(videoId, script);
-        } catch (err) {
-          stopProgressAnimation("videoGeneration.assetsStep");
-          updateStep("videoGeneration.assetsStep", {
-            status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
-          });
-        }
-        break;
-
-      case "assembly":
-        await tryRunAssemblyAfterRetry(videoId, script);
-        break;
-
-      case "thumbnail":
-        try {
-          updateStep("thumbnailStep", {
-            status: "running", progress: 5, message: "Retrying thumbnail generation..."
-          });
-          startProgressAnimation("thumbnailStep", 85);
-
-          const thumbnail = await generateThumbnail(
-            videoId,
-            script.title,
-            script.description,
-            script.narration,
-            script.tags
-          );
-
-          stopProgressAnimation("thumbnailStep");
-          updateStep("thumbnailStep", {
-            status: "completed", progress: 100, message: "Thumbnail ready!"
-          });
-          setPipelineState(prev => ({ ...prev, thumbnail }));
-        } catch (err) {
-          stopProgressAnimation("thumbnailStep");
-          updateStep("thumbnailStep", {
-            status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
-          });
-        }
-        break;
-    }
-  }, [pipelineState.script, pipelineState.videoGeneration.assets?.videoId, updateStep, startProgressAnimation, stopProgressAnimation]);
-
-  // Helper to try running assembly after a dependency is retried
-  const tryRunAssemblyAfterRetry = useCallback(async (videoId: string, script: VideoScript) => {
-    // Get latest state
-    const currentState = pipelineState;
-    const voiceOverPath = currentState.videoGeneration.voiceOverPath;
-    const assets = currentState.videoGeneration.assets;
-
-    // Check if both dependencies are ready
-    if (!voiceOverPath || !assets) {
-      console.log("Assembly waiting for dependencies:", { voiceOverPath: !!voiceOverPath, assets: !!assets });
-      return;
-    }
-
-    // Check if assembly already completed or is running
-    if (currentState.videoGeneration.assemblyStep.status === "completed" ||
-      currentState.videoGeneration.assemblyStep.status === "running") {
-      return;
-    }
-
-    try {
-      updateStep("videoGeneration.assemblyStep", {
-        status: "running", progress: 5, message: "Assembling final video..."
-      });
-      startProgressAnimation("videoGeneration.assemblyStep", 85);
-
-      const assembledVideo = await assembleVideo(
-        videoId,
-        assets.clips,
-        script.narration,
-        voiceOverPath,
-        assets.music,
-        assets.branding
-      );
-
-      stopProgressAnimation("videoGeneration.assemblyStep");
-      updateStep("videoGeneration.assemblyStep", {
-        status: "completed", progress: 100, message: `Video ready! ${assembledVideo.duration.toFixed(0)}s`
-      });
-      setPipelineState(prev => ({
-        ...prev,
-        videoGeneration: {
-          ...prev.videoGeneration,
-          assembledVideo,
-          status: "completed"
-        },
-        currentPhase: "complete",
-        isRunning: false,
-      }));
-    } catch (err) {
-      stopProgressAnimation("videoGeneration.assemblyStep");
-      updateStep("videoGeneration.assemblyStep", {
-        status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed"
-      });
-    }
-  }, [pipelineState, updateStep, startProgressAnimation, stopProgressAnimation]);
-
-  // Progress animation specifically for shorts steps
-  const startShortProgressAnimation = useCallback((
-    shortIndex: number,
-    stepKey: 'voiceOverStep' | 'assetsStep' | 'assemblyStep' | 'thumbnailStep',
-    targetProgress: number = 85
-  ) => {
-    const animationKey = `short-${shortIndex}-${stepKey}`;
-
-    if (progressIntervals.current[animationKey]) {
-      clearInterval(progressIntervals.current[animationKey]);
-    }
-
-    let currentProgress = 10;
-    progressIntervals.current[animationKey] = setInterval(() => {
-      currentProgress += Math.random() * 4 + 2;
-      if (currentProgress >= targetProgress) {
-        currentProgress = targetProgress;
-        clearInterval(progressIntervals.current[animationKey]);
-      }
-
-      setPipelineState(prev => {
-        const newShorts = [...prev.shortsGeneration.shorts];
-        if (newShorts[shortIndex]) {
-          const shortState = { ...newShorts[shortIndex] };
-          shortState[stepKey] = {
-            ...shortState[stepKey],
-            progress: Math.round(currentProgress)
-          };
-          newShorts[shortIndex] = shortState;
-        }
-        return {
-          ...prev,
-          shortsGeneration: {
-            ...prev.shortsGeneration,
-            shorts: newShorts,
-          },
-        };
-      });
-    }, 400);
+    setError("Retry is not supported in worker mode. Please start a new job.");
   }, []);
-
-  const stopShortProgressAnimation = useCallback((
-    shortIndex: number,
-    stepKey: 'voiceOverStep' | 'assetsStep' | 'assemblyStep' | 'thumbnailStep'
-  ) => {
-    const animationKey = `short-${shortIndex}-${stepKey}`;
-    if (progressIntervals.current[animationKey]) {
-      clearInterval(progressIntervals.current[animationKey]);
-      delete progressIntervals.current[animationKey];
-    }
-  }, []);
-
-  const stopAllShortProgressAnimations = useCallback((shortIndex: number) => {
-    ['voiceOverStep', 'assetsStep', 'assemblyStep', 'thumbnailStep'].forEach(stepKey => {
-      stopShortProgressAnimation(shortIndex, stepKey as any);
-    });
-  }, [stopShortProgressAnimation]);
-
-  // Shorts generation - runs all shorts in parallel
-  const runShortsGeneration = async (videoId: string, script: VideoScript) => {
-    const shorts = script.shorts;
-    if (!shorts || shorts.length === 0) return;
-
-    console.log(`\n🎬 Starting parallel shorts generation for ${shorts.length} shorts...`);
-
-    // Initialize shorts state
-    const initialShorts = shorts.map((short, index) => createShortGenerationState(index, short));
-
-    setPipelineState(prev => ({
-      ...prev,
-      shortsGeneration: {
-        status: "running",
-        shorts: initialShorts,
-        completedCount: 0,
-        totalCount: shorts.length,
-      },
-    }));
-
-    // Generate all shorts in parallel
-    const shortPromises = shorts.map((short, index) =>
-      generateSingleShort(videoId, index, short, script.title)
-    );
-
-    await Promise.allSettled(shortPromises);
-
-    // Update final status
-    setPipelineState(prev => {
-      const completedCount = prev.shortsGeneration.shorts.filter(s => s.status === "completed").length;
-      const hasErrors = prev.shortsGeneration.shorts.some(s => s.status === "error");
-
-      return {
-        ...prev,
-        shortsGeneration: {
-          ...prev.shortsGeneration,
-          status: completedCount === shorts.length ? "completed" : hasErrors ? "error" : "completed",
-          completedCount,
-        },
-      };
-    });
-
-    console.log(`\n✅ Shorts generation complete!`);
-  };
-
-  // Generate a single short video - uses 4 separate API calls like long-form video
-  const generateSingleShort = async (
-    parentVideoId: string,
-    shortIndex: number,
-    short: { hook: string; script: string },
-    parentTitle: string
-  ) => {
-    const updateShortStep = (
-      stepKey: 'voiceOverStep' | 'assetsStep' | 'assemblyStep' | 'thumbnailStep',
-      updates: Partial<{ status: StepStatus; progress: number; message: string }>
-    ) => {
-      setPipelineState(prev => {
-        const newShorts = [...prev.shortsGeneration.shorts];
-        const shortState = { ...newShorts[shortIndex] };
-        shortState[stepKey] = { ...shortState[stepKey], ...updates };
-
-        // Update overall short status based on steps
-        const allCompleted =
-          shortState.voiceOverStep.status === "completed" &&
-          shortState.assetsStep.status === "completed" &&
-          shortState.assemblyStep.status === "completed" &&
-          shortState.thumbnailStep.status === "completed";
-
-        const hasError =
-          shortState.voiceOverStep.status === "error" ||
-          shortState.assetsStep.status === "error" ||
-          shortState.assemblyStep.status === "error" ||
-          shortState.thumbnailStep.status === "error";
-
-        const isRunning =
-          shortState.voiceOverStep.status === "running" ||
-          shortState.assetsStep.status === "running" ||
-          shortState.assemblyStep.status === "running" ||
-          shortState.thumbnailStep.status === "running";
-
-        shortState.status = allCompleted ? "completed" : hasError ? "error" : isRunning ? "running" : "idle";
-
-        newShorts[shortIndex] = shortState;
-
-        // Count completed shorts
-        const completedCount = newShorts.filter(s => s.status === "completed").length;
-
-        return {
-          ...prev,
-          shortsGeneration: {
-            ...prev.shortsGeneration,
-            shorts: newShorts,
-            completedCount,
-          },
-        };
-      });
-    };
-
-    // Store results for assembly
-    let voiceOverResult: { shortVideoId: string; voiceOverPath: string; fullNarration: string } | null = null;
-    let assetsResult: { shortVideoId: string; assets: any } | null = null;
-    let thumbnailResult: { shortVideoId: string; thumbnail: any } | null = null;
-
-    try {
-      // Mark short as running
-      setPipelineState(prev => {
-        const newShorts = [...prev.shortsGeneration.shorts];
-        newShorts[shortIndex] = { ...newShorts[shortIndex], status: "running" };
-        return {
-          ...prev,
-          shortsGeneration: { ...prev.shortsGeneration, shorts: newShorts },
-        };
-      });
-
-      console.log(`🎬 Short #${shortIndex + 1}: Starting generation with 4 parallel steps...`);
-
-      // ========== STEP 1, 2, 3: Voice-over, Assets, and Thumbnail (all in parallel) ==========
-      startShortProgressAnimation(shortIndex, 'voiceOverStep', 85);
-      startShortProgressAnimation(shortIndex, 'assetsStep', 85);
-      startShortProgressAnimation(shortIndex, 'thumbnailStep', 85);
-
-      updateShortStep('voiceOverStep', { status: "running", progress: 10, message: "Generating voice-over..." });
-      updateShortStep('assetsStep', { status: "running", progress: 10, message: "Downloading clips..." });
-      updateShortStep('thumbnailStep', { status: "running", progress: 10, message: "Generating thumbnail..." });
-
-      // API Call 1: Voice-over (/api/generate-voiceover/shorts)
-      const voiceOverPromise = fetch("/api/generate-voiceover/shorts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          videoId: parentVideoId,
-          shortIndex,
-          hook: short.hook,
-          script: short.script,
-        }),
-      }).then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to generate voice-over");
-        stopShortProgressAnimation(shortIndex, 'voiceOverStep');
-        updateShortStep('voiceOverStep', { status: "completed", progress: 100, message: "Voice-over ready!" });
-        console.log(`✅ Short #${shortIndex + 1}: Voice-over complete`);
-        return data.result;
-      }).catch((err) => {
-        stopShortProgressAnimation(shortIndex, 'voiceOverStep');
-        updateShortStep('voiceOverStep', { status: "error", progress: 0, message: err.message || "Failed" });
-        console.error(`❌ Short #${shortIndex + 1}: Voice-over failed:`, err);
-        return null;
-      });
-
-      // API Call 2: Assets (/api/generate-assets/shorts)
-      const assetsPromise = fetch("/api/generate-assets/shorts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          videoId: parentVideoId,
-          shortIndex,
-          hook: short.hook,
-          script: short.script,
-          parentTitle,
-        }),
-      }).then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to generate assets");
-        stopShortProgressAnimation(shortIndex, 'assetsStep');
-        updateShortStep('assetsStep', { status: "completed", progress: 100, message: `${data.result.assets.clips.length} clips ready!` });
-        console.log(`✅ Short #${shortIndex + 1}: Assets complete (${data.result.assets.clips.length} clips)`);
-        return data.result;
-      }).catch((err) => {
-        stopShortProgressAnimation(shortIndex, 'assetsStep');
-        updateShortStep('assetsStep', { status: "error", progress: 0, message: err.message || "Failed" });
-        console.error(`❌ Short #${shortIndex + 1}: Assets failed:`, err);
-        return null;
-      });
-
-      // API Call 3: Thumbnail (/api/generate-thumbnail/shorts)
-      const thumbnailPromise = fetch("/api/generate-thumbnail/shorts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          videoId: parentVideoId,
-          shortIndex,
-          hook: short.hook,
-          script: short.script,
-        }),
-      }).then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to generate thumbnail");
-        stopShortProgressAnimation(shortIndex, 'thumbnailStep');
-        updateShortStep('thumbnailStep', { status: "completed", progress: 100, message: "Thumbnail ready!" });
-        console.log(`✅ Short #${shortIndex + 1}: Thumbnail complete`);
-        return data.result;
-      }).catch((err) => {
-        stopShortProgressAnimation(shortIndex, 'thumbnailStep');
-        updateShortStep('thumbnailStep', { status: "error", progress: 0, message: err.message || "Failed" });
-        console.error(`❌ Short #${shortIndex + 1}: Thumbnail failed:`, err);
-        return null;
-      });
-
-      // Wait for all 3 parallel steps to complete
-      [voiceOverResult, assetsResult, thumbnailResult] = await Promise.all([
-        voiceOverPromise,
-        assetsPromise,
-        thumbnailPromise,
-      ]);
-
-      // Store results in state
-      setPipelineState(prev => {
-        const newShorts = [...prev.shortsGeneration.shorts];
-        newShorts[shortIndex] = {
-          ...newShorts[shortIndex],
-          voiceOverPath: voiceOverResult?.voiceOverPath ?? null,
-          assets: assetsResult?.assets ?? null,
-          thumbnail: thumbnailResult?.thumbnail ?? null,
-        };
-        return {
-          ...prev,
-          shortsGeneration: { ...prev.shortsGeneration, shorts: newShorts },
-        };
-      });
-
-      // ========== STEP 4: Video Assembly (depends on voice-over and assets) ==========
-      if (voiceOverResult && assetsResult) {
-        console.log(`🎥 Short #${shortIndex + 1}: Starting video assembly...`);
-
-        updateShortStep('assemblyStep', { status: "running", progress: 10, message: "Assembling video..." });
-        startShortProgressAnimation(shortIndex, 'assemblyStep', 85);
-
-        // API Call 4: Assembly (/api/assemble-video/shorts)
-        const assemblyResponse = await fetch("/api/assemble-video/shorts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            shortVideoId: voiceOverResult.shortVideoId,
-            shortIndex,
-            voiceOverPath: voiceOverResult.voiceOverPath,
-            fullNarration: voiceOverResult.fullNarration,
-            assets: assetsResult.assets,
-          }),
-        });
-
-        const assemblyData = await assemblyResponse.json();
-
-        if (!assemblyResponse.ok) {
-          throw new Error(assemblyData.error || "Failed to assemble video");
-        }
-
-        stopShortProgressAnimation(shortIndex, 'assemblyStep');
-        updateShortStep('assemblyStep', {
-          status: "completed",
-          progress: 100,
-          message: `Video ready! ${assemblyData.result.duration.toFixed(0)}s`
-        });
-
-        console.log(`✅ Short #${shortIndex + 1}: Assembly complete! Duration: ${assemblyData.result.duration.toFixed(1)}s`);
-
-        // Update final short state with assembled video
-        setPipelineState(prev => {
-          const newShorts = [...prev.shortsGeneration.shorts];
-          newShorts[shortIndex] = {
-            ...newShorts[shortIndex],
-            status: "completed",
-            assembledVideo: assemblyData.result,
-          };
-
-          const completedCount = newShorts.filter(s => s.status === "completed").length;
-
-          return {
-            ...prev,
-            shortsGeneration: {
-              ...prev.shortsGeneration,
-              shorts: newShorts,
-              completedCount,
-            },
-          };
-        });
-
-        console.log(`✅ Short #${shortIndex + 1} completed successfully!`);
-
-      } else {
-        // Cannot assemble - missing dependencies
-        stopShortProgressAnimation(shortIndex, 'assemblyStep');
-        updateShortStep('assemblyStep', {
-          status: "error",
-          progress: 0,
-          message: "Cannot assemble: missing voice-over or assets"
-        });
-
-        setPipelineState(prev => {
-          const newShorts = [...prev.shortsGeneration.shorts];
-          newShorts[shortIndex] = { ...newShorts[shortIndex], status: "error" };
-          return {
-            ...prev,
-            shortsGeneration: { ...prev.shortsGeneration, shorts: newShorts },
-          };
-        });
-      }
-
-    } catch (err) {
-      console.error(`❌ Error generating short #${shortIndex + 1}:`, err);
-
-      stopAllShortProgressAnimations(shortIndex);
-
-      // Only mark steps as error if they haven't completed
-      setPipelineState(prev => {
-        const newShorts = [...prev.shortsGeneration.shorts];
-        const shortState = { ...newShorts[shortIndex] };
-
-        if (shortState.voiceOverStep.status !== "completed") {
-          shortState.voiceOverStep = { ...shortState.voiceOverStep, status: "error", progress: 0, message: err instanceof Error ? err.message : "Failed" };
-        }
-        if (shortState.assetsStep.status !== "completed") {
-          shortState.assetsStep = { ...shortState.assetsStep, status: "error", progress: 0, message: "Failed" };
-        }
-        if (shortState.assemblyStep.status !== "completed") {
-          shortState.assemblyStep = { ...shortState.assemblyStep, status: "error", progress: 0, message: "Failed" };
-        }
-        if (shortState.thumbnailStep.status !== "completed") {
-          shortState.thumbnailStep = { ...shortState.thumbnailStep, status: "error", progress: 0, message: "Failed" };
-        }
-
-        shortState.status = "error";
-        newShorts[shortIndex] = shortState;
-
-        return {
-          ...prev,
-          shortsGeneration: { ...prev.shortsGeneration, shorts: newShorts },
-        };
-      });
-    }
-  };
-
-  // Retry a failed short
-  const handleRetryShort = useCallback(async (shortIndex: number) => {
-    const script = pipelineState.script;
-    const videoId = pipelineState.videoGeneration.assets?.videoId;
-
-    if (!script || !videoId || !script.shorts || !script.shorts[shortIndex]) {
-      setError("Cannot retry: Missing required data.");
-      return;
-    }
-
-    const short = script.shorts[shortIndex];
-    await generateSingleShort(videoId, shortIndex, short, script.title);
-  }, [pipelineState.script, pipelineState.videoGeneration.assets?.videoId]);
 
   const resetPipeline = () => {
-    Object.values(progressIntervals.current).forEach(clearInterval);
-    progressIntervals.current = {};
+    // Stop polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    setCurrentJobId(null);
     setPipelineState(initialPipelineState);
     setError(null);
   };
@@ -1061,6 +642,11 @@ export default function Home() {
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             Generate complete YouTube videos with AI-powered parallel processing
           </p>
+          {currentJobId && (
+            <Badge variant="outline" className="text-xs">
+              Job: {currentJobId}
+            </Badge>
+          )}
         </div>
 
         {/* Error Display */}
@@ -1145,7 +731,7 @@ export default function Home() {
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Script → Voice-Over + Assets → Video + Thumbnail
+                        Script → Voice-Over + Assets + Thumbnail (parallel) → Video Assembly
                       </p>
                     </div>
                   </CardContent>
@@ -1213,7 +799,7 @@ export default function Home() {
           {(pipelineState.currentPhase === "shorts" || pipelineState.shortsGeneration.totalCount > 0) && (
             <ShortsProgressDisplay
               shortsGeneration={pipelineState.shortsGeneration}
-              onRetryShort={handleRetryShort}
+              onRetryShort={() => { }} // Retry not supported in worker mode
             />
           )}
 

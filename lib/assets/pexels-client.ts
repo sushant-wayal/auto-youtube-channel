@@ -50,7 +50,7 @@ export async function fetchClipsForKeyword(
       return [];
     }
 
-    const data = await response.json();
+    const data = await response.json() as { videos?: any[] };
 
     if (!data.videos || data.videos.length === 0) {
       console.log(`⚠️ No videos found for keyword: "${keyword}"`);

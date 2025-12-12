@@ -136,7 +136,7 @@ class HuggingFaceImageService {
 
                 // Check if model is still loading
                 if (response.status === 503) {
-                    const data = await response.json();
+                    const data = await response.json() as { estimated_time?: number };
                     const waitTime = data.estimated_time || 20;
                     console.log(`⏳ Model is loading, waiting ${waitTime}s... (attempt ${attempts}/${maxAttempts})`);
                     await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
