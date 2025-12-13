@@ -19,21 +19,34 @@ export interface JobProgress {
 }
 
 // Job Data stored in Redis
-export interface ClipsCollectorJob {
-    jobId: string;
+export interface VideoAssemblerJob {
     videoId: string;
+    jobId: string;
     videoIdea: string;
     narration: string;
+    voiceOverUrl: string;
+    clips: string[];
+    clipTimings: number[];
     createdAt: number;
     updatedAt: number;
     status: JobStatus;
     progress: number;
     message: string;
+    isShort: boolean;
 
-    // Results (populated as job progresses)
-    clipsUrls: string[]; // URLs of collected video clips
-    clipTimings: number[]; // Timings for each clip
+    outputPath?: string;
+    duration?: number;
+    clipCount?: number;
 
     // Error info
     error?: string;
+}
+
+// Cloudinary Upload Result
+export interface CloudinaryUploadResult {
+    publicId: string;
+    secureUrl: string;
+    format: string;
+    duration?: number;
+    bytes: number;
 }

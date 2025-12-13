@@ -10,10 +10,12 @@
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
     "@google/genai": "^1.32.0",
     "cloudinary": "^2.5.1",
-    "dotenv": "^16.4.7",
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.4.1",
+    "dotenv": "^16.4.7"
   },
   "devDependencies": {
     "@types/node": "^20",

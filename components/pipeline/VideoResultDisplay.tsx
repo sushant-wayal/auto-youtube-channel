@@ -15,7 +15,7 @@ interface VideoResultDisplayProps {
 export default function VideoResultDisplay({ assembledVideo, thumbnailPath }: VideoResultDisplayProps) {
     const [isFullscreen, setIsFullscreen] = useState(false);
 
-    const videoUrl = `/api/videos/${assembledVideo.outputPath}`;
+    const videoUrl = `${assembledVideo.outputPath}`;
     const posterUrl = thumbnailPath ? `/api/videos/${thumbnailPath}` : undefined;
 
     return (

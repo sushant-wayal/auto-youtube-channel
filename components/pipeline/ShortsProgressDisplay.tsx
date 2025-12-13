@@ -269,7 +269,7 @@ function ShortProgressCard({ shortState, onRetry, onExpandThumbnail }: ShortProg
                                         label="Voice-Over"
                                     >
                                         <audio
-                                            src={`/api/videos/${shortState.voiceOverPath}`}
+                                            src={`${shortState.voiceOverPath}`}
                                             controls
                                             className="w-full h-7 rounded"
                                             preload="metadata"

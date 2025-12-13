@@ -102,6 +102,7 @@ async function fetchClipsWithDurationPreference(
  * @returns ClipcollectResult with paths and timing information
  */
 export async function collectClipsForVideo(
+  jobId: string,
   videoId: string,
   narration: string
 ): Promise<ClipCollectResult> {
@@ -123,7 +124,7 @@ export async function collectClipsForVideo(
   const result = await keywordExtractor.extractKeywords(narration, audioDuration);
 
   redisService.updateJobProgress(
-    videoId, 'processing', 30, 'Calculating clip timings based on key phrases...'
+    jobId, 'processing', 30, 'Calculating clip timings based on key phrases...'
   );
 
   console.log(`🎯 AI decided on ${result.clipCount} clips`);
@@ -143,7 +144,7 @@ export async function collectClipsForVideo(
   let clipCounter = 1;
 
   redisService.updateJobProgress(
-    videoId, 'processing', 50, 'Collecting stock footage clips...'
+    jobId, 'processing', 50, 'Collecting stock footage clips...'
   );
 
   // Iterate through key phrases and collect clips
@@ -182,7 +183,7 @@ export async function collectClipsForVideo(
       }
 
       redisService.updateJobProgress(
-        videoId, 'processing', 50 + Math.floor(((i + 1) / result.keyPhrases.length) * 40), `Collecting clips... (${i + 1}/${result.keyPhrases.length})`
+        jobId, 'processing', 50 + Math.floor(((i + 1) / result.keyPhrases.length) * 40), `Collecting clips... (${i + 1}/${result.keyPhrases.length})`
       );
     }
 

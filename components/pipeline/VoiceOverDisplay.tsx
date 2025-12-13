@@ -24,7 +24,7 @@ export default function VoiceOverDisplay({ voiceOverPath }: VoiceOverDisplayProp
                 <audio
                     controls
                     className="w-full h-10"
-                    src={`/api/videos/${voiceOverPath}`}
+                    src={`${voiceOverPath}`}
                     preload="metadata"
                 >
                     Your browser does not support the audio element.
@@ -37,7 +37,7 @@ export default function VoiceOverDisplay({ voiceOverPath }: VoiceOverDisplayProp
                     className="w-full"
                     onClick={() => {
                         const link = document.createElement("a");
-                        link.href = `/api/videos/${voiceOverPath}`;
+                        link.href = `${voiceOverPath}`;
                         link.download = `voiceover-${Date.now()}.wav`;
                         link.click();
                     }}

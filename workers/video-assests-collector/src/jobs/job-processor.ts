@@ -42,11 +42,13 @@ class JobProcessor {
                 jobId, 'processing', 10, 'Extracting key phrases for clip collection'
             );
 
-            const clipResult = await collectClipsForVideo(videoId, narration);
+            const clipResult = await collectClipsForVideo(jobId, videoId, narration);
             console.log(`✅ Downloaded ${clipResult.clipUrls.length} clips`);
 
             await this.redisService.completeJob(jobId, {
+                videoId,
                 clipsUrls: clipResult.clipUrls,
+                clipTimings: clipResult.clipTimings
             });
 
             console.log(`\n🎉 === JOB COMPLETED: ${jobId} ===`);

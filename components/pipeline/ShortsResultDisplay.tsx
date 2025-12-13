@@ -71,7 +71,7 @@ export default function ShortsResultDisplay({ shorts }: ShortsResultDisplayProps
                         {/* Full Size Video */}
                         <div className="bg-black rounded-xl overflow-hidden shadow-2xl">
                             <video
-                                src={`/api/videos/${fullscreenVideo.assembledVideo.outputPath.replace(/^videos\//, '')}`}
+                                src={`${fullscreenVideo.assembledVideo.outputPath.replace(/^videos\//, '')}`}
                                 className="w-full h-auto max-h-[80vh]"
                                 controls
                                 autoPlay
@@ -96,7 +96,7 @@ export default function ShortsResultDisplay({ shorts }: ShortsResultDisplayProps
                                 asChild
                             >
                                 <a
-                                    href={`/api/videos/${fullscreenVideo.assembledVideo.outputPath.replace(/^videos\//, '')}`}
+                                    href={`${fullscreenVideo.assembledVideo.outputPath.replace(/^videos\//, '')}`}
                                     download={`short-${fullscreenVideo.shortIndex + 1}.mp4`}
                                 >
                                     <Download className="w-4 h-4 mr-2" />
@@ -121,7 +121,7 @@ function ShortResultCard({ shortState, onExpand }: ShortResultCardProps) {
 
     if (!assembledVideo) return null;
 
-    const videoUrl = `/api/videos/${assembledVideo.outputPath.replace(/^videos\//, '')}`;
+    const videoUrl = `${assembledVideo.outputPath.replace(/^videos\//, '')}`;
     const thumbnailUrl = thumbnail?.thumbnailPath
         ? `/api/videos/${thumbnail.thumbnailPath.replace(/^videos\//, '')}`
         : undefined;

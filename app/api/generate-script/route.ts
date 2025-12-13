@@ -35,14 +35,10 @@ As we look to the future, technologies like WebAssembly, edge computing, and AI-
             hook: "React changed everything about web development!",
             script: "React introduced component-based architecture that revolutionized UI development. Learn why millions of developers choose React for building modern web applications."
         },
-        {
-            hook: "TypeScript: JavaScript's superpower!",
-            script: "TypeScript adds static typing to JavaScript, catching errors before they reach production. Discover why TypeScript is the secret weapon of professional developers."
-        },
-        {
-            hook: "Next.js makes React development incredible!",
-            script: "Next.js combines server-side rendering with React to create blazing-fast applications. See how Next.js simplifies complex web development challenges."
-        }
+        // {
+        //     hook: "TypeScript: JavaScript's superpower!",
+        //     script: "TypeScript adds static typing to JavaScript, catching errors before they reach production. Discover why TypeScript is the secret weapon of professional developers."
+        // }
     ]
 };
 
