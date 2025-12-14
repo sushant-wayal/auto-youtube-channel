@@ -217,7 +217,7 @@ class HuggingFaceImageService {
         imageBuffer: Buffer
     ): Promise<string> {
         // Create the output directory
-        const outputDir = path.join(process.cwd(), "tmp", "videos", videoId);
+        const outputDir = path.join("tmp", "videos", videoId);
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
