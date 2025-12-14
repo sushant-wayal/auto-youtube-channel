@@ -287,10 +287,10 @@ export default function Home() {
 
       const videoId = `video-${Date.now()}`;
 
-      // const videoGenerationPromise = runVideoGeneration(videoId, script);
-      // const thumbnailPromise = runThumbnailGeneration(videoId, script);
+      const videoGenerationPromise = runVideoGeneration(videoId, script);
+      const thumbnailPromise = runThumbnailGeneration(videoId, script);
 
-      // await Promise.allSettled([videoGenerationPromise, thumbnailPromise]);
+      await Promise.allSettled([videoGenerationPromise, thumbnailPromise]);
 
       // After long-form video completes, start shorts generation if there are shorts in the script
       if (script.shorts && script.shorts.length > 0) {

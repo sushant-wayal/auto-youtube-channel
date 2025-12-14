@@ -431,6 +431,8 @@ export class VideoAssemblyService {
             }
             else await fsPromises.copyFile(outputPath, combinedVideoPath);
 
+            await fsPromises.unlink(outputPath); // Delete normalized clip after concatenation
+
             await redisService.updateJobProgress(jobId, 'processing',
                 10 + Math.floor(((i + 1) / clips.length) * 60),
                 `Normalized and added clip ${i + 1} of ${clips.length}`

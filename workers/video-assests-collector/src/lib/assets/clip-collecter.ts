@@ -123,7 +123,7 @@ export async function collectClipsForVideo(
   const keywordExtractor = new KeywordExtractor();
   const result = await keywordExtractor.extractKeywords(narration, audioDuration);
 
-  redisService.updateJobProgress(
+  await redisService.updateJobProgress(
     jobId, 'processing', 30, 'Calculating clip timings based on key phrases...'
   );
 
@@ -143,7 +143,7 @@ export async function collectClipsForVideo(
   const collectedKeyPhrases: KeyPhrase[] = [];
   let clipCounter = 1;
 
-  redisService.updateJobProgress(
+  await redisService.updateJobProgress(
     jobId, 'processing', 50, 'Collecting stock footage clips...'
   );
 
@@ -182,7 +182,7 @@ export async function collectClipsForVideo(
         // Continue with next clip option
       }
 
-      redisService.updateJobProgress(
+      await redisService.updateJobProgress(
         jobId, 'processing', 50 + Math.floor(((i + 1) / result.keyPhrases.length) * 40), `Collecting clips... (${i + 1}/${result.keyPhrases.length})`
       );
     }
