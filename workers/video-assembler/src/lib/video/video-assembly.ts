@@ -448,83 +448,126 @@ export class VideoAssemblyService {
     /**
      * Normalize a clip to specific duration
      */
+    // async normalizeClipWithDuration(
+    //     inputPath: string,
+    //     outputPath: string,
+    //     targetDuration: number,
+    //     isShort: boolean = false
+    // ): Promise<void> {
+    //     // Get original duration
+    //     let originalDuration: number;
+    //     try {
+    //         originalDuration = await getVideoDuration(inputPath);
+    //     } catch (error) {
+    //         console.warn(`  Could not get duration for ${inputPath}, using target duration`);
+    //         originalDuration = targetDuration;
+    //     }
+
+    //     const videoFilter = this.getVideoFilter(isShort);
+
+    //     if (originalDuration < targetDuration) {
+    //         // Clip is too short, loop it
+    //         console.log(`    Looping clip from ${originalDuration.toFixed(2)}s to ${targetDuration.toFixed(2)}s`);
+    //         await runFFmpeg({
+    //             inputs: [
+    //                 { flags: ['-stream_loop', '-1'], path: inputPath }
+    //             ],
+    //             output: outputPath,
+    //             args: [
+    //                 '-t', targetDuration.toString(),
+    //                 '-vf', videoFilter,
+    //                 '-c:v', 'libx264',
+    //                 '-preset', 'medium',
+    //                 '-crf', '23',
+    //                 '-c:a', 'aac',
+    //                 '-b:a', '128k',
+    //                 '-ar', '48000',
+    //                 '-movflags', '+faststart',
+    //             ],
+    //         });
+    //     } else {
+    //         // Clip is long enough, trim to target duration
+    //         console.log(`    Trimming clip from ${originalDuration.toFixed(2)}s to ${targetDuration.toFixed(2)}s`);
+    //         await runFFmpeg({
+    //             inputs: [inputPath],
+    //             output: outputPath,
+    //             args: [
+    //                 '-t', targetDuration.toString(),
+    //                 '-vf', videoFilter,
+    //                 '-c:v', 'libx264',
+    //                 '-preset', 'medium',
+    //                 '-crf', '23',
+    //                 '-c:a', 'aac',
+    //                 '-b:a', '128k',
+    //                 '-ar', '48000',
+    //                 '-movflags', '+faststart',
+    //             ],
+    //         });
+    //     }
+    // }
     async normalizeClipWithDuration(
         inputPath: string,
         outputPath: string,
         targetDuration: number,
         isShort: boolean = false
     ): Promise<void> {
-        // Get original duration
-        let originalDuration: number;
-        try {
-            originalDuration = await getVideoDuration(inputPath);
-        } catch (error) {
-            console.warn(`  Could not get duration for ${inputPath}, using target duration`);
-            originalDuration = targetDuration;
-        }
-
         const videoFilter = this.getVideoFilter(isShort);
 
-        if (originalDuration < targetDuration) {
-            // Clip is too short, loop it
-            console.log(`    Looping clip from ${originalDuration.toFixed(2)}s to ${targetDuration.toFixed(2)}s`);
-            await runFFmpeg({
-                inputs: [
-                    { flags: ['-stream_loop', '-1'], path: inputPath }
-                ],
-                output: outputPath,
-                args: [
-                    '-t', targetDuration.toString(),
-                    '-vf', videoFilter,
-                    '-c:v', 'libx264',
-                    '-preset', 'medium',
-                    '-crf', '23',
-                    '-c:a', 'aac',
-                    '-b:a', '128k',
-                    '-ar', '48000',
-                    '-movflags', '+faststart',
-                ],
-            });
-        } else {
-            // Clip is long enough, trim to target duration
-            console.log(`    Trimming clip from ${originalDuration.toFixed(2)}s to ${targetDuration.toFixed(2)}s`);
-            await runFFmpeg({
-                inputs: [inputPath],
-                output: outputPath,
-                args: [
-                    '-t', targetDuration.toString(),
-                    '-vf', videoFilter,
-                    '-c:v', 'libx264',
-                    '-preset', 'medium',
-                    '-crf', '23',
-                    '-c:a', 'aac',
-                    '-b:a', '128k',
-                    '-ar', '48000',
-                    '-movflags', '+faststart',
-                ],
-            });
-        }
+        await runFFmpeg({
+            inputs: [inputPath],
+            output: outputPath,
+            args: [
+                '-threads', '1',
+                '-t', targetDuration.toString(),
+                '-vf', videoFilter,
+                '-c:v', 'libx264',
+                '-x264-params', 'threads=1',
+                '-preset', 'veryfast',
+                '-crf', '23',
+                '-an',                      // 🔥 no audio for stock clips
+                '-movflags', '+faststart',
+            ],
+        });
     }
+
 
     /**
      * Normalize a clip to 1920x1080 (for intro/outro without specific duration)
      */
+    // async normalizeClip(inputPath: string, outputPath: string): Promise<void> {
+    //     await runFFmpeg({
+    //         inputs: [inputPath],
+    //         output: outputPath,
+    //         args: [
+    //             '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30',
+    //             '-c:v', 'libx264',
+    //             '-preset', 'medium',
+    //             '-crf', '23',
+    //             '-c:a', 'aac',
+    //             '-b:a', '128k',
+    //             '-ar', '48000',
+    //             '-movflags', '+faststart',
+    //         ],
+    //     });
+    // }
     async normalizeClip(inputPath: string, outputPath: string): Promise<void> {
         await runFFmpeg({
             inputs: [inputPath],
             output: outputPath,
             args: [
+                '-threads', '1',
                 '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30',
                 '-c:v', 'libx264',
-                '-preset', 'medium',
+                '-x264-params', 'threads=1',
+                '-preset', 'veryfast',
                 '-crf', '23',
                 '-c:a', 'aac',
                 '-b:a', '128k',
-                '-ar', '48000',
                 '-movflags', '+faststart',
             ],
         });
     }
+
 
     /**
      * Add intro and outro videos to the clip list
@@ -706,42 +749,74 @@ export class VideoAssemblyService {
     /**
      * Concatenate multiple clips into one video with smooth transitions
      */
+    // async concatClips(clips: string[], outputPath: string): Promise<void> {
+    //     if (clips.length === 0) {
+    //         throw new Error('No clips to concatenate');
+    //     }
+
+    //     if (clips.length === 1) {
+    //         // Only one clip, just copy it
+    //         await fsPromises.copyFile(clips[0], outputPath);
+    //         return;
+    //     }
+
+    //     console.log(`  Concatenating ${clips.length} clips with crossfade transitions...`);
+
+    //     // Use simpler concatenation with proper re-encoding for smooth playback
+    //     const concatListPath = path.join(path.dirname(outputPath), 'concat_list.txt');
+    //     const concatList = clips.map(clip => `file '${clip}'`).join('\n');
+    //     await fsPromises.writeFile(concatListPath, concatList);
+
+    //     // Use concat protocol with re-encoding for smooth transitions
+    //     await runFFmpeg({
+    //         inputs: [],
+    //         output: outputPath,
+    //         args: [
+    //             '-f', 'concat',
+    //             '-safe', '0',
+    //             '-i', concatListPath,
+    //             '-c:v', 'libx264',
+    //             '-preset', 'medium',
+    //             '-crf', '23',
+    //             '-c:a', 'aac',
+    //             '-b:a', '192k',
+    //             '-movflags', '+faststart',
+    //         ],
+    //     });
+
+    //     console.log('  ✓ Clips concatenated smoothly');
+    // }
     async concatClips(clips: string[], outputPath: string): Promise<void> {
         if (clips.length === 0) {
             throw new Error('No clips to concatenate');
         }
 
         if (clips.length === 1) {
-            // Only one clip, just copy it
             await fsPromises.copyFile(clips[0], outputPath);
             return;
         }
 
-        console.log(`  Concatenating ${clips.length} clips with crossfade transitions...`);
-
-        // Use simpler concatenation with proper re-encoding for smooth playback
         const concatListPath = path.join(path.dirname(outputPath), 'concat_list.txt');
-        const concatList = clips.map(clip => `file '${clip}'`).join('\n');
+        const concatList = clips.map(c => `file '${c}'`).join('\n');
         await fsPromises.writeFile(concatListPath, concatList);
 
-        // Use concat protocol with re-encoding for smooth transitions
         await runFFmpeg({
             inputs: [],
             output: outputPath,
             args: [
+                '-threads', '1',
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', concatListPath,
                 '-c:v', 'libx264',
-                '-preset', 'medium',
+                '-x264-params', 'threads=1',
+                '-preset', 'veryfast',
                 '-crf', '23',
                 '-c:a', 'aac',
-                '-b:a', '192k',
+                '-b:a', '128k',
                 '-movflags', '+faststart',
             ],
         });
-
-        console.log('  ✓ Clips concatenated smoothly');
     }
 
     /**
@@ -786,45 +861,79 @@ export class VideoAssemblyService {
     /**
      * Overlay logo on video
      */
+    // async overlayLogo(
+    //     videoPath: string,
+    //     logoPath: string | undefined,
+    //     outputPath: string
+    // ): Promise<void> {
+    //     if (!logoPath) {
+    //         // No logo, just copy the video
+    //         await fsPromises.copyFile(videoPath, outputPath, fs.constants.COPYFILE_EXCL);
+    //         console.log('  No logo provided, skipping overlay');
+    //         return;
+    //     }
+
+    //     // Check if logo file exists
+    //     try {
+    //         await fsPromises.access(logoPath, fs.constants.F_OK);
+    //     } catch (error) {
+    //         console.warn('  Logo file not found, skipping overlay');
+    //         await fsPromises.copyFile(videoPath, outputPath, fs.constants.COPYFILE_EXCL);
+    //         return;
+    //     }
+
+    //     console.log(`  Applying logo overlay from: ${logoPath}`);
+
+    //     // Overlay logo at top-right corner with 20px padding
+    //     await runFFmpeg({
+    //         inputs: [videoPath, logoPath],
+    //         output: outputPath,
+    //         args: [
+    //             '-filter_complex',
+    //             '[1:v]scale=150:-1[logo];[0:v][logo]overlay=W-w-20:20',
+    //             '-c:a', 'copy',
+    //             '-c:v', 'libx264',
+    //             '-preset', 'medium',
+    //             '-crf', '23',
+    //         ],
+    //     });
+
+    //     console.log('  ✓ Logo overlay applied');
+    // }
     async overlayLogo(
         videoPath: string,
         logoPath: string | undefined,
         outputPath: string
     ): Promise<void> {
         if (!logoPath) {
-            // No logo, just copy the video
-            await fsPromises.copyFile(videoPath, outputPath, fs.constants.COPYFILE_EXCL);
-            console.log('  No logo provided, skipping overlay');
+            await fsPromises.copyFile(videoPath, outputPath);
             return;
         }
 
-        // Check if logo file exists
         try {
-            await fsPromises.access(logoPath, fs.constants.F_OK);
-        } catch (error) {
-            console.warn('  Logo file not found, skipping overlay');
-            await fsPromises.copyFile(videoPath, outputPath, fs.constants.COPYFILE_EXCL);
+            await fsPromises.access(logoPath);
+        } catch {
+            await fsPromises.copyFile(videoPath, outputPath);
             return;
         }
 
-        console.log(`  Applying logo overlay from: ${logoPath}`);
-
-        // Overlay logo at top-right corner with 20px padding
         await runFFmpeg({
             inputs: [videoPath, logoPath],
             output: outputPath,
             args: [
+                '-threads', '1',
                 '-filter_complex',
-                '[1:v]scale=150:-1[logo];[0:v][logo]overlay=W-w-20:20',
-                '-c:a', 'copy',
+                '[1:v]scale=120:-1[logo];[0:v][logo]overlay=W-w-20:20',
                 '-c:v', 'libx264',
-                '-preset', 'medium',
+                '-x264-params', 'threads=1',
+                '-preset', 'veryfast',
                 '-crf', '23',
+                '-c:a', 'copy',
+                '-movflags', '+faststart',
             ],
         });
-
-        console.log('  ✓ Logo overlay applied');
     }
+
 }
 
 export default VideoAssemblyService;
