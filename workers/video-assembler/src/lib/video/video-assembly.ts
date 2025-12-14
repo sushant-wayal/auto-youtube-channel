@@ -10,6 +10,7 @@ import { runFFmpeg, getVideoDuration, checkFFmpeg } from './ffmpeg-utils';
 import RedisService from '../../services/redis-service';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
+import { ReadableStream } from 'stream/web'; // ADD THIS
 
 export interface VideoAssemblyInput {
     jobId: string;
@@ -218,8 +219,10 @@ export class VideoAssemblyService {
         throw new Error(`Failed to download ${url}`);
         }
 
+        const webStream = res.body as unknown as ReadableStream;
+
         await pipeline(
-            Readable.fromWeb(res.body),
+            Readable.fromWeb(webStream),
             fs.createWriteStream(outPath)
         );
     }
