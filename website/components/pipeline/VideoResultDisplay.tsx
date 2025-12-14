@@ -16,7 +16,7 @@ export default function VideoResultDisplay({ assembledVideo, thumbnailPath }: Vi
     const [isFullscreen, setIsFullscreen] = useState(false);
 
     const videoUrl = `${assembledVideo.outputPath}`;
-    const posterUrl = thumbnailPath ? `/${thumbnailPath}` : undefined;
+    const posterUrl = thumbnailPath ? `${thumbnailPath}` : undefined;
 
     return (
         <>

@@ -123,7 +123,7 @@ function ShortResultCard({ shortState, onExpand }: ShortResultCardProps) {
 
     const videoUrl = `${assembledVideo.outputPath.replace(/^videos\//, '')}`;
     const thumbnailUrl = thumbnail?.thumbnailPath
-        ? `/${thumbnail.thumbnailPath.replace(/^videos\//, '')}`
+        ? `${thumbnail.thumbnailPath.replace(/^videos\//, '')}`
         : undefined;
 
     return (

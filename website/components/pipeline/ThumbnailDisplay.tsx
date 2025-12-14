@@ -30,7 +30,7 @@ export default function ThumbnailDisplay({ thumbnail, className }: ThumbnailDisp
                     <div className="relative group flex-1 min-h-[8rem]">
                         <div className="bg-black rounded-lg overflow-hidden h-full">
                             <img
-                                src={`/${thumbnail.thumbnailPath}`}
+                                src={`${thumbnail.thumbnailPath}`}
                                 alt="Generated YouTube Thumbnail"
                                 className="w-full h-full object-cover"
                             />
@@ -59,7 +59,7 @@ export default function ThumbnailDisplay({ thumbnail, className }: ThumbnailDisp
                             className="h-7 text-xs"
                             onClick={() => {
                                 const link = document.createElement("a");
-                                link.href = `/${thumbnail.thumbnailPath}`;
+                                link.href = `${thumbnail.thumbnailPath}`;
                                 link.download = `thumbnail-${thumbnail.videoId}.png`;
                                 link.click();
                             }}
@@ -89,7 +89,7 @@ export default function ThumbnailDisplay({ thumbnail, className }: ThumbnailDisp
                         {/* Full Size Image */}
                         <div className="bg-black rounded-xl overflow-hidden shadow-2xl">
                             <img
-                                src={`/${thumbnail.thumbnailPath}`}
+                                src={`${thumbnail.thumbnailPath}`}
                                 alt="Generated YouTube Thumbnail"
                                 className="w-full h-auto"
                             />
@@ -109,7 +109,7 @@ export default function ThumbnailDisplay({ thumbnail, className }: ThumbnailDisp
                                 size="sm"
                                 onClick={() => {
                                     const link = document.createElement("a");
-                                    link.href = `/${thumbnail.thumbnailPath}`;
+                                    link.href = `${thumbnail.thumbnailPath}`;
                                     link.download = `thumbnail-${thumbnail.videoId}.png`;
                                     link.click();
                                 }}
