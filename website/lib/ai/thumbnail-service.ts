@@ -13,6 +13,7 @@ import HuggingFaceImageService, { HFImageConfig, HF_IMAGE_MODELS } from "./huggi
 import type { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
+import CloudinaryService from "../cloudinary-service";
 
 export type ThumbnailProvider = "gemini" | "huggingface";
 
@@ -67,11 +68,23 @@ class ThumbnailService {
         console.log(`📹 Video ID: ${videoId}`);
         console.log(`🔧 Provider: ${provider}`);
 
+        let result: ThumbnailResult;
         if (provider === "gemini") {
-            return this.generateWithGemini(videoId, title, description, narration, tags, config);
+            result = await this.generateWithGemini(videoId, title, description, narration, tags, config);
         } else {
-            return this.generateWithHuggingFace(videoId, title, description, narration, tags, config);
+            result = await this.generateWithHuggingFace(videoId, title, description, narration, tags, config);
         }
+
+        const cloudinaryService = CloudinaryService.getInstance();
+        const uploadResult = await cloudinaryService.uploadImage(
+            result.thumbnailPath,
+            "thumbnails",
+            `${videoId}-thumbnail`
+        );
+
+        result.thumbnailPath = uploadResult.secureUrl;
+
+        return result;
     }
 
     /**
@@ -265,7 +278,7 @@ Create a visually striking, clickable thumbnail that accurately represents the v
         encoding: "base64" | "buffer" = "buffer"
     ): Promise<string> {
         // Create the output directory
-        const outputDir = path.join(process.cwd(), "videos", videoId);
+        const outputDir = path.join(process.cwd(), "tmp", "videos", videoId);
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
         }

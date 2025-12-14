@@ -112,7 +112,7 @@ export default function ShortsProgressDisplay({
                         {/* Full Size Image */}
                         <div className="bg-black rounded-xl overflow-hidden shadow-2xl">
                             <img
-                                src={`/api/videos/${fullscreenThumbnail.path}`}
+                                src={`/${fullscreenThumbnail.path}`}
                                 alt={`Short #${fullscreenThumbnail.shortIndex + 1} Thumbnail`}
                                 className="w-full h-auto"
                             />
@@ -130,7 +130,7 @@ export default function ShortsProgressDisplay({
                                 size="sm"
                                 onClick={() => {
                                     const link = document.createElement("a");
-                                    link.href = `/api/videos/${fullscreenThumbnail.path}`;
+                                    link.href = `/${fullscreenThumbnail.path}`;
                                     link.download = `short-${fullscreenThumbnail.shortIndex + 1}-thumbnail.png`;
                                     link.click();
                                 }}
@@ -306,7 +306,7 @@ function ShortProgressCard({ shortState, onRetry, onExpandThumbnail }: ShortProg
                                                 onClick={() => onExpandThumbnail(shortState.thumbnail!.thumbnailPath)}
                                             >
                                                 <img
-                                                    src={`/api/videos/${shortState.thumbnail.thumbnailPath}`}
+                                                    src={`/${shortState.thumbnail.thumbnailPath}`}
                                                     alt="Thumbnail"
                                                     className="w-full h-20 object-cover rounded"
                                                 />
