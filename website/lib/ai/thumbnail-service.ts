@@ -278,7 +278,7 @@ Create a visually striking, clickable thumbnail that accurately represents the v
         encoding: "base64" | "buffer" = "buffer"
     ): Promise<string> {
         // Create the output directory
-        const outputDir = path.join("tmp", "videos", videoId);
+        const outputDir = path.join("/tmp", "videos", videoId);
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
