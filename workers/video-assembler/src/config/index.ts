@@ -6,6 +6,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { ASSETS, VIDEO } from '../constants';
+import fs from 'fs';
 
 // Load environment variables from parent .env.local
 dotenv.config({ path: path.join(__dirname, '../..', '.env.local') });
@@ -42,6 +43,10 @@ export function validateConfig(): void {
     }
     if (!config.cloudinary.apiSecret) {
         errors.push('CLOUDINARY_API_SECRET is required');
+    }
+
+    if (!fs.existsSync(config.worker.assetsDir)) {
+        errors.push(`Assets directory does not exist at path: ${config.worker.assetsDir}`);
     }
 
     if (errors.length > 0) {
