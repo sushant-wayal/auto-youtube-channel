@@ -77,7 +77,7 @@ class ThumbnailService {
 
         const cloudinaryService = CloudinaryService.getInstance();
         const uploadResult = await cloudinaryService.uploadImage(
-            result.thumbnailPath,
+            path.join("/tmp", "videos", result.thumbnailPath),
             "thumbnails",
             `${videoId}-thumbnail`
         );
