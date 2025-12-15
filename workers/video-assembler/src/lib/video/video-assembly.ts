@@ -373,11 +373,17 @@ export class VideoAssemblyService {
 
         await redisService.updateJobProgress(input.jobId, 'processing', 90, 'Finalizing video with logo overlay...');
 
-        // Step 6: Overlay logo (for both shorts and long-form)
-        console.log('\n🎨 Step 6: Overlaying logo...');
         const finalOutput = path.join(outputDir, 'final.mp4');
-        await this.overlayLogo(combinedVideo, input.branding?.logo, finalOutput);
-        console.log(`✅ Logo overlay complete`);
+        if (input.isShort) {
+            // Step 6: Overlay logo (only for shorts)
+            console.log('\n🎨 Step 6: Overlaying logo...');
+            await this.overlayLogo(combinedVideo, input.branding?.logo, finalOutput);
+            console.log(`✅ Logo overlay complete`);
+        } else { 
+            // For long-form videos, skip logo overlay for now
+            console.log('\n🎨 Step 6: Skipping logo overlay for long-form video...');
+            await fsPromises.copyFile(combinedVideo, finalOutput);
+        }
 
         console.log('\n✅ === VIDEO ASSEMBLY COMPLETE ===');
         console.log(`📁 Output: ${finalOutput}`);
