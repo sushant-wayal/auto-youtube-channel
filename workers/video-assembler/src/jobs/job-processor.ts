@@ -51,7 +51,7 @@ class JobProcessor {
             console.log(`\n🎥 Starting video assembly...`);
 
             await this.redisService.updateJobProgress(
-                jobId, 'processing', 10, 'Assembling main video with FFmpeg...'
+                jobId, 'processing', 5, 'Assembling main video with FFmpeg...'
             );
 
             let music: string = '';

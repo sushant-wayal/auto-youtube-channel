@@ -310,6 +310,9 @@ export class VideoAssemblyService {
 
         // Step 2: Prepare audio (mix narration and background music) for main clips only
         console.log('\n🎵 Step 2: Preparing audio for main clips...');
+
+        await redisService.updateJobProgress(input.jobId, 'processing', 60, 'Preparing audio for main clips');
+
         let finalAudio: string;
         if (input.narrationAudio && input.music) {
             finalAudio = await this.mixNarrationWithMusic(input.narrationAudio, input.music, mainClipsDuration, outputDir);
@@ -324,15 +327,16 @@ export class VideoAssemblyService {
             console.log(`✅ Using silence (no music provided)`);
         }
 
-        await redisService.updateJobProgress(input.jobId, 'processing', 75, 'Prepared audio for main clips');
-
         // Step 3: Add audio to main clips video
         console.log('\n🎬 Step 3: Adding audio to main clips...');
+
+        await redisService.updateJobProgress(input.jobId, 'processing', 75, 'Adding audio to main clips');
+
         const mainClipsWithAudio = path.join(outputDir, 'main_clips_with_audio.mp4');
         await this.addAudioToVideo(mainClipsVideo, finalAudio, mainClipsWithAudio);
         console.log(`✅ Audio added to main clips`);
 
-        await redisService.updateJobProgress(input.jobId, 'processing', 80, 'Added audio to main clips');
+        await redisService.updateJobProgress(input.jobId, 'processing', 80, 'Combining all video segments');
 
         let combinedVideo: string;
 
@@ -363,11 +367,11 @@ export class VideoAssemblyService {
             console.log(`✅ Created combined video`);
         }
 
-        await redisService.updateJobProgress(input.jobId, 'processing', 90, 'Combined all video segments');
-
         // Get total video duration
         const videoDuration = await getVideoDuration(combinedVideo);
         console.log(`📊 Total video duration: ${videoDuration.toFixed(2)}s`);
+
+        await redisService.updateJobProgress(input.jobId, 'processing', 90, 'Finalizing video with logo overlay...');
 
         // Step 6: Overlay logo (for both shorts and long-form)
         console.log('\n🎨 Step 6: Overlaying logo...');
@@ -413,6 +417,11 @@ export class VideoAssemblyService {
         const combinedVideoPath = path.join(outputDir, 'combined_clips.mp4');
 
         for (let i = 0; i < clips.length; i++) {
+            await redisService.updateJobProgress(jobId, 'processing',
+                10 + Math.floor((i / clips.length) * 60),
+                `Normalizing and adding clip ${i + 1} of ${clips.length}`
+            );
+
             const clipUrl = clips[i];
             const clipPath = path.join(downloadDir, `clip_${i + 1}.mp4`);
 
@@ -435,11 +444,6 @@ export class VideoAssemblyService {
             else await fsPromises.copyFile(outputPath, combinedVideoPath);
 
             await fsPromises.unlink(outputPath); // Delete normalized clip after concatenation
-
-            await redisService.updateJobProgress(jobId, 'processing',
-                10 + Math.floor(((i + 1) / clips.length) * 60),
-                `Normalized and added clip ${i + 1} of ${clips.length}`
-            );
         }
 
         return combinedVideoPath;

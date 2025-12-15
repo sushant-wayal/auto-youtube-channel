@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         console.log(`\n🖼️ Generating thumbnail for short #${shortIndex + 1}...`);
 
         // Create output directory for this short
-        const shortOutputDir = path.join(process.cwd(), 'videos', shortVideoId);
+        const shortOutputDir = path.join("/tmp", 'videos', shortVideoId);
         await fs.mkdir(shortOutputDir, { recursive: true });
 
         // Full narration for the short
