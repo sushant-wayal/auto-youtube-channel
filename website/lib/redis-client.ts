@@ -1,7 +1,7 @@
 // lib/redis-client.ts
 // Client-side service to interact with Redis-backed job queue via API endpoints
 
-export type JobType = 'voiceover' | 'assets' | 'assembly';
+export type JobType = 'voiceover' | 'assets' | 'assembly' | 'youtube-upload';
 
 export interface CreateJobPayload {
     jobType: JobType;

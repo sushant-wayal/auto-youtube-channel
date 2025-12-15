@@ -21,6 +21,7 @@ export async function GET(
     "voiceOver:job:",
     "clipCollector:job:",
     "videoAssembler:job:",
+    "youtubeUploader:job:",
   ];
 
   let jobData: string | null = null;

@@ -645,7 +645,6 @@ export default function Home() {
 
   };
 
-
   // Retry a failed short
   const handleRetryShort = useCallback(async (shortIndex: number) => {
     const script = pipelineState.script;
@@ -875,8 +874,22 @@ export default function Home() {
           {isComplete && (
             <div className="max-w-md mx-auto">
               <YouTubeUploadButton
-                videoReady={!!pipelineState.videoGeneration.assembledVideo}
-                thumbnailReady={!!pipelineState.thumbnail}
+                longFormVideo={{
+                  videoUrl: pipelineState.videoGeneration.assembledVideo?.outputPath || "",
+                  title: pipelineState.script?.title || "AI Generated Video",
+                  description: pipelineState.script?.description || "",
+                  tags: pipelineState.script?.tags || [],
+                  thumbnailUrl: pipelineState.thumbnail?.thumbnailPath || "",
+                  privacyStatus: "public",
+                }}
+                shortFormVideos={pipelineState.shortsGeneration.shorts.map((short, idx) => ({
+                  title: pipelineState.script?.shorts[idx].hook || "AI Generated Short",
+                  description: pipelineState.script?.description || "",
+                  tags: pipelineState.script?.tags || [],
+                  videoUrl: short.assembledVideo?.outputPath || "",
+                  thumbnailUrl: short.thumbnail?.thumbnailPath || "",
+                  privacyStatus: "public"
+                }))}
                 disabled={pipelineState.isRunning}
               />
             </div>
