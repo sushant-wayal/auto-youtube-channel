@@ -648,6 +648,7 @@ export class VideoAssemblyService {
             inputs: [inputPath],
             output: outputPath,
             args: [
+                '-threads', '1',
                 '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30',
                 '-c:v', 'libx264',
                 '-preset', 'medium',
@@ -677,6 +678,7 @@ export class VideoAssemblyService {
             inputs: [musicPath],
             output: outputPath,
             args: [
+                '-threads', '1',
                 '-filter_complex', `aloop=loop=-1:size=2e+09,atrim=0:${videoDuration}`,
                 '-c:a', 'libmp3lame',
                 '-b:a', '192k',
@@ -734,6 +736,7 @@ export class VideoAssemblyService {
             inputs: [narrationPath, musicPath],
             output: outputPath,
             args: [
+                '-threads', '1',
                 '-filter_complex', filterComplex,
                 '-map', '[out]',
                 '-c:a', 'libmp3lame',
@@ -827,6 +830,7 @@ export class VideoAssemblyService {
             inputs: [],
             output: outputPath,
             args: [
+                '-threads', '1',
                 '-f', 'lavfi',
                 '-i', `anullsrc=r=44100:cl=stereo`,
                 '-t', duration.toString(),
@@ -848,6 +852,7 @@ export class VideoAssemblyService {
             inputs: [videoPath, audioPath],
             output: outputPath,
             args: [
+                '-threads', '1',
                 '-map', '0:v',      // Take video from first input
                 '-map', '1:a',      // Take audio from second input (narration + music)
                 '-c:v', 'copy',

@@ -161,31 +161,32 @@ export async function collectClipsForVideo(
     }
 
     // collect the best clip for this phrase (already sorted by duration, longest first)
-    for (const clip of clips) {
-      try {
-        const loopingNeeded = clip.duration < targetDuration;
-        const loopInfo = loopingNeeded
-          ? ` ⚠️ will loop ${(targetDuration / clip.duration).toFixed(1)}x`
-          : ' ✓ no looping needed';
 
-        console.log(`⬇️  collecting clip ${clipCounter}/${result.clipCount} for "${keyPhrase.phrase}"`);
-        console.log(`   Target: ${targetDuration.toFixed(2)}s, Clip: ${clip.duration}s${loopInfo}`);
+    const bestClip = clips.reduce((prev, curr) =>
+      Math.abs(curr.duration - targetDuration) < Math.abs(prev.duration - targetDuration) ? curr : prev
+    );
+    
+    try {
+      const loopingNeeded = bestClip.duration < targetDuration;
+      const loopInfo = loopingNeeded
+        ? ` ⚠️ will loop ${(targetDuration / bestClip.duration).toFixed(1)}x`
+        : ' ✓ no looping needed';
 
-        collectedTimings.push(targetDuration);
-        collectedKeyPhrases.push(keyPhrase);
-        collectedUrls.push(clip.url);
+      console.log(`⬇️  collecting clip ${clipCounter}/${result.clipCount} for "${keyPhrase.phrase}"`);
+      console.log(`   Target: ${targetDuration.toFixed(2)}s, Clip: ${bestClip.duration}s${loopInfo}`);
+      collectedTimings.push(targetDuration);
+      collectedKeyPhrases.push(keyPhrase);
+      collectedUrls.push(bestClip.url);
 
-        clipCounter++;
-        break; // Only need one clip per key phrase
-      } catch (error) {
-        console.error(`❌ Failed to collect clip for "${keyPhrase.phrase}":`, error);
-        // Continue with next clip option
-      }
-
-      await redisService.updateJobProgress(
-        jobId, 'processing', 50 + Math.floor(((i + 1) / result.keyPhrases.length) * 40), `Collecting clips... (${i + 1}/${result.keyPhrases.length})`
-      );
+      clipCounter++;
+    } catch (error) {
+      console.error(`❌ Failed to collect clip for "${keyPhrase.phrase}":`, error);
+      // Continue with next clip option
     }
+
+    await redisService.updateJobProgress(
+      jobId, 'processing', 50 + Math.floor(((i + 1) / result.keyPhrases.length) * 40), `Collecting clips... (${i + 1}/${result.keyPhrases.length})`
+    );
 
     // Small delay to be nice to the API
     if (i < result.keyPhrases.length - 1) {
