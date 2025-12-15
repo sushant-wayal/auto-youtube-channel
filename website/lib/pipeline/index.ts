@@ -1,20 +1,15 @@
 import ScriptGenerationService from "./script-generation";
 import { VideoScript, GenerationProgress, VideoGenerationResult, VideoAssets } from "./types";
 import TTSService from "@/lib/audio/tts-service";
-import { downloadClipsForVideo, ClipDownloadResult } from "@/lib/assets/clip-downloader";
-import { pickBackgroundTrack, getBrandingAssets } from "@/lib/assets/music-branding";
-import VideoAssemblyService from "@/lib/video/video-assembly";
 import path from "path";
 
 class VideoGenerationPipeline {
     private scriptService: ScriptGenerationService;
     private ttsService: TTSService;
-    private assemblyService: VideoAssemblyService;
 
     constructor() {
         this.scriptService = new ScriptGenerationService();
         this.ttsService = new TTSService();
-        this.assemblyService = new VideoAssemblyService();
     }
 
     /**
@@ -55,55 +50,6 @@ class VideoGenerationPipeline {
             // Generate unique video ID
             const videoId = `video-${Date.now()}`;
 
-            try {
-                const assets = await this.generateAssets(videoId, script.title, script.narration);
-                result.assets = assets;
-
-                onProgress?.({
-                    stage: "assets",
-                    message: `Assets ready! Downloaded ${assets.clips.length} clips.`,
-                    progress: 50,
-                });
-
-                // Stage 3: Video Assembly
-                onProgress?.({
-                    stage: "assembly",
-                    message: "Assembling final video with FFmpeg...",
-                    progress: 60,
-                });
-
-                try {
-                    const video = await this.assemblyService.assembleVideo({
-                        videoId: assets.videoId,
-                        clips: assets.clips,
-                        clipTimings: assets.clipTimings,  // Pass pre-calculated timings for better sync
-                        music: assets.music,
-                        branding: assets.branding,
-                    });
-                    result.video = video;
-
-                    onProgress?.({
-                        stage: "assembly",
-                        message: `Video assembled! Duration: ${video.duration.toFixed(0)}s`,
-                        progress: 80,
-                    });
-                } catch (error) {
-                    console.error("Video assembly error:", error);
-                    onProgress?.({
-                        stage: "assembly",
-                        message: "⚠️ Video assembly failed, check FFmpeg installation...",
-                        progress: 80,
-                    });
-                }
-            } catch (error) {
-                console.error("Assets generation error:", error);
-                onProgress?.({
-                    stage: "assets",
-                    message: "⚠️ Assets generation failed, continuing without footage...",
-                    progress: 50,
-                });
-            }
-
             // Skip Stage 4: Audio Generation (paused for now)
             console.log("⏭️  Skipping audio generation step (paused)");
 
@@ -142,90 +88,6 @@ class VideoGenerationPipeline {
      */
     async generateScriptOnly(videoIdea: string): Promise<VideoScript> {
         return await this.scriptService.generateScript(videoIdea, 7);
-    }
-
-    /**
-     * Generate assets for a video (footage, music, branding)
-     * @param videoId - Unique identifier for the video
-     * @param title - Video title
-     * @param narration - Full narration text
-     * @param narrationAudioPath - Optional path to narration audio for accurate timing
-     * @returns VideoAssets object with all asset paths and timings
-     */
-    async generateAssets(
-        videoId: string,
-        title: string,
-        narration: string,
-        narrationAudioPath?: string
-    ): Promise<VideoAssets> {
-        console.log("\n🎬 === ASSETS GENERATION STARTED ===");
-        console.log(`Video ID: ${videoId}`);
-        console.log(`Title: ${title}`);
-
-        // Download stock footage clips with dynamic timing based on word coverage
-        console.log("\n📹 Step 1: Downloading stock footage clips with dynamic timing...");
-        const clipResult: ClipDownloadResult = await downloadClipsForVideo(videoId, narration, narrationAudioPath);
-        console.log(`✅ Downloaded ${clipResult.clipPaths.length} clips with pre-calculated timings`);
-
-        // Select background music
-        console.log("\n🎵 Step 2: Selecting background music...");
-        let music: string;
-        try {
-            music = pickBackgroundTrack();
-        } catch (error) {
-            console.warn("⚠️  No background music available:", error);
-            music = "";
-        }
-
-        // Get branding assets
-        console.log("\n🎨 Step 3: Gathering branding assets...");
-        const branding = getBrandingAssets();
-
-        console.log("\n✅ === ASSETS GENERATION COMPLETE ===");
-        console.log(`📊 Summary:`);
-        console.log(`  - Clips: ${clipResult.clipPaths.length}`);
-        console.log(`  - Clip timings: ${clipResult.clipTimings.map(t => t.toFixed(2) + 's').join(', ')}`);
-        console.log(`  - Total target duration: ${clipResult.totalTargetDuration.toFixed(2)}s`);
-        console.log(`  - Music: ${music ? '✓' : '✗'}`);
-        console.log(`  - Branding: ${Object.keys(branding).length} asset(s)`);
-
-        return {
-            videoId,
-            clips: clipResult.clipPaths,
-            clipTimings: clipResult.clipTimings,
-            music,
-            branding,
-        };
-    }
-
-    /**
-     * Generate audio from script using Hugging Face SpeechT5
-     * (Currently paused - not in use)
-     */
-    async generateAudio(script: VideoScript): Promise<string> {
-        try {
-            // Generate unique filename
-            const timestamp = Date.now();
-            const filename = `voiceover-${timestamp}.flac`;
-            const outputPath = path.join(process.cwd(), "public", "generated", filename);
-
-            console.log("🎙️ Starting audio generation with Hugging Face SpeechT5...");
-
-            // Generate audio from narration
-            await this.ttsService.generateLongFormSpeech(
-                script.narration,
-                outputPath
-            );
-
-            // Return the public URL
-            const publicUrl = `/generated/${filename}`;
-            console.log("✅ Audio generation complete:", publicUrl);
-
-            return publicUrl;
-        } catch (error) {
-            console.error("Error in audio generation pipeline:", error);
-            throw new Error(`Failed to generate audio: ${error}`);
-        }
     }
 }
 
