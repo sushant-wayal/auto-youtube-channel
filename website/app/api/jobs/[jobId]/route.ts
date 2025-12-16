@@ -22,6 +22,7 @@ export async function GET(
     "clipCollector:job:",
     "videoAssembler:job:",
     "youtubeUploader:job:",
+    "autoVideoGenerationAndUpload:job:",
   ];
 
   let jobData: string | null = null;

@@ -51,6 +51,10 @@ export async function POST(req: NextRequest) {
         queueKey = "youtubeUploader:jobs:queue";
         jobKey = `youtubeUploader:job:${jobId}`;
         break;
+      case "auto-video-generation-and-upload":
+        queueKey = "autoVideoGenerationAndUpload:jobs:queue";
+        jobKey = `autoVideoGenerationAndUpload:job:${jobId}`;
+        break;
       default:
         return NextResponse.json(
           { error: "Invalid jobType" },

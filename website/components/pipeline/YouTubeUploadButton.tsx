@@ -68,7 +68,7 @@ export default function YouTubeUploadButton({
 
         await pollJobProgress(longFormUploadJob.jobId, (result) => {
             setUploadStatus("Long-form video uploaded successfully!");
-            setLongFormVideoId(result.videoId);
+            setLongFormVideoId(result.uploadedVideoId);
         });
 
         const shortFormIds: (string | null)[] = [];
@@ -81,7 +81,7 @@ export default function YouTubeUploadButton({
 
             // eslint-disable-next-line no-loop-func
             await pollJobProgress(shortFormUploadJob.jobId, (result) => {
-                shortFormIds.push(result.videoId);
+                shortFormIds.push(result.uploadedVideoId);
                 setShortFormVideoIds(shortFormIds);
                 setUploadStatus("Short-form video uploaded successfully!");
             });
