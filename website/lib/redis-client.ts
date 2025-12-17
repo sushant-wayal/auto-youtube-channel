@@ -17,8 +17,8 @@ export interface JobStatus {
     error?: string;
 }
 
-export async function createJob(payload: CreateJobPayload): Promise<{ jobId: string }> {
-    const response = await fetch('http://localhost:3000/api/jobs', {
+export async function createJob(payload: CreateJobPayload, cron : boolean = false): Promise<{ jobId: string }> {
+    const response = await fetch(`${cron ? process.env.WEBSITE_DOMAIN : ""}/api/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -28,7 +28,7 @@ export async function createJob(payload: CreateJobPayload): Promise<{ jobId: str
 }
 
 export async function getJobStatus(jobId: string): Promise<JobStatus> {
-    const response = await fetch(`http://localhost:3000/api/jobs/${jobId}`);
+    const response = await fetch(`/api/jobs/${jobId}`);
     if (!response.ok) throw new Error('Failed to fetch job status');
     return response.json();
 }

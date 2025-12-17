@@ -6,7 +6,7 @@ export async function GET() {
     jobType: "auto-video-generation-and-upload",
     videoId: `daily-auto-video-${Date.now()}`,
     payload: {},
-  });
+  }, true);
 
   console.log(`\n🗓️  Created daily auto video generation and upload job: ${jobId}`);
 
