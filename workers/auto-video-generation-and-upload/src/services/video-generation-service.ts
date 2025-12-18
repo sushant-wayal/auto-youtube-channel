@@ -70,9 +70,13 @@ class VideoGenerationService {
                 style: "vibrant"
             }),
         });
-        const data = await response.json() as { error?: string; thumbnail: ThumbnailResult };
+        const data = await response.json() as { error?: string; thumbnail: ThumbnailResult | {
+            shortVideoId: string;
+            thumbnail: ThumbnailResult;
+        } };
         if (!response.ok) throw new Error(data.error || "Failed to generate thumbnail");
         console.log(`🎨 Generated thumbnail for videoId: "${videoId}"`);
+        if ("shortVideoId" in data.thumbnail) return data.thumbnail.thumbnail;
         return data.thumbnail;
     };
 
