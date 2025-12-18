@@ -43,6 +43,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-workers/auto-video-generation-and-upload/seed-idea.ts
-try
