@@ -76,7 +76,7 @@ class VideoGenerationService {
         } };
         if (!response.ok) throw new Error(data.error || "Failed to generate thumbnail");
         console.log(`🎨 Generated thumbnail for videoId: "${videoId}"`);
-        if ("shortVideoId" in data.thumbnail) return data.thumbnail.thumbnail;
+        if (typeof data.thumbnail === "object" && "shortVideoId" in data.thumbnail) return data.thumbnail.thumbnail;
         return data.thumbnail;
     };
 
