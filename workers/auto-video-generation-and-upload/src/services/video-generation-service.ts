@@ -70,14 +70,17 @@ class VideoGenerationService {
                 style: "vibrant"
             }),
         });
-        const data = await response.json() as { error?: string; thumbnail: ThumbnailResult | {
-            shortVideoId: string;
-            thumbnail: ThumbnailResult;
-        } };
+        const data = await response.json() as { error?: string; thumbnail: ThumbnailResult} | {
+            error?: string;
+            result: {
+                shortVideoId: string;
+                thumbnail: ThumbnailResult;
+            }
+        };
         if (!response.ok) throw new Error(data.error || "Failed to generate thumbnail");
         console.log(`🎨 Generated thumbnail for videoId: "${videoId}"`);
-        if (typeof data.thumbnail === "object" && "shortVideoId" in data.thumbnail) return data.thumbnail.thumbnail;
-        return data.thumbnail;
+        if (typeof data === "object" && "thumbnail" in data) return data.thumbnail;
+        return data.result.thumbnail;
     };
 
     private async generateVoiceOver(shortIdx: number = -1) : Promise<string> {
