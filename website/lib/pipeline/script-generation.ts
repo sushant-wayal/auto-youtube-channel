@@ -26,14 +26,6 @@ class ScriptGenerationService {
                 temperature: 0.8,
                 topP: 0.95,
             });
-            // Save the raw response to a local file for debugging
-            const debugDir = path.resolve(process.cwd(), "debug");
-            await fs.mkdir(debugDir, { recursive: true });
-            const debugFile = path.join(
-                debugDir,
-                `script-raw-${Date.now()}.json`
-            );
-            await fs.writeFile(debugFile, response, "utf8");
 
             const script = this.parseScriptResponse(response, videoIdea);
             return script;

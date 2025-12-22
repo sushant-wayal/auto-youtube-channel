@@ -34,15 +34,6 @@ export async function POST(request: NextRequest) {
         console.log("🤖 Using Gemini AI for script generation");
         const pipeline = new VideoGenerationPipeline();
         const script = await pipeline.generateScriptOnly(videoIdea);
-        const scriptsDir = path.resolve(process.cwd(), "generated-scripts");
-        await fs.mkdir(scriptsDir, { recursive: true });
-
-        const safeTitle = script.title
-          ? script.title.replace(/[^a-z0-9_\-]+/gi, "_").toLowerCase()
-          : "untitled";
-        const filePath = path.join(scriptsDir, `${safeTitle}_${Date.now()}.json`);
-
-        await fs.writeFile(filePath, JSON.stringify(script, null, 2), "utf-8");
 
         return NextResponse.json({ script });
     } catch (error) {
