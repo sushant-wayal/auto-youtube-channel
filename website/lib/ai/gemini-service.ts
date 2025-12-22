@@ -28,7 +28,7 @@ class GeminiService {
         config?: GeminiConfig
     ): Promise<string> {
         try {
-            const modelName = config?.model || "gemini-2.5-flash";
+            const modelName = config?.model || "gemini-3-flash-preview";
             const result = await this.genAI.models.generateContent({
                 model: modelName,
                 contents: prompt,
@@ -56,7 +56,7 @@ class GeminiService {
         config?: GeminiConfig
     ): AsyncGenerator<string, void, unknown> {
         try {
-            const modelName = config?.model || "gemini-2.5-flash";
+            const modelName = config?.model || "gemini-3-flash-preview";
             const response = await this.genAI.models.generateContentStream({
                 model: modelName,
                 contents: prompt,
@@ -89,7 +89,7 @@ class GeminiService {
         config?: GeminiConfig,
         history?: Array<{ role: string; parts: string }>
     ): Chat {
-        const modelName = config?.model || "gemini-2.5-flash";
+        const modelName = config?.model || "gemini-3-flash-preview";
         return this.genAI.chats.create({
             model: modelName,
             history: history?.map((msg) => ({
@@ -117,7 +117,7 @@ class GeminiService {
         config?: GeminiConfig
     ): Promise<string> {
         try {
-            const modelName = config?.model || "gemini-2.5-flash";
+            const modelName = config?.model || "gemini-3-flash-preview";
 
             const imageParts = images.map((img) => ({
                 inlineData: {
@@ -158,7 +158,7 @@ class GeminiService {
         config?: GeminiConfig
     ): Promise<number> {
         try {
-            const modelName = config?.model || "gemini-2.5-flash";
+            const modelName = config?.model || "gemini-3-flash-preview";
             const result = await this.genAI.models.countTokens({
                 model: modelName,
                 contents: prompt,

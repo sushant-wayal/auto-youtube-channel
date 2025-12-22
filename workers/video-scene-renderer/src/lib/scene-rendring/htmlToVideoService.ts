@@ -1,0 +1,96 @@
+import fs from "fs";
+import path from "path";
+import puppeteer from "puppeteer";
+import { spawn } from "child_process";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+
+interface RenderOptions {
+  html: string;
+  width: number;
+  height: number;
+  fps: number;
+  duration: number; // seconds
+  output: string;   // .mp4
+}
+
+export class HtmlToVideoService {
+  async render(opts: RenderOptions): Promise<void> {
+    const { html, width, height, fps, duration, output } = opts;
+
+    const totalFrames = Math.ceil(duration * fps);
+    const framesDir = path.resolve(".frames_tmp");
+
+    fs.rmSync(framesDir, { recursive: true, force: true });
+    fs.mkdirSync(framesDir, { recursive: true });
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width, height });
+
+    await page.setContent(html, { waitUntil: "load" });
+
+    // crash early if renderer JS errors
+    page.on("pageerror", err => {
+      const message = typeof err === "object" && err !== null && "message" in err
+        ? (err as { message: string }).message
+        : String(err);
+      throw new Error("Scene JS error: " + message);
+    });
+
+    console.log(`🎥 Starting frame rendering: ${totalFrames} frames at ${fps} fps`);
+
+    for (let frame = 0; frame < totalFrames; frame++) {
+      const time = frame / fps;
+
+      await page.evaluate(t => {
+        // @ts-ignore
+        window.renderFrame(t);
+      }, time);
+
+      const framePath = path.join(
+        framesDir,
+        `frame_${String(frame).padStart(5, "0")}.png`
+      );
+
+      await page.screenshot({ path: framePath });
+    }
+
+    await browser.close();
+
+    await this.encodeVideo(framesDir, fps, output);
+
+    fs.rmSync(framesDir, { recursive: true, force: true });
+  }
+
+  private encodeVideo(
+    framesDir: string,
+    fps: number,
+    output: string
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ffmpegPath = ffmpegInstaller.path;
+
+      const args = [
+        "-y",
+        "-framerate", String(fps),
+        "-i", path.join(framesDir, "frame_%05d.png"),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        output
+      ];
+
+      const ffmpeg = spawn(ffmpegPath, args, { stdio: "inherit" });
+
+      ffmpeg.on("error", reject);
+      ffmpeg.on("close", code => {
+        if (code === 0) resolve();
+        else reject(new Error(`ffmpeg exited with code ${code}`));
+      });
+    });
+  }
+}

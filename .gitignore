@@ -45,4 +45,5 @@ yarn-error.log*
 next-env.d.ts
 
 workers/auto-video-generation-and-upload/seed-idea.ts
+workers/auto-video-generation-and-upload/remove-idea.ts
 try

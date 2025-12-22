@@ -5,11 +5,11 @@
 
 import Redis from 'ioredis';
 import config from '../config';
-import { ClipsCollectorJob, JobStatus, JobProgress } from '../types';
+import { VideoSceneRendererJob, JobStatus, JobProgress } from '../types';
 
-const JOB_QUEUE_KEY = 'clipCollector:jobs:queue';
-const JOB_DATA_PREFIX = 'clipCollector:job:';
-const JOB_PROGRESS_PREFIX = 'clipCollector:progress:';
+const JOB_QUEUE_KEY = 'videoScene:jobs:queue';
+const JOB_DATA_PREFIX = 'videoScene:job:';
+const JOB_PROGRESS_PREFIX = 'videoScene:progress:';
 
 class RedisService {
     private client: Redis;
@@ -39,7 +39,7 @@ class RedisService {
     /**
      * Get the next pending job from the queue
      */
-    async getNextJob(): Promise<ClipsCollectorJob | null> {
+    async getNextJob(): Promise<VideoSceneRendererJob | null> {
         try {
             // Get job ID from queue (FIFO)
             const jobId = await this.client.lpop(JOB_QUEUE_KEY);
@@ -56,7 +56,7 @@ class RedisService {
                 return null;
             }
 
-            return JSON.parse(jobData) as ClipsCollectorJob;
+            return JSON.parse(jobData) as VideoSceneRendererJob;
         } catch (error) {
             console.error('❌ Error getting next job:', error);
             return null;
@@ -71,7 +71,7 @@ class RedisService {
         status: JobStatus,
         progress: number,
         message: string,
-        additionalData?: Partial<ClipsCollectorJob>
+        additionalData?: Partial<VideoSceneRendererJob>
     ): Promise<void> {
         try {
             // Get current job data
@@ -82,10 +82,10 @@ class RedisService {
                 return;
             }
 
-            const job: ClipsCollectorJob = JSON.parse(jobData);
+            const job: VideoSceneRendererJob = JSON.parse(jobData);
 
             // Update job
-            const updatedJob: ClipsCollectorJob = {
+            const updatedJob: VideoSceneRendererJob = {
                 ...job,
                 status,
                 progress,
@@ -124,10 +124,8 @@ class RedisService {
      */
     async completeJob(
         jobId: string,
-        results: Partial<ClipsCollectorJob>
+        results: Partial<VideoSceneRendererJob>
     ): Promise<void> {
-        console.log("clipsUrls", results.clipsUrls);
-        console.log("clipTimings", results.clipTimings);
         await this.updateJobProgress(
             jobId,
             'completed',
@@ -153,7 +151,7 @@ class RedisService {
     /**
      * Get job by ID
      */
-    async getJob(jobId: string): Promise<ClipsCollectorJob | null> {
+    async getJob(jobId: string): Promise<VideoSceneRendererJob | null> {
         try {
             const jobData = await this.client.get(`${JOB_DATA_PREFIX}${jobId}`);
 
@@ -161,7 +159,7 @@ class RedisService {
                 return null;
             }
 
-            return JSON.parse(jobData) as ClipsCollectorJob;
+            return JSON.parse(jobData) as VideoSceneRendererJob;
         } catch (error) {
             console.error(`❌ Error getting job ${jobId}:`, error);
             return null;

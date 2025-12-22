@@ -8,6 +8,8 @@ import GeminiClient from "./gemini-client";
 import type { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
+import CloudinaryService from "../../services/cloudinary-service";
+import RedisService from "../../services/redis-service";
 
 export interface GeminiTTSConfig {
     voice?: string; // Voice selection (Puck, Charon, Kore, Fenrir, Aoede)
@@ -15,8 +17,10 @@ export interface GeminiTTSConfig {
 }
 
 class GeminiTTSService {
-    private genAI: GoogleGenAI;
+    private geminiClient: GeminiClient;
     private readonly MODEL_NAME = "gemini-2.5-flash-preview-tts"; // Correct TTS model name
+    private cloudinaryService: CloudinaryService;
+    private redisService: RedisService;
 
     // Available voices for Gemini TTS
     private readonly VOICES = {
@@ -28,7 +32,9 @@ class GeminiTTSService {
     };
 
     constructor() {
-        this.genAI = GeminiClient.getInstance().getGenAI();
+        this.geminiClient = GeminiClient.getInstance();
+        this.cloudinaryService = CloudinaryService.getInstance();
+        this.redisService = RedisService.getInstance();
     }
 
     /**
@@ -66,16 +72,18 @@ class GeminiTTSService {
             console.log(`🚀 Generating audio with Gemini 2.5 Flash Preview TTS...`);
             console.log(`⏳ This may take 10-30 seconds for long narrations...`);
 
-            const result = await this.genAI.models.generateContent({
+            const result = await this.geminiClient.getGenAI().models.generateContent({
                 model: this.MODEL_NAME,
                 contents: processedText,
                 config: {
                     temperature: 1,
-                    maxOutputTokens: 8192,
+                    maxOutputTokens: 32000,
                     responseModalities: ["AUDIO"],
                     speechConfig: Object.keys(speechConfig).length > 0 ? speechConfig : undefined,
                 },
             });
+
+            
 
             // Extract audio data from response
             if (!result.candidates || result.candidates.length === 0) {
@@ -83,6 +91,8 @@ class GeminiTTSService {
             }
 
             const candidate = result.candidates[0];
+
+            console.log(`Finish Reason: ${candidate.finishReason}`);
 
             // Extract audio from inline data
             if (candidate.content?.parts && candidate.content.parts.length > 0) {
@@ -196,14 +206,10 @@ class GeminiTTSService {
 
     /**
      * Process narration text for better TTS output
-     * Removes [PAUSE] markers and prepares text
      */
     processNarrationForTTS(narration: string): string {
-        // Replace [PAUSE] with commas for natural pauses
-        let processed = narration.replace(/\[PAUSE\]/g, ", ");
-
         // Remove extra whitespace
-        processed = processed.replace(/\s+/g, " ").trim();
+        let processed = narration.replace(/\s+/g, " ").trim();
 
         // Add periods at the end of paragraphs if missing
         processed = processed.replace(/\n\n/g, ". ");
@@ -248,6 +254,63 @@ class GeminiTTSService {
             console.error(`❌ Failed to generate narration audio:`, error);
             throw new Error(`Narration audio generation failed: ${error.message || error}`);
         }
+    }
+
+    async generateNarrationAudios(
+        jobId: string,
+        narrations: string[],
+        outputDir: string,
+        config?: GeminiTTSConfig
+    ): Promise<string[]> {
+        const audioUrls: string[] = [];
+
+        for (let i = 0; i < narrations.length; i++) {
+            await this.redisService.updateJobProgress(
+                jobId,
+                'processing',
+                Math.floor(((i + 1) / narrations.length) * 90) + 5,
+                `Generating narration part ${i + 1} of ${narrations.length}...`
+            );
+
+            const narration = narrations[i];
+            const outputPath = path.join(outputDir, `narration-part-${i + 1}.wav`);
+
+            console.log(`\n🎬 Generating narration part ${i + 1} of ${narrations.length}...`);
+            
+            try {
+                const audioPath = await this.generateNarrationAudio(
+                    narration,
+                    outputPath,
+                    config
+                );
+
+                await this.redisService.updateJobProgress(
+                    jobId,
+                    'processing',
+                    Math.floor(((i + 1) / narrations.length) * 90) + 5,
+                    `Uploading narration part ${i + 1} of ${narrations.length} to Cloudinary...`
+                );
+                
+                const upload = await this.cloudinaryService.uploadAudio(
+                    audioPath,
+                    `narrations/part-${i + 1}`,
+                    'narration-audio'
+                );
+
+                console.log(`✅ Narration part ${i + 1} uploaded to Cloudinary: ${upload.secureUrl}`);
+                audioUrls.push(upload.secureUrl);
+
+                // Clean up local file
+
+                await fs.promises.unlink(audioPath);
+
+            } catch (error) {
+                console.error(`❌ Failed to generate narration part ${i + 1}:`, error);
+                throw error;
+            }
+        }
+
+        return audioUrls;
     }
 }
 

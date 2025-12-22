@@ -26,7 +26,7 @@ class Worker {
      * Start the worker
      */
     async start(): Promise<void> {
-        console.log('\n🚀 === CLIP COLLECTOR WORKER STARTED ===');
+        console.log('\n🚀 === VIDEO SCENE RENDERER WORKER STARTED ===');
         console.log(`📡 Redis URL: ${config.redis.url.replace(/:[^:@]+@/, ':****@')}`);
         console.log(`⏱️  Poll interval: ${this.pollInterval}ms`);
         console.log('👂 Listening for jobs...\n');
@@ -61,7 +61,7 @@ class Worker {
                     console.log(`\n📥 Picked up job: ${job.jobId}`);
 
                     // Process the job
-                    this.jobProcessor.processJob(job);
+                    await this.jobProcessor.processJob(job);
 
                     console.log(`\n👂 Continuing to listen for jobs...`);
                 }

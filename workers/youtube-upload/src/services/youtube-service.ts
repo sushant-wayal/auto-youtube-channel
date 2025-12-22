@@ -58,6 +58,9 @@ export class YouTubeService {
     try {
       /* 1️⃣ Download video */
       await this.downloadFile(videoUrl, videoPath);
+      if (thumbnailUrl && thumbnailPath) {
+        await this.downloadFile(thumbnailUrl, thumbnailPath);
+      }
 
       await redisService.updateJobProgress(
         jobId, 
@@ -99,16 +102,16 @@ export class YouTubeService {
       );
 
       // /* 3️⃣ Upload thumbnail (optional) */
-      // if (thumbnailUrl && thumbnailPath) {
-      //   await this.downloadFile(thumbnailUrl, thumbnailPath);
+      if (thumbnailUrl && thumbnailPath) {
+        await this.downloadFile(thumbnailUrl, thumbnailPath);
 
-      //   await this.youtube.thumbnails.set({
-      //     videoId,
-      //     media: {
-      //       body: fs.createReadStream(thumbnailPath),
-      //     },
-      //   });
-      // }
+        await this.youtube.thumbnails.set({
+          videoId,
+          media: {
+            body: fs.createReadStream(thumbnailPath),
+          },
+        });
+      }
 
       return videoId;
     } finally {

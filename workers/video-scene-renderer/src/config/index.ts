@@ -5,7 +5,7 @@
 
 import dotenv from 'dotenv';
 import path from 'path';
-import { NARRATIONS } from '../constants';
+import { CLIPS } from '../constants';
 
 // Load environment variables from parent .env.local
 dotenv.config({ path: path.join(__dirname, '../..', '.env.local') });
@@ -19,16 +19,24 @@ export const config = {
         apiKey: process.env.CLOUDINARY_API_KEY || '',
         apiSecret: process.env.CLOUDINARY_API_SECRET || '',
     },
-    gemini: {
-        apiKey1: process.env.GEMINI_API_KEY_1 || '',
-        apiKey2: process.env.GEMINI_API_KEY_2 || ''
+    video: {
+        long: {
+            width: 1280,
+            height: 720,
+            fps: 30,
+        },
+        short: {
+            width: 720,
+            height: 1280,
+            fps: 30,
+        },
     },
     worker: {
         pollInterval: 5000, // Poll Redis every 5 seconds
-        jobTimeout: 600000, // 10 min job timeout
-        workDir: path.join(__dirname, NARRATIONS), // Directory for narration files
+        jobTimeout: 3600000, // 1 hr job timeout
+        workDir: path.join(__dirname, CLIPS),
     },
-    prod: process.env.PROD === 'true',
+    prod: process.env.PROD === 'true'
 };
 
 // Validate required configuration
@@ -47,11 +55,20 @@ export function validateConfig(): void {
     if (!config.cloudinary.apiSecret) {
         errors.push('CLOUDINARY_API_SECRET is required');
     }
-    if (!config.gemini.apiKey1) {
-        errors.push('GEMINI_API_KEY_1 is required');
+    if (!config.worker.workDir) {
+        errors.push('Worker workDir is required');
     }
-    if (!config.gemini.apiKey2) {
-        errors.push('GEMINI_API_KEY_2 is required');
+    if (!config.video.long.width || !config.video.long.height) {
+        errors.push('Video long dimensions are required');
+    }
+    if (!config.video.short.width || !config.video.short.height) {
+        errors.push('Video short dimensions are required');
+    }
+    if (!config.video.long.fps) {
+        errors.push('Video long fps is required');
+    }
+    if (!config.video.short.fps) {
+        errors.push('Video short fps is required');
     }
 
     if (errors.length > 0) {

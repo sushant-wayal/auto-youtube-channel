@@ -242,8 +242,8 @@ class RedisService {
                 jobKey = `voiceOver:job:${jobId}`;
                 break;
             case "assets":
-                queueKey = "clipCollector:jobs:queue";
-                jobKey = `clipCollector:job:${jobId}`;
+                queueKey = "videoScene:jobs:queue";
+                jobKey = `videoScene:job:${jobId}`;
                 break;
             case "assembly":
                 queueKey = "videoAssembler:jobs:queue";
@@ -270,6 +270,7 @@ class RedisService {
             "clipCollector:job:",
             "videoAssembler:job:",
             "youtubeUploader:job:",
+            "videoScene:job:"
         ];
 
         let jobData: string | null = null;
@@ -292,6 +293,7 @@ class RedisService {
                     const jobStatus = await this.getJobStatus(jobId);
                     if (jobStatus) {
                         if (jobStatus.status === 'completed' || jobStatus.status === 'failed') {
+                            console.log(`✅ Job ${jobId} ${jobStatus.status}`);
                             clearInterval(poll);
                             resolve({
                                 ...jobStatus,
