@@ -22,14 +22,14 @@ export interface JobProgress {
 export interface AudioGenerationJob {
     jobId: string;
     videoIdea: string;
-    narration: string;
+    perSceneNarration: string[];
     createdAt: number;
     updatedAt: number;
     status: JobStatus;
     progress: number;
     message: string;
 
-    voiceOverUrl?: string;
+    voiceOverUrls?: string[];
 
     // Error info
     error?: string;

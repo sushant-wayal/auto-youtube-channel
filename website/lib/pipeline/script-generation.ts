@@ -1,5 +1,7 @@
 import { GeminiService } from "@/lib/ai";
 import { VideoScript } from "./types";
+import { promises as fs } from "fs";
+import path from "path";
 
 class ScriptGenerationService {
     private gemini: GeminiService;
@@ -22,9 +24,16 @@ class ScriptGenerationService {
         try {
             const response = await this.gemini.generateText(prompt, {
                 temperature: 0.8,
-                maxOutputTokens: 8192, // Increased from 4096 to handle longer responses
                 topP: 0.95,
             });
+            // Save the raw response to a local file for debugging
+            const debugDir = path.resolve(process.cwd(), "debug");
+            await fs.mkdir(debugDir, { recursive: true });
+            const debugFile = path.join(
+                debugDir,
+                `script-raw-${Date.now()}.json`
+            );
+            await fs.writeFile(debugFile, response, "utf8");
 
             const script = this.parseScriptResponse(response, videoIdea);
             return script;
@@ -35,27 +44,140 @@ class ScriptGenerationService {
     }
 
     private buildScriptPrompt(videoIdea: string, duration: number): string {
-        return `You are a YouTube script writer. Create a ${duration}-minute video script about: "${videoIdea}"
+        return `
+        You are a technical explainer AI.
 
-Return ONLY valid JSON in this exact format:
+        Create content for a ${duration}-minute YouTube video about:
+        "${videoIdea}"
 
-{
-  "title": "SEO title (under 60 chars)",
-  "description": "2-3 sentence description",
-  "tags": ["keyword1", "keyword2", "keyword3"],
-  "narration": "Full script text here. Use natural paragraphs. Add [PAUSE] for pauses. 800-1000 words.",
-  "shorts": [
-    {"hook": "Catchy question", "script": "15-20 second explanation"}
-  ]
-}
+        Return ONLY valid JSON in the exact format below.
+        This output feeds an automated video rendering pipeline.
 
-CRITICAL RULES:
-- Return ONLY the JSON object, no markdown, no code blocks, no extra text
-- Ensure narration is a single valid JSON string (escape quotes with \\")
-- Keep narration under 1000 words to fit in response
-- 2-3 shorts maximum
-- NO scene descriptions, NO timecodes, NO visual instructions`;
-    }
+        ========================
+        REQUIRED OUTPUT FORMAT
+        ========================
+
+        {
+        "title": "SEO-friendly title under 60 characters",
+        "description": "2-3 sentence YouTube description",
+        "tags": ["tag1", "tag2", "tag3"],
+
+        "scenes": [
+            {
+            "id": "scene-1",
+            "baseDuration": 6.0,
+            "holdDuration": 2.0,
+            "narration": "Full narration text for this scene.",-
+            "actions": [
+                {
+                "t": 0.5,
+                "op": "text",
+                "x": 520,
+                "y": 80,
+                "value": "Binary Tree"
+                }
+            ]
+            }
+        ],
+
+        "shorts": [
+            {
+            "id": "short-1",
+            "hook": "Why do databases look like cylinders?",
+            "narration": "Databases are drawn as cylinders because they represent stored data that persists over time.",
+            "baseDuration": 15.0,
+            "actions": [
+                {
+                "t": 0.5,
+                "op": "text",
+                "x": 360,
+                "y": 200,
+                "value": "Why databases look like this"
+                }
+            ]
+            }
+        ]
+        }
+
+        ========================
+        CANVAS SIZE
+        ========================
+        - long-form video: 1280x720
+        - shorts: 720x1280
+
+        ========================
+        SCENE RULES (MAIN VIDEO)
+        ========================
+
+        - Background color: #FAFAFA, so do not use whitish fills, or strokes
+        - narration should be of appropriate length for baseDuration + holdDuration
+        - It should not be case that scene is of 30 seconds but narration is only 5 seconds long
+        - Instead aim that narration length roughly matches baseDuration + holdDuration
+        - narration should be appropriately large i.e approx 130-150 words per scene for a ${duration} minute video
+        - maximum 10 scenes in total
+        - actions should complement the narration
+        - scenes are VISUAL ONLY
+        - baseDuration is a HARD STOP (no holds)
+        - all action.t < baseDuration
+        - scene should align with narration flow
+        - min 15 seconds baseDuration per scene
+        - actions should also be timed to scene completion, add number of actions accordingly, it should be case that a 30 second scene has only 3-4 action ending within 6-7 seconds
+        - set the baseDuration and holdDuration to fit narration pacing, so that the scene and narration align well
+        - set coordinates of drawing such that if text is contained in a box, text properly fits within the box
+
+        ========================
+        NARRATION RULES
+        ========================
+
+        - Conversational tone, like a YouTube explainer
+        - Timed Pause,[PAUSE=1.5s],Inserts a silence of exactly 1.5 seconds.
+        - Soft Pause,...,"Creates a natural, ""thinking"" hesitation."
+        - Tone Shift,[excited],Changes the prosody and speed for the following text.
+        - Do not use PAUSE for moments longer than 2 seconds.
+
+        ========================
+        SHORTS RULES
+        ========================
+
+        - 3-5 shorts maximum
+        - Each short is 15–25 seconds
+        - Each short has:
+        - its OWN narration
+        - its OWN actions
+        - Shorts must be understandable without the main video
+        - Shorts reuse the SAME primitive rules as scenes
+
+        ========================
+        ALLOWED ACTION OPS
+        ========================
+
+        - "line" (x1, y1, x2, y2, optional stroke, optional strokeWidth, optional fill)
+        - "rect" (x, y, w, h, optional r, optional stroke, optional strokeWidth, optional fill)
+        - "ellipse" (cx, cy, rx, ry, optional stroke, optional strokeWidth, optional fill)
+        - "path" (d, optional stroke, optional strokeWidth, optional fill)
+        - "text" (x, y, value, optional fontSize, optional fill, optional align) // align: "left", "center", "right" ; default "center"
+        - "group" (children)
+        - "transform" (translate?[number, number], children)
+
+        ========================
+        STRICT RULES
+        ========================
+
+        - NO HTML
+        - NO JavaScript
+        - NO CSS
+        - NO symbols (e.g. database, DNS)
+        - Primitives ONLY
+        - Try to create visually interesting scenes using only the allowed ops
+        - Coordinates must fit 1280x720 for main video, 720x1280 for shorts
+        - Max 50 actions per scene/short
+        - Return ONLY raw JSON
+        - No markdown, no explanations, no comments
+        - Escape all quotes properly
+
+        If the format is violated, the output will be rejected.
+        `;
+        }
 
     private parseScriptResponse(response: string, videoIdea: string): VideoScript {
         try {
@@ -121,26 +243,24 @@ CRITICAL RULES:
                 }
             }
 
-            // Validate required fields
-            if (!parsed.narration || typeof parsed.narration !== 'string') {
-                throw new Error("Missing or invalid 'narration' field");
-            }
+            // // Validate required fields
+            // if (!parsed.narration || typeof parsed.narration !== 'string') {
+            //     throw new Error("Missing or invalid 'narration' field");
+            // }
 
-            if (parsed.narration.length < 300) {
-                console.warn("⚠️ Narration is very short, might be truncated");
-            }
+            // if (parsed.narration.length < 300) {
+            //     console.warn("⚠️ Narration is very short, might be truncated");
+            // }
 
-            // Validation: Reject old format
-            if (parsed.scenes || parsed.hook || parsed.outro || parsed.duration) {
-                throw new Error("AI returned old format with scenes");
-            }
+            const narration = parsed.scenes.map((scene: any) => scene.narration).join(" [PAUSE=8s] ");
 
             return {
                 title: parsed.title || videoIdea,
                 description: parsed.description || "",
                 tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-                narration: this.preprocessNarration(parsed.narration),
-                shorts: Array.isArray(parsed.shorts) ? parsed.shorts.slice(0, 3) : [], // Max 3 shorts
+                narration: this.preprocessNarration(narration),
+                scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [],
+                shorts: Array.isArray(parsed.shorts) ? parsed.shorts.slice(0, 5) : [], // Max 5 shorts
             };
         } catch (error) {
             console.error("❌ Error parsing script response:", error);
@@ -157,50 +277,45 @@ CRITICAL RULES:
      * Replaces [PAUSE] with natural pauses and removes unwanted characters
      */
     private preprocessNarration(narration: string): string {
-        // Step 1: Replace [PAUSE] with comma for natural TTS flow
-        let processed = narration.replace(/\[PAUSE\]/gi, ',');
-
-        // Step 2: Remove any remaining square brackets with content (e.g., [SFX], [MUSIC])
-        processed = processed.replace(/\[[^\]]*\]/g, '');
-
-        // Step 3: Remove markdown formatting
+        // Step 1: Remove markdown formatting
+        let processed = narration;
         processed = processed.replace(/\*\*([^*]+)\*\*/g, '$1'); // Bold
         processed = processed.replace(/\*([^*]+)\*/g, '$1'); // Italic
         processed = processed.replace(/__([^_]+)__/g, '$1'); // Underline
         processed = processed.replace(/_([^_]+)_/g, '$1'); // Underline alt
 
-        // Step 4: Remove hashtags
+        // Step 2: Remove hashtags
         processed = processed.replace(/#\w+/g, '');
 
-        // Step 5: Clean up multiple punctuation marks
+        // Step 3: Clean up multiple punctuation marks
         processed = processed.replace(/[!?]{2,}/g, '!'); // Multiple exclamation/question marks
         processed = processed.replace(/\.{2,}/g, '.'); // Multiple periods (except ellipsis)
         processed = processed.replace(/,\s*,+/g, ','); // Multiple commas
 
-        // Step 6: Fix spacing around punctuation
+        // Step 4: Fix spacing around punctuation
         processed = processed.replace(/\s+([,.!?;:])/g, '$1'); // Remove space before punctuation
         processed = processed.replace(/([,.!?;:])\s*([,.!?;:])/g, '$1 '); // Fix multiple punctuation
         processed = processed.replace(/,\s*\./g, '.'); // Comma before period
 
-        // Step 7: Clean up quotes
+        // Step 5: Clean up quotes
         processed = processed.replace(/[""](?=\s|$)/g, ''); // Remove standalone quotes
         processed = processed.replace(/[""]/g, '"'); // Normalize curly quotes
 
-        // Step 8: Remove URLs
+        // Step 6: Remove URLs
         processed = processed.replace(/https?:\/\/[^\s]+/g, '');
 
-        // Step 9: Remove special characters that TTS might struggle with
+        // Step 7: Remove special characters that TTS might struggle with
         processed = processed.replace(/[<>{}|\\^~`]/g, '');
 
-        // Step 10: Normalize whitespace
+        // Step 8: Normalize whitespace
         processed = processed.replace(/\s+/g, ' '); // Multiple spaces to single
         processed = processed.replace(/\n\s*\n\s*\n+/g, '\n\n'); // Max 2 newlines
         processed = processed.trim();
 
-        // Step 11: Ensure sentences end with proper punctuation
+        // Step 9: Ensure sentences end with proper punctuation
         processed = processed.replace(/([a-zA-Z0-9])\s*\n/g, '$1.\n');
 
-        // Step 12: Remove any remaining control characters
+        // Step 10: Remove any remaining control characters
         processed = processed.replace(/[\x00-\x1F\x7F]/g, '');
 
         return processed;

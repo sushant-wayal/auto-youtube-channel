@@ -26,57 +26,48 @@ export interface FFmpegOptions {
  * @param options FFmpeg command options
  * @returns Promise that resolves when FFmpeg completes
  */
-export async function runFFmpeg(options: FFmpegOptions): Promise<void> {
+export async function runFFmpeg(
+  options: FFmpegOptions
+): Promise<{ stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
         const args: string[] = [];
 
-        // Add overwrite flag
-        if (options.overwrite !== false) {
-            args.push('-y');
-        }
+    if (options.overwrite !== false) args.push("-y");
 
-        // Add input files (with optional flags)
         for (const input of options.inputs) {
-            if (typeof input === 'string') {
-                // Simple string input
-                args.push('-i', input);
+      if (typeof input === "string") {
+        args.push("-i", input);
             } else {
-                // Object with flags and path
-                if (input.flags && input.flags.length > 0) {
-                    args.push(...input.flags);
-                }
-                args.push('-i', input.path);
+        if (input.flags?.length) args.push(...input.flags);
+        args.push("-i", input.path);
             }
         }
 
-        // Add custom arguments
         args.push(...options.args);
-
-        // Add output file
         args.push(options.output);
-
-        console.log('🎬 Running FFmpeg (packaged binary):', 'ffmpeg', args.join(' '));
 
         const ffmpeg = spawn(ffmpegPath, args);
 
-        let stderr = '';
+    let stdout = "";
+    let stderr = "";
 
-        ffmpeg.stderr.on('data', (data) => {
-            stderr += data.toString();
+    ffmpeg.stdout.on("data", d => {
+      stdout += d.toString();
+    });
+
+    ffmpeg.stderr.on("data", d => {
+      stderr += d.toString();
         });
 
-        ffmpeg.on('close', (code) => {
-            if (code === 0) {
-                resolve();
+    ffmpeg.on("close", code => {
+      if (code === 0 || options.args.join(" ").includes("astats")) {
+        resolve({ stdout, stderr });
             } else {
-                console.error('FFmpeg stderr:', stderr);
-                reject(new Error(`FFmpeg exited with code ${code}`));
+        reject(new Error(stderr || stdout));
             }
         });
 
-        ffmpeg.on('error', (error) => {
-            reject(new Error(`Failed to start FFmpeg: ${error.message}`));
-        });
+    ffmpeg.on("error", reject);
     });
 }
 

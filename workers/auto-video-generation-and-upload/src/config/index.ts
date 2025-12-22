@@ -21,6 +21,9 @@ export const config = {
         pollInterval: 5000, // Poll Redis every 5 seconds
         jobTimeout: 3600000, // 1 hr job timeout
     },
+    thumbnail: {
+        enabled: process.env.ENABLE_THUMBNAIL_GENERATION === 'true',
+    }
 };
 
 // Validate required configuration

@@ -24,9 +24,11 @@ export interface VideoAssemblerJob {
     jobId: string;
     videoIdea: string;
     narration: string;
-    voiceOverUrl: string;
+    perSceneNarration: string[];
+    voiceOverUrls: string[];
     clips: string[];
     clipTimings: number[];
+    animationStopTimes: number[];
     createdAt: number;
     updatedAt: number;
     status: JobStatus;

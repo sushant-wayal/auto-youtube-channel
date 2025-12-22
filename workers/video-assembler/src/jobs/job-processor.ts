@@ -40,9 +40,10 @@ class JobProcessor {
      * Process a video generation job with parallel execution
      */
     async processJob(job: VideoAssemblerJob): Promise<void> {
-        const { jobId, videoIdea, clips, clipTimings, narration, voiceOverUrl, isShort } = job;
+        const { jobId, videoIdea, clips, clipTimings, animationStopTimes, narration, voiceOverUrls, isShort, perSceneNarration } = job;
         console.log(`\n🎬 === PROCESSING JOB: ${jobId} ===`);
         console.log(`📝 Video Idea: ${videoIdea}`);
+        console.log(`length of voiceOverUrls: ${voiceOverUrls.length}`);
 
         const videoId = `video-${Date.now()}`;
 
@@ -69,11 +70,13 @@ class JobProcessor {
                 videoId,
                 clips,
                 clipTimings,
+                animationStopTimes,
                 narration: narration,
-                narrationAudio: voiceOverUrl,
+                narrationAudios: voiceOverUrls,
                 music,
                 branding,
                 isShort,
+                perSceneNarration
             });
             console.log(`✅ Main video assembled: ${assembledVideo.duration.toFixed(1)}s`);
 

@@ -52,7 +52,7 @@ class VideoGenerationService {
         const videoId = shortIdx < 0 ? this.videoId : this.videoId+`short-${shortIdx}`;
         const title = shortIdx < 0 ? this.script.title : this.script.shorts[shortIdx].hook;
         const description = this.script.description;
-        const narration = shortIdx < 0 ? this.script.narration : this.script.shorts[shortIdx].script;
+        const narration = shortIdx < 0 ? this.script.narration : this.script.shorts[shortIdx].narration;
         const tags = this.script.tags;
 
         const response = await fetch(`${config.website.domain}/api/generate-thumbnail${shortIdx < 0 ? "" : `/shorts`}`, {
@@ -61,7 +61,7 @@ class VideoGenerationService {
             body: JSON.stringify({
                 videoId,
                 hook : shortIdx < 0 ? this.script.title : this.script.shorts[shortIdx].hook,
-                script: shortIdx < 0 ? this.script.narration : this.script.shorts[shortIdx].script,
+                script: shortIdx < 0 ? this.script.narration : this.script.shorts[shortIdx].narration,
                 shortIndex: shortIdx,
                 title,
                 description,
@@ -83,17 +83,17 @@ class VideoGenerationService {
         return data.result.thumbnail;
     };
 
-    private async generateVoiceOver(shortIdx: number = -1) : Promise<string> {
+    private async generateVoiceOver(shortIdx: number = -1) : Promise<string[]> {
         if (!this.script) {
             throw new Error("Script not generated yet");
         }
 
-        const narration = shortIdx < 0 ? this.script.narration : this.script.shorts[shortIdx].script;
-        const jobId = await this.redis.createJob("voiceover", this.videoId, { narration });
+        const perSceneNarration = shortIdx < 0 ? this.script.scenes.map(scene => scene.narration) : [this.script.shorts[shortIdx].narration];
+        const jobId = await this.redis.createJob("voiceover", this.videoId, { perSceneNarration });
 
         const result = await this.redis.pollJobProgress(jobId);
         
-        return (result as any).voiceOverUrl;
+        return (result as any).voiceOverUrls;
     }
 
     private async collectAssets(shortIdx: number = -1) : Promise<AssetsCollectionResult> {
@@ -101,10 +101,14 @@ class VideoGenerationService {
             throw new Error("Script not generated yet");
         }
 
-        const title = shortIdx < 0 ? this.script.title : this.script.shorts[shortIdx].hook;
-        const narration = shortIdx < 0 ? this.script.narration : this.script.shorts[shortIdx].script;
+        const scenes = shortIdx < 0 ? this.script.scenes : [{
+            id: this.script.shorts[shortIdx].id,
+            baseDuration: this.script.shorts[shortIdx].baseDuration,
+            holdDuration: this.script.shorts[shortIdx].holdDuration || 0,
+            actions: this.script.shorts[shortIdx].actions
+        }];
 
-        const jobId = await this.redis.createJob("assets", this.videoId, { title, narration });
+        const jobId = await this.redis.createJob("assets", this.videoId, { scenes, isShort: shortIdx >= 0 });
 
         const result = await this.redis.pollJobProgress(jobId);
         
@@ -114,7 +118,7 @@ class VideoGenerationService {
         };
     }
 
-    private async assembleVideo(shortIdx: number = -1, voiceOverUrl: string, clipsUrls: string[], clipTimings: number[]): Promise<string> {
+    private async assembleVideo(shortIdx: number = -1, voiceOverUrls: string[], clipsUrls: string[], clipTimings: number[]): Promise<string> {
         if (!this.script) {
             throw new Error("Script not generated yet");
         }
@@ -122,8 +126,9 @@ class VideoGenerationService {
         const jobId = await this.redis.createJob("assembly", this.videoId, {
             clips: clipsUrls,
             clipTimings: clipTimings,
-            narration: shortIdx < 0 ? this.script.narration : this.script.shorts[shortIdx].script,
-            voiceOverUrl: voiceOverUrl,
+            narration: shortIdx < 0 ? this.script.narration : this.script.shorts[shortIdx].narration,
+            perSceneNarration: shortIdx >= 0 ? [this.script.shorts[shortIdx].narration] : this.script.scenes.map(scene => scene.narration),
+            voiceOverUrls: voiceOverUrls,
             isShort: shortIdx >= 0,
         });
 
@@ -159,27 +164,41 @@ class VideoGenerationService {
         }
 
         // Generate thumbnail
-        const thumbnailResultPromise = this.generateThumbnail(shortIdx);
+        let thumbnailResultPromise;
+        if (config.thumbnail.enabled) {
+            thumbnailResultPromise = this.generateThumbnail(shortIdx);
+        } else {
+            thumbnailResultPromise = Promise.resolve(null);
+        }
 
         // Generate voice over
-        const voiceOverUrlPromise = this.generateVoiceOver(shortIdx);
+        const voiceOverUrlsPromise = this.generateVoiceOver(shortIdx);
 
         // Collect assets
         const assetsResultPromise = this.collectAssets(shortIdx);
 
-        const [voiceOverUrl, assetsResult] = await Promise.all([voiceOverUrlPromise, assetsResultPromise]);
+        const [voiceOverUrls, assetsResult] = await Promise.all([voiceOverUrlsPromise, assetsResultPromise]);
 
         // Assemble video
-        const videoPathPromise = this.assembleVideo(shortIdx, voiceOverUrl, assetsResult.clipsUrls, assetsResult.clipTimings);
+        const videoPathPromise = this.assembleVideo(shortIdx, voiceOverUrls, assetsResult.clipsUrls, assetsResult.clipTimings);
 
         const [thumbnailResult, videoPath] = await Promise.all([thumbnailResultPromise, videoPathPromise]);
 
         // Upload to YouTube
-        const uploadedVideoId = await this.uploadToYouTube(shortIdx, videoPath, thumbnailResult.thumbnailPath, "public");
-
-        return `https://youtu.be/${uploadedVideoId}`;
+        let uploadedVideoId: string | undefined;
+        if (
+            config.thumbnail.enabled &&
+            thumbnailResult !== null &&
+            thumbnailResult !== undefined &&
+            typeof thumbnailResult.thumbnailPath === "string"
+        ) {
+            uploadedVideoId = await this.uploadToYouTube(shortIdx, videoPath, thumbnailResult.thumbnailPath);
+            return uploadedVideoId;
+        } else {
+            uploadedVideoId = await this.uploadToYouTube(shortIdx, videoPath, "", "public");
+            return uploadedVideoId;
+        }
     }
-
     async generateAllVideosAndUpload(): Promise<string[]> {
         // Stage 1: Generate Script
         await this.generateScript();
