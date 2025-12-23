@@ -76,13 +76,25 @@ export class HtmlToVideoService {
 
       const args = [
         "-y",
+
+        // Input
         "-framerate", String(fps),
         "-i", path.join(framesDir, "frame_%05d.png"),
+
+        // Encoding (safe for Railway free tier)
         "-c:v", "libx264",
+        "-preset", "veryfast",   // good balance: low CPU, acceptable qualityfix
         "-pix_fmt", "yuv420p",
+
+        // Resource control
+        "-threads", "1",         // IMPORTANT for free tier stability
+
+        // Output flags
         "-movflags", "+faststart",
+
         output
       ];
+
 
       const ffmpeg = spawn(ffmpegPath, args, { stdio: "inherit" });
 
