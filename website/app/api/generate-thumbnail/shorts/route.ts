@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
             script,
             fullNarration,
             ['shorts', 'viral'],
-            { style: 'vibrant' }
+            { style: 'minimal' }
         );
 
         console.log(`✅ Thumbnail generated for short #${shortIndex + 1}`);

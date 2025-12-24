@@ -64,7 +64,7 @@ class HuggingFaceImageService {
         console.log(`📹 Video ID: ${videoId}`);
         console.log(`📝 Title: ${title}`);
         console.log(`🤖 Model: ${model}`);
-        console.log(`🎯 Style: ${config?.style || "vibrant"}`);
+        console.log(`🎯 Style: ${config?.style || "minimal"}`);
 
         try {
             // Build optimized prompt for thumbnail generation
@@ -186,10 +186,23 @@ class HuggingFaceImageService {
         config?: HFImageConfig
     ): string {
         // Get style modifiers
-        const styleModifiers = this.getStyleModifiers(config?.style || "vibrant");
+        const styleModifiers = this.getStyleModifiers(config?.style || "minimal");
 
         // Build a concise but effective prompt
-        const prompt = `YouTube thumbnail for "${title}", ${styleModifiers}, professional quality, eye-catching, 16:9 aspect ratio, trending on artstation, high resolution, sharp details, ${tags.slice(0, 3).join(", ")}`;
+        const prompt = `
+        Minimalist YouTube thumbnail for "${title}",
+        ${styleModifiers},
+        clean flat vector style,
+        high contrast black and white with 1 accent color,
+        simple geometric shapes,
+        diagram-like tech illustration,
+        bold readable typography,
+        no faces, no clutter,
+        modern motion-graphics aesthetic,
+        sharp edges, crisp lines,
+        ${tags.slice(0, 3).join(", ")}
+        `;
+
 
         return prompt;
     }
@@ -206,7 +219,7 @@ class HuggingFaceImageService {
             fun: "playful, colorful, cheerful, whimsical, cartoon style, bright and happy",
         };
 
-        return styles[style] || styles.vibrant;
+        return styles[style] || styles.minimal;
     }
 
     /**

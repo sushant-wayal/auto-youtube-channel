@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
         console.log(`\n🎨 === THUMBNAIL GENERATION API ===`);
         console.log(`📹 Video ID: ${videoId}`);
         console.log(`📝 Title: ${title}`);
-        console.log(`🎯 Style: ${style || "vibrant"}`);
+        console.log(`🎯 Style: ${style || "minimal"}`);
         console.log(`🔧 Provider: ${provider || "default (from env)"}`);
 
         const thumbnailService = new ThumbnailService();
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
             narration,
             tags || [],
             {
-                style: style || "vibrant",
+                style: style || "minimal",
                 provider: provider as ThumbnailProvider | undefined,
                 model: model,
             }

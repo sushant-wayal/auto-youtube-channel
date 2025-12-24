@@ -67,7 +67,7 @@ class VideoGenerationService {
                 description,
                 narration,
                 tags,
-                style: "vibrant"
+                style: "minimal"
             }),
         });
         const data = await response.json() as { error?: string; thumbnail: ThumbnailResult} | {

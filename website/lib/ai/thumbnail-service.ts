@@ -135,7 +135,7 @@ class ThumbnailService {
         console.log(`\n🎨 === GEMINI THUMBNAIL GENERATION STARTED ===`);
         console.log(`📹 Video ID: ${videoId}`);
         console.log(`📝 Title: ${title}`);
-        console.log(`🎯 Style: ${config?.style || "vibrant"}`);
+        console.log(`🎯 Style: ${config?.style || "minimal"}`);
 
         try {
             // Build a detailed prompt for thumbnail generation
@@ -203,7 +203,7 @@ class ThumbnailService {
         const narrationContext = narration.slice(0, 500);
 
         // Determine style descriptors
-        const styleDescriptors = this.getStyleDescriptors(config?.style || "vibrant");
+        const styleDescriptors = this.getStyleDescriptors(config?.style || "minimal");
 
         // Build the prompt
         const prompt = `Create a stunning YouTube thumbnail image for a video titled "${title}".
@@ -266,7 +266,7 @@ Create a visually striking, clickable thumbnail that accurately represents the v
 - Creative and imaginative`,
         };
 
-        return styles[style] || styles.vibrant;
+        return styles[style] || styles.minimal;
     }
 
     /**
