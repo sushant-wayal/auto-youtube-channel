@@ -8,6 +8,7 @@ import RedisService from "./redis-service";
 
 type UploadCommonArgs = {
   videoUrl: string;          // Cloudinary video URL
+  isShort?: boolean;        // Whether the video is a YouTube Short
   title: string;
   description: string;
   tags?: string[];
@@ -39,6 +40,7 @@ export class YouTubeService {
   async upload({
     jobId,
     videoUrl,
+    isShort,
     title,
     description,
     tags = [],
@@ -94,15 +96,15 @@ export class YouTubeService {
         throw new Error("YouTube did not return a videoId");
       }
 
-      await redisService.updateJobProgress(
-        jobId, 
-        'processing',
-        80, // 80% after upload
-        "Video uploaded to YouTube, setting thumbnail..."
-      );
-
       // /* 3️⃣ Upload thumbnail (optional) */
-      if (thumbnailUrl && thumbnailPath) {
+      if (!isShort && thumbnailUrl && thumbnailPath) {
+        await redisService.updateJobProgress(
+          jobId, 
+          'processing',
+          80, // 80% after upload
+          "Video uploaded to YouTube, setting thumbnail..."
+        );
+
         await this.downloadFile(thumbnailUrl, thumbnailPath);
 
         await this.youtube.thumbnails.set({
@@ -117,7 +119,7 @@ export class YouTubeService {
     } finally {
       /* 4️⃣ Cleanup local files */
       await this.safeDelete(videoPath);
-      if (thumbnailPath) {
+      if (!isShort && thumbnailPath) {
         await this.safeDelete(thumbnailPath);
       }
     }

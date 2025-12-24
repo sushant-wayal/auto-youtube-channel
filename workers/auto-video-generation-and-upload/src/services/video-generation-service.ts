@@ -146,6 +146,7 @@ class VideoGenerationService {
 
         const jobId = await this.redis.createJob("youtube-upload", this.videoId, {
             videoUrl,
+            isShort: shortIdx >= 0,
             title,
             description: this.script.description,
             tags: this.script.tags,

@@ -25,6 +25,7 @@ export interface YoutubeUploadJob {
     videoIdea: string;
     narration: string;
     videoUrl?: string;
+    isShort?: boolean;
     title?: string;
     description?: string;
     tags?: string[];

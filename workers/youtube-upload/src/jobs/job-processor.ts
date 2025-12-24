@@ -13,13 +13,16 @@ class JobProcessor {
     }
 
     async processJob(job: YoutubeUploadJob): Promise<void> {
-        const { jobId, videoIdea, videoUrl, title, description, tags, thumbnailUrl, privacyStatus } = job;
+        const { jobId, videoIdea, videoUrl, isShort, title, description, tags, thumbnailUrl, privacyStatus } = job;
         console.log(`\n🎬 === PROCESSING JOB: ${jobId} ===`);
         console.log(`📝 Video Idea: ${videoIdea}`);
 
         const youtubeService = new YouTubeService();
 
         const videoId = `video-${Date.now()}`;
+
+
+        console.log(`🎥 Video Type: ${isShort ? 'Short' : 'Regular'}`);
 
         try {
 
@@ -32,6 +35,7 @@ class JobProcessor {
             const uploadedVideoId = await youtubeService.upload({
                 jobId,
                 videoUrl: videoUrl!,
+                isShort,
                 title: title || `Auto Video ${Date.now()}`,
                 description: description || 'Automatically uploaded video',
                 tags: tags || [],
