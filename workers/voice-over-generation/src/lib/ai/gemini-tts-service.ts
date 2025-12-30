@@ -39,89 +39,131 @@ class GeminiTTSService {
 
     /**
      * Generate speech from text using Gemini 2.5 Flash Preview TTS
-     * Can handle long-form content (5-10 minutes) in a single request
+     * Includes exponential backoff for transient 5xx / overload errors
      */
     async generateSpeech(
-        text: string,
-        config?: GeminiTTSConfig
+    text: string,
+    config?: GeminiTTSConfig
     ): Promise<Buffer> {
+        const MAX_RETRIES = 5;
+        const BASE_DELAY_MS = 2_000; // 2s
+        const MAX_DELAY_MS = 30_000;
+
         console.log(`\n🎙️ === GEMINI TTS GENERATION STARTED ===`);
         console.log(`📝 Text length: ${text.length} characters`);
         console.log(`🎤 Voice: ${config?.voice || this.VOICES.PUCK}`);
         console.log(`⚡ Speed: ${config?.speed || 1.0}x`);
 
-        try {
-            // Process text for better TTS output
-            const processedText = this.processNarrationForTTS(text);
+        const processedText = this.processNarrationForTTS(text);
 
-            // Build speech config
-            const speechConfig: any = {};
+        const speechConfig: any = {};
+        if (config?.voice) {
+            speechConfig.voiceConfig = {
+            prebuiltVoiceConfig: { voiceName: config.voice },
+            };
+        }
+        if (config?.speed) {
+            speechConfig.speed = config.speed;
+        }
 
-            if (config?.voice) {
-                speechConfig.voiceConfig = {
-                    prebuiltVoiceConfig: {
-                        voiceName: config.voice
-                    }
-                };
-            }
+        let attempt = 0;
 
-            if (config?.speed) {
-                speechConfig.speed = config.speed;
-            }
+        while (attempt < MAX_RETRIES) {
+            attempt++;
 
-            console.log(`🚀 Generating audio with Gemini 2.5 Flash Preview TTS...`);
-            console.log(`⏳ This may take 10-30 seconds for long narrations...`);
+            try {
+            console.log(
+                `🚀 Gemini TTS request (attempt ${attempt}/${MAX_RETRIES})`
+            );
 
             const result = await this.geminiClient.getGenAI().models.generateContent({
                 model: this.MODEL_NAME,
                 contents: processedText,
                 config: {
-                    temperature: 1,
-                    maxOutputTokens: 32000,
-                    responseModalities: ["AUDIO"],
-                    speechConfig: Object.keys(speechConfig).length > 0 ? speechConfig : undefined,
+                temperature: 1,
+                maxOutputTokens: 32000,
+                responseModalities: ["AUDIO"],
+                speechConfig:
+                    Object.keys(speechConfig).length > 0 ? speechConfig : undefined,
                 },
             });
 
-            
-
-            // Extract audio data from response
             if (!result.candidates || result.candidates.length === 0) {
                 throw new Error("No audio generated in response");
             }
 
             const candidate = result.candidates[0];
-
             console.log(`Finish Reason: ${candidate.finishReason}`);
 
-            // Extract audio from inline data
-            if (candidate.content?.parts && candidate.content.parts.length > 0) {
-                const audioPart = candidate.content.parts.find((part: any) => part.inlineData);
+            const audioPart = candidate.content?.parts?.find(
+                (p: any) => p.inlineData
+            );
 
-                if (!audioPart || !audioPart.inlineData) {
-                    throw new Error("No audio data found in response");
-                }
-
-                // Convert base64 audio to buffer
-                const audioBase64 = audioPart.inlineData.data;
-                if (!audioBase64) {
-                    throw new Error("No audio data in inline data");
-                }
-                const audioBuffer = Buffer.from(audioBase64, 'base64');
-
-                console.log(`✅ Generated ${audioBuffer.length} bytes of audio`);
-                console.log(`🎵 Audio format: ${audioPart.inlineData.mimeType || 'audio/wav'}`);
-                console.log(`✅ === GEMINI TTS GENERATION COMPLETE ===\n`);
-
-                return audioBuffer;
+            if (!audioPart?.inlineData?.data) {
+                throw new Error("No audio data found in response");
             }
 
-            throw new Error("No audio data in response parts");
+            const audioBuffer = Buffer.from(
+                audioPart.inlineData.data,
+                "base64"
+            );
 
-        } catch (error: any) {
-            console.error(`❌ Gemini TTS generation failed:`, error);
-            throw new Error(`Failed to generate speech with Gemini TTS: ${error.message || error}`);
+            console.log(`✅ Generated ${audioBuffer.length} bytes of audio`);
+            console.log(
+                `🎵 Audio format: ${audioPart.inlineData.mimeType || "audio/wav"}`
+            );
+            console.log(`✅ === GEMINI TTS GENERATION COMPLETE ===\n`);
+
+            return audioBuffer;
+            } catch (error: any) {
+                const apiError =
+                    error?.error ||
+                    error?.response?.error ||
+                    error?.cause?.error;
+
+                const statusCode =
+                    apiError?.code ||
+                    apiError?.status ||
+                    error?.status ||
+                    error?.code;
+
+                if (!statusCode) console.error(`Failed to get status code from error:`, error);
+
+                const message =
+                    error?.message?.toLowerCase?.() || "";
+
+                if (!message) console.error(`Failed to get message from error:`, error);
+
+                const isRetryable =
+                    statusCode === 500 ||
+                    statusCode === 503 ||
+                    message.includes("internal") ||
+                    message.includes("overloaded") ||
+                    message.includes("unavailable");
+
+                if (!isRetryable || attempt >= MAX_RETRIES) {
+                    console.error(`❌ Gemini TTS failed permanently:`, error);
+                    throw new Error(
+                    `Failed to generate speech with Gemini TTS: ${error.message || error}`
+                    );
+                }
+
+                const delay =
+                    Math.min(
+                    BASE_DELAY_MS * 2 ** (attempt - 1),
+                    MAX_DELAY_MS
+                    ) +
+                    Math.floor(Math.random() * 1_000); // jitter
+
+                console.warn(
+                    `⚠️ Gemini TTS error (retryable). Waiting ${delay}ms before retry...`
+                );
+
+                await new Promise((res) => setTimeout(res, delay));
+            }
         }
+
+        throw new Error("Gemini TTS failed after maximum retries");
     }
 
     /**

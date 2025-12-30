@@ -20,30 +20,88 @@ class GeminiService {
 
     /**
      * Generate text content from a prompt
-     * @param prompt - The input prompt
-     * @param config - Optional configuration
+     * Includes exponential backoff for transient 5xx / overload errors
      */
     async generateText(
-        prompt: string,
-        config?: GeminiConfig
+    prompt: string,
+    config?: GeminiConfig
     ): Promise<string> {
-        try {
-            const modelName = config?.model || "gemini-3-flash-preview";
-            const result = await this.genAI.models.generateContent({
-                model: modelName,
-                contents: prompt,
-                config: {
+        const MAX_RETRIES = 5;
+        const BASE_DELAY_MS = 2_000;
+        const MAX_DELAY_MS = 30_000;
+
+        const modelName = config?.model || "gemini-3-flash-preview";
+        let attempt = 0;
+
+        while (attempt < MAX_RETRIES) {
+            attempt++;
+
+            try {
+                console.log(
+                    `🧠 Gemini text generation (attempt ${attempt}/${MAX_RETRIES})`
+                );
+
+                const result = await this.genAI.models.generateContent({
+                    model: modelName,
+                    contents: prompt,
+                    config: {
                     temperature: config?.temperature,
                     maxOutputTokens: config?.maxOutputTokens,
                     topP: config?.topP,
                     topK: config?.topK,
-                },
-            });
-            return result.text || "";
-        } catch (error) {
-            console.error("Error generating text:", error);
-            throw new Error(`Failed to generate text: ${error}`);
+                    },
+                });
+
+                return result.text || "";
+
+            } catch (error: any) {
+                // Robust error inspection (Gemini loves nesting errors)
+                const apiError =
+                    error?.error ||
+                    error?.response?.error ||
+                    error?.cause?.error;
+
+                const statusCode =
+                    apiError?.code ||
+                    apiError?.status ||
+                    error?.status ||
+                    error?.code;
+                
+                if (!statusCode) console.error(`Failed to get status code from error:`, error);
+
+                const message = error?.message?.toLowerCase?.() || "";
+
+                if (!message) console.error(`Failed to get message from error:`, error);
+
+                const isRetryable =
+                    statusCode === 500 ||
+                    statusCode === 503 ||
+                    message.includes("internal") ||
+                    message.includes("overloaded") ||
+                    message.includes("unavailable");
+
+                if (!isRetryable || attempt >= MAX_RETRIES) {
+                    console.error("❌ Gemini text generation failed permanently:", error);
+                    throw new Error(
+                    `Failed to generate text with Gemini: ${error.message || error}`
+                    );
+                }
+
+                const delay =
+                    Math.min(
+                    BASE_DELAY_MS * 2 ** (attempt - 1),
+                    MAX_DELAY_MS
+                    ) + Math.floor(Math.random() * 1_000); // jitter
+
+                console.warn(
+                    `⚠️ Gemini text error (retryable). Retrying in ${delay}ms...`
+                );
+
+                await new Promise(res => setTimeout(res, delay));
+            }
         }
+
+        throw new Error("Gemini text generation failed after maximum retries");
     }
 
     /**
