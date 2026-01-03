@@ -36,10 +36,24 @@ async function generateNarration(videoId: string, scriptData: string) {
 (async () => {
     try {
         const videoId = process.argv[2];
-        const scriptData = process.argv[3];
 
-        if (!videoId || !scriptData) {
-            throw new Error('Missing required arguments: videoId and scriptData');
+        if (!videoId) {
+            throw new Error('Missing required argument: videoId');
+        }
+
+        // Read JSON from stdin
+        let scriptData = '';
+        if (process.stdin.isTTY) {
+            throw new Error('scriptData must be provided via stdin');
+        }
+
+        process.stdin.setEncoding('utf8');
+        for await (const chunk of process.stdin) {
+            scriptData += chunk;
+        }
+
+        if (!scriptData) {
+            throw new Error('No scriptData received from stdin');
         }
 
         const result = await generateNarration(videoId, scriptData);
