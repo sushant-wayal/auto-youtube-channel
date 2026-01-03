@@ -19,9 +19,9 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
 
     const data: ScriptData = JSON.parse(scriptData);
 
-    console.log(`📤 Uploading video to YouTube: ${data.script.title}`);
+    console.error(`📤 Uploading video to YouTube: ${data.script.title}`);
     if (thumbnailUrl) {
-        console.log(`🖼️  Thumbnail URL: ${thumbnailUrl}`);
+        console.error(`🖼️  Thumbnail URL: ${thumbnailUrl}`);
     }
 
     const result = await uploadToYouTube({
@@ -34,7 +34,7 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
         privacyStatus: 'public',
     });
 
-    console.log(`✅ Uploaded to YouTube: ${result.videoId}`);
+    console.error(`✅ Uploaded to YouTube: ${result.videoId}`);
     return result;
 }
 

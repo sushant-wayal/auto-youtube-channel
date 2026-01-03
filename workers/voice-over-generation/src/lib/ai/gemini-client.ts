@@ -45,7 +45,7 @@ class GeminiClient {
     public getGenAI(): GoogleGenAI {
         // Simple round-robin between two API keys to distribute load
         this.lastUsedKey = this.lastUsedKey === 1 ? 2 : 1;
-        console.log(`Using Gemini API Key ${this.lastUsedKey}`);
+        console.error(`Using Gemini API Key ${this.lastUsedKey}`);
         if (this.lastUsedKey === 1) {
             return this.genAI1;
         } else {

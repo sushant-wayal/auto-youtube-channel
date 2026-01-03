@@ -22,7 +22,7 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
     validateConfig(['cloudinary']);
 
     const data: ScriptData = JSON.parse(scriptData);
-    console.log(`🎬 Rendering ${data.script.scenes.length} scenes for video ${videoId}`);
+    console.error(`🎬 Rendering ${data.script.scenes.length} scenes for video ${videoId}`);
 
     const result = await renderScenes({
         scenes: data.script.scenes,
@@ -30,7 +30,7 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
         videoId,
     });
 
-    console.log(`✅ Rendered ${result.urls.length} scenes`);
+    console.error(`✅ Rendered ${result.urls.length} scenes`);
     return result;
 }
 

@@ -38,7 +38,7 @@ export function pickBackgroundTrack(): string {
   const randomTrack = mp3Files[Math.floor(Math.random() * mp3Files.length)];
   const trackPath = path.join(musicDir, randomTrack);
 
-  console.log(`🎵 Selected background track: ${randomTrack}`);
+  console.error(`🎵 Selected background track: ${randomTrack}`);
   return trackPath;
 }
 
@@ -60,28 +60,28 @@ export function getBrandingAssets(): BrandingAssets {
   const logoPath = path.join(brandingDir, 'logo.png');
   if (fs.existsSync(logoPath)) {
     assets.logo = logoPath;
-    console.log('🎨 Found branding asset: logo.png');
+    console.error('🎨 Found branding asset: logo.png');
   }
 
   // Check for intro.mp4
   const introPath = path.join(brandingDir, 'intro.mp4');
   if (fs.existsSync(introPath)) {
     assets.intro = introPath;
-    console.log('🎨 Found branding asset: intro.mp4');
+    console.error('🎨 Found branding asset: intro.mp4');
   }
 
   // Check for outro.mp4
   const outroPath = path.join(brandingDir, 'outro.mp4');
   if (fs.existsSync(outroPath)) {
     assets.outro = outroPath;
-    console.log('🎨 Found branding asset: outro.mp4');
+    console.error('🎨 Found branding asset: outro.mp4');
   }
 
   const assetCount = Object.keys(assets).length;
   if (assetCount === 0) {
-    console.log('⚠️  No branding assets found in assets/branding/');
+    console.error('⚠️  No branding assets found in assets/branding/');
   } else {
-    console.log(`✅ Found ${assetCount} branding asset(s)`);
+    console.error(`✅ Found ${assetCount} branding asset(s)`);
   }
 
   return assets;

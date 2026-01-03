@@ -20,7 +20,7 @@ async function generateNarration(videoId: string, scriptData: string) {
     const data: ScriptData = JSON.parse(scriptData);
     const narrations = data.script.scenes.map(s => s.narration);
 
-    console.log(`🎤 Generating ${narrations.length} voice-overs for video ${videoId}`);
+    console.error(`🎤 Generating ${narrations.length} voice-overs for video ${videoId}`);
 
     const result = await generateVoiceOvers({
         perSceneNarration: narrations,
@@ -28,7 +28,7 @@ async function generateNarration(videoId: string, scriptData: string) {
         voice: 'Puck',
     });
 
-    console.log(`✅ Generated ${result.urls.length} voice-overs`);
+    console.error(`✅ Generated ${result.urls.length} voice-overs`);
     return result;
 }
 

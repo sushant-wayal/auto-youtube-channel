@@ -37,10 +37,10 @@ export interface VideoScript {
 export async function orchestrateVideoGeneration(videoIdea: string) {
     validateConfig(['website', 'cloudinary', 'gemini', 'youtube']);
 
-    console.log(`💡 Video idea: "${videoIdea}"`);
+    console.error(`💡 Video idea: "${videoIdea}"`);
 
     // 1. Generate script via API
-    console.log('📝 Generating video script...');
+    console.error('📝 Generating video script...');
     const response = await fetch(`${process.env.WEBSITE_DOMAIN}/api/generate-script`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,28 +58,28 @@ export async function orchestrateVideoGeneration(videoIdea: string) {
 
     const script: VideoScript = data.script;
     const videoId = `video-${Date.now()}`;
-    console.log(`✅ Generated script: "${script.title}"`);
+    console.error(`✅ Generated script: "${script.title}"`);
 
     // === LONG FORM VIDEO ===
     // 2. Render scenes
-    console.log('🎬 Rendering scenes...');
+    console.error('🎬 Rendering scenes...');
     const { urls: clips, timings: clipTimings, animationStopTimes } = await renderScenes({
         scenes: script.scenes,
         isShort: false,
         videoId,
     });
-    console.log(`✅ Rendered ${clips.length} scenes`);
+    console.error(`✅ Rendered ${clips.length} scenes`);
 
     // 3. Generate voice-overs
-    console.log('🎤 Generating voice-overs...');
+    console.error('🎤 Generating voice-overs...');
     const { urls: voiceOverUrls } = await generateVoiceOvers({
         perSceneNarration: script.scenes.map(s => s.narration),
         videoId,
     });
-    console.log(`✅ Generated ${voiceOverUrls.length} voice-overs`);
+    console.error(`✅ Generated ${voiceOverUrls.length} voice-overs`);
 
     // 4. Assemble video
-    console.log('🧩 Assembling video...');
+    console.error('🧩 Assembling video...');
     const assembled = await assembleVideo({
         jobId: videoId,
         videoId,
@@ -91,10 +91,10 @@ export async function orchestrateVideoGeneration(videoIdea: string) {
         animationStopTimes,
         isShort: false,
     });
-    console.log(`✅ Assembled video: ${assembled.outputUrl}`);
+    console.error(`✅ Assembled video: ${assembled.outputUrl}`);
 
     // 5. Upload to YouTube
-    console.log('📤 Uploading video to YouTube...');
+    console.error('📤 Uploading video to YouTube...');
     const { videoId: youtubeId } = await uploadToYouTube({
         videoUrl: assembled.outputUrl,
         isShort: false,
@@ -102,17 +102,17 @@ export async function orchestrateVideoGeneration(videoIdea: string) {
         description: script.description,
         tags: script.tags,
     });
-    console.log(`✅ Uploaded to YouTube: ${youtubeId}`);
+    console.error(`✅ Uploaded to YouTube: ${youtubeId}`);
 
     // === SHORTS ===
-    console.log(`\n📱 Processing ${script.shorts.length} shorts...`);
+    console.error(`\n📱 Processing ${script.shorts.length} shorts...`);
     const shortsResults = [];
 
     for (let i = 0; i < script.shorts.length; i++) {
         const short = script.shorts[i];
         const shortId = `${videoId}-short-${i}`;
 
-        console.log(`\n📱 Processing short ${i + 1}/${script.shorts.length}: ${short.hook}`);
+        console.error(`\n📱 Processing short ${i + 1}/${script.shorts.length}: ${short.hook}`);
 
         // Render, generate voiceover, assemble, and upload
         const { urls: shortClips, timings: shortTimings, animationStopTimes: shortStopTimes } =
@@ -150,7 +150,7 @@ export async function orchestrateVideoGeneration(videoIdea: string) {
             tags: script.tags,
         });
 
-        console.log(`✅ Short ${i + 1} uploaded: ${youtubeShortId}`);
+        console.error(`✅ Short ${i + 1} uploaded: ${youtubeShortId}`);
         shortsResults.push({ youtubeShortId, videoUrl: assembledShort.outputUrl });
     }
 

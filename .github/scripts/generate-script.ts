@@ -50,7 +50,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
     if (customIdea) {
         // Use custom idea from workflow input
         videoIdea = customIdea;
-        console.log(`💡 Using custom video idea: "${videoIdea}"`);
+        console.error(`💡 Using custom video idea: "${videoIdea}"`);
     } else {
         // Try to get idea from Redis queue (simple LPOP from existing queue)
         try {
@@ -62,16 +62,16 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
 
             if (idea) {
                 videoIdea = idea;
-                console.log(`📥 Video idea from Redis queue: "${videoIdea}"`);
+                console.error(`📥 Video idea from Redis queue: "${videoIdea}"`);
             } else {
                 // Fallback to random idea from pool
                 videoIdea = VIDEO_IDEAS[Math.floor(Math.random() * VIDEO_IDEAS.length)];
-                console.log(`🎲 Random video idea (queue empty): "${videoIdea}"`);
+                console.error(`🎲 Random video idea (queue empty): "${videoIdea}"`);
             }
         } catch (error) {
             console.warn('⚠️ Redis not available, using random idea:', error);
             videoIdea = VIDEO_IDEAS[Math.floor(Math.random() * VIDEO_IDEAS.length)];
-            console.log(`💡 Video idea: "${videoIdea}"`);
+            console.error(`💡 Video idea: "${videoIdea}"`);
         }
     }
 
@@ -95,7 +95,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
     }
 
     const videoId = `video-${Date.now()}`;
-    console.log(`✅ Generated script: "${data.script.title}"`);
+    console.error(`✅ Generated script: "${data.script.title}"`);
 
     return { videoId, script: data.script };
 }

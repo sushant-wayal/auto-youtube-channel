@@ -17,7 +17,7 @@ async function generateThumbnail(videoId: string, scriptData: string) {
 
     const data: ScriptData = JSON.parse(scriptData);
 
-    console.log(`🖼️ Generating thumbnail for: ${data.script.title}`);
+    console.error(`🖼️ Generating thumbnail for: ${data.script.title}`);
 
     const websiteDomain = process.env.WEBSITE_DOMAIN || 'http://localhost:3000';
 
@@ -37,7 +37,7 @@ async function generateThumbnail(videoId: string, scriptData: string) {
     }
 
     const result = await response.json();
-    console.log(`✅ Thumbnail generated: ${result.thumbnailUrl}`);
+    console.error(`✅ Thumbnail generated: ${result.thumbnailUrl}`);
 
     // Output for GitHub Actions
     console.log(`thumbnail_url=${result.thumbnailUrl}`);

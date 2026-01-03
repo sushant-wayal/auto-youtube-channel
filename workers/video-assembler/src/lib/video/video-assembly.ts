@@ -83,13 +83,13 @@ export class VideoAssemblyService {
      * Assemble a complete video from all assets
      */
     async assembleVideo(input: VideoAssemblyInput): Promise<VideoAssemblyResult> {
-        console.log(`Starting video assembly for ${input.videoId}...`);
+        console.error(`Starting video assembly for ${input.videoId}...`);
 
         const outputDir = path.join(this.workDir, input.videoId);
         await fsPromises.mkdir(outputDir, { recursive: true });
 
-        console.log(`Number of narration audios: ${input.narrationAudios?.length}`);
-        console.log(`Narration audios: ${input.narrationAudios}`);
+        console.error(`Number of narration audios: ${input.narrationAudios?.length}`);
+        console.error(`Narration audios: ${input.narrationAudios}`);
         if (!input.narrationAudios || input.narrationAudios.length === 0) throw new Error("Narration audios required");
 
         /* -----------------------------------------
@@ -258,12 +258,12 @@ export class VideoAssemblyService {
             const clipUrl = clips[i];
             const clipPath = path.join(downloadDir, `clip_${i + 1}.mp4`);
 
-            console.log(`  Downloading clip ${i + 1}/${clips.length} from ${clipUrl}...`);
+            console.error(`  Downloading clip ${i + 1}/${clips.length} from ${clipUrl}...`);
             await this.downloadFile(clipUrl, clipPath);
             const targetDuration = timings[i];
             const outputPath = path.join(normalizedDir, `clip_${i + 1}.mp4`);
 
-            console.log(`  Normalizing clip ${i + 1}/${clips.length} (target: ${targetDuration.toFixed(2)}s)...`);
+            console.error(`  Normalizing clip ${i + 1}/${clips.length} (target: ${targetDuration.toFixed(2)}s)...`);
             await this.normalizeClipWithDuration(clipPath, outputPath, targetDuration, isShort);
             await fsPromises.unlink(clipPath); // Delete downloaded clip after normalization
 
@@ -354,10 +354,10 @@ export class VideoAssemblyService {
         // Normalize intro if exists
         if (introPath) {
             const normalizedIntro = path.join(outputDir, 'normalized', 'intro.mp4');
-            console.log('  Normalizing intro video...');
+            console.error('  Normalizing intro video...');
             await this.normalizeClip(introPath, normalizedIntro);
             result.push(normalizedIntro);
-            console.log('  ✓ Intro added');
+            console.error('  ✓ Intro added');
         }
 
         // Add main clips
@@ -366,10 +366,10 @@ export class VideoAssemblyService {
         // Normalize outro if exists
         if (outroPath) {
             const normalizedOutro = path.join(outputDir, 'normalized', 'outro.mp4');
-            console.log('  Normalizing outro video...');
+            console.error('  Normalizing outro video...');
             await this.normalizeClip(outroPath, normalizedOutro);
             result.push(normalizedOutro);
-            console.log('  ✓ Outro added');
+            console.error('  ✓ Outro added');
         }
 
         return result;
@@ -390,10 +390,10 @@ export class VideoAssemblyService {
         // Normalize intro if exists (keeping original audio)
         if (introPath) {
             const normalizedIntro = path.join(outputDir, 'normalized', 'intro.mp4');
-            console.log('  Normalizing intro video (preserving original audio)...');
+            console.error('  Normalizing intro video (preserving original audio)...');
             await this.normalizeClipWithAudio(introPath, normalizedIntro);
             result.push(normalizedIntro);
-            console.log('  ✓ Intro added with original audio');
+            console.error('  ✓ Intro added with original audio');
         }
 
         // Add main video (already has narration + music)
@@ -402,10 +402,10 @@ export class VideoAssemblyService {
         // Normalize outro if exists (keeping original audio)
         if (outroPath) {
             const normalizedOutro = path.join(outputDir, 'normalized', 'outro.mp4');
-            console.log('  Normalizing outro video (preserving original audio)...');
+            console.error('  Normalizing outro video (preserving original audio)...');
             await this.normalizeClipWithAudio(outroPath, normalizedOutro);
             result.push(normalizedOutro);
-            console.log('  ✓ Outro added with original audio');
+            console.error('  ✓ Outro added with original audio');
         }
 
         return result;
@@ -444,7 +444,7 @@ export class VideoAssemblyService {
     ): Promise<string> {
         const outputPath = path.join(outputDir, 'background_music.mp3');
 
-        console.log(`  Preparing background music to loop for ${videoDuration.toFixed(2)}s...`);
+        console.error(`  Preparing background music to loop for ${videoDuration.toFixed(2)}s...`);
 
         // Always loop the music to match video duration
         await runFFmpeg({
@@ -459,7 +459,7 @@ export class VideoAssemblyService {
             ],
         });
 
-        console.log('  ✓ Background music looped to match video duration');
+        console.error('  ✓ Background music looped to match video duration');
         return outputPath;
     }
 
@@ -476,18 +476,18 @@ export class VideoAssemblyService {
     ): Promise<string> {
         const outputPath = path.join(outputDir, 'final_audio.mp3');
 
-        console.log(`  Mixing narration with background music...`);
-        console.log(`  Narration: ${narrationPath}`);
-        console.log(`  Music: ${musicPath}`);
+        console.error(`  Mixing narration with background music...`);
+        console.error(`  Narration: ${narrationPath}`);
+        console.error(`  Music: ${musicPath}`);
 
         // Get narration duration
         const narrationDuration = await getVideoDuration(narrationPath);
-        console.log(`  Narration duration: ${narrationDuration.toFixed(2)}s`);
-        console.log(`  Total video duration: ${videoDuration.toFixed(2)}s`);
+        console.error(`  Narration duration: ${narrationDuration.toFixed(2)}s`);
+        console.error(`  Total video duration: ${videoDuration.toFixed(2)}s`);
 
         // Calculate outro duration (time after narration ends)
         const outroDuration = Math.max(0, videoDuration - narrationDuration);
-        console.log(`  Outro duration: ${outroDuration.toFixed(2)}s`);
+        console.error(`  Outro duration: ${outroDuration.toFixed(2)}s`);
 
         // Create filter complex for proper audio mixing:
         // 1. Loop music throughout entire video
@@ -518,7 +518,7 @@ export class VideoAssemblyService {
             ],
         });
 
-        console.log(`  ✓ Audio mixing complete (BGM loops throughout, louder at outro)`);
+        console.error(`  ✓ Audio mixing complete (BGM loops throughout, louder at outro)`);
         return outputPath;
     }
 

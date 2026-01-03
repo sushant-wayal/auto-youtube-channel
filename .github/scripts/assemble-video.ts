@@ -31,7 +31,7 @@ async function assembleMainVideo(
     const stopTimes: number[] = JSON.parse(animationStopTimes);
     const voiceovers: string[] = JSON.parse(voiceoverUrls);
 
-    console.log(`🧩 Assembling video ${videoId}`);
+    console.error(`🧩 Assembling video ${videoId}`);
 
     const result = await assembleVideo({
         jobId: videoId,
@@ -45,7 +45,7 @@ async function assembleMainVideo(
         isShort: false,
     });
 
-    console.log(`✅ Video assembled: ${result.outputUrl}`);
+    console.error(`✅ Video assembled: ${result.outputUrl}`);
     return result;
 }
 

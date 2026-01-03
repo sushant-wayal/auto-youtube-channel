@@ -60,16 +60,16 @@ export class YouTubeService {
         await this.downloadFile(thumbnailUrl, thumbnailPath);
       }
 
-      console.log("Video downloaded, uploading to YouTube...");
+      console.error("Video downloaded, uploading to YouTube...");
 
       /* 2️⃣ Upload video to YouTube */
       const videoId = await this.uploadVideoToYouTube(videoPath, isShort ?? false, title, description, tags, privacyStatus);
 
-      console.log(`Video uploaded successfully: ${videoId}`);
+      console.error(`Video uploaded successfully: ${videoId}`);
 
       /* 3️⃣ Upload thumbnail (optional) */
       if (!isShort && thumbnailUrl && thumbnailPath) {
-        console.log("Uploading thumbnail...");
+        console.error("Uploading thumbnail...");
 
         await this.youtube.thumbnails.set({
           videoId,

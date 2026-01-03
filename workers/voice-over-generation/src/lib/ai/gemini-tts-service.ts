@@ -46,10 +46,10 @@ class GeminiTTSService {
         const BASE_DELAY_MS = 2_000; // 2s
         const MAX_DELAY_MS = 30_000;
 
-        console.log(`\n🎙️ === GEMINI TTS GENERATION STARTED ===`);
-        console.log(`📝 Text length: ${text.length} characters`);
-        console.log(`🎤 Voice: ${config?.voice || this.VOICES.PUCK}`);
-        console.log(`⚡ Speed: ${config?.speed || 1.0}x`);
+        console.error(`\n🎙️ === GEMINI TTS GENERATION STARTED ===`);
+        console.error(`📝 Text length: ${text.length} characters`);
+        console.error(`🎤 Voice: ${config?.voice || this.VOICES.PUCK}`);
+        console.error(`⚡ Speed: ${config?.speed || 1.0}x`);
 
         const processedText = this.processNarrationForTTS(text);
 
@@ -69,7 +69,7 @@ class GeminiTTSService {
             attempt++;
 
             try {
-                console.log(
+                console.error(
                     `🚀 Gemini TTS request (attempt ${attempt}/${MAX_RETRIES})`
                 );
 
@@ -90,7 +90,7 @@ class GeminiTTSService {
                 }
 
                 const candidate = result.candidates[0];
-                console.log(`Finish Reason: ${candidate.finishReason}`);
+                console.error(`Finish Reason: ${candidate.finishReason}`);
 
                 const audioPart = candidate.content?.parts?.find(
                     (p: any) => p.inlineData
@@ -105,11 +105,11 @@ class GeminiTTSService {
                     "base64"
                 );
 
-                console.log(`✅ Generated ${audioBuffer.length} bytes of audio`);
-                console.log(
+                console.error(`✅ Generated ${audioBuffer.length} bytes of audio`);
+                console.error(
                     `🎵 Audio format: ${audioPart.inlineData.mimeType || "audio/wav"}`
                 );
-                console.log(`✅ === GEMINI TTS GENERATION COMPLETE ===\n`);
+                console.error(`✅ === GEMINI TTS GENERATION COMPLETE ===\n`);
 
                 return audioBuffer;
             } catch (error: any) {
@@ -192,8 +192,8 @@ class GeminiTTSService {
             const wavPath = outputPath.replace(/\.\w+$/, '.wav');
             fs.writeFileSync(wavPath, wavBuffer);
 
-            console.log(`💾 Audio saved to: ${wavPath}`);
-            console.log(`📊 File size: ${(wavBuffer.length / 1024 / 1024).toFixed(2)} MB`);
+            console.error(`💾 Audio saved to: ${wavPath}`);
+            console.error(`📊 File size: ${(wavBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
             return wavPath;
 
@@ -272,12 +272,12 @@ class GeminiTTSService {
         outputPath: string,
         config?: GeminiTTSConfig
     ): Promise<string> {
-        console.log(`\n🎬 === NARRATION AUDIO GENERATION ===`);
-        console.log(`📊 Narration stats:`);
-        console.log(`   Characters: ${narration.length}`);
-        console.log(`   Words: ${narration.split(/\s+/).length}`);
-        console.log(`   Estimated duration: ${(narration.split(/\s+/).length / 150).toFixed(1)} minutes`);
-        console.log(`🚀 Using Gemini 2.5 Flash TTS (single request, no chunking)`);
+        console.error(`\n🎬 === NARRATION AUDIO GENERATION ===`);
+        console.error(`📊 Narration stats:`);
+        console.error(`   Characters: ${narration.length}`);
+        console.error(`   Words: ${narration.split(/\s+/).length}`);
+        console.error(`   Estimated duration: ${(narration.split(/\s+/).length / 150).toFixed(1)} minutes`);
+        console.error(`🚀 Using Gemini 2.5 Flash TTS (single request, no chunking)`);
 
         try {
             const audioPath = await this.generateSpeechToFile(
@@ -286,7 +286,7 @@ class GeminiTTSService {
                 config || { voice: this.VOICES.PUCK } // Default to Puck voice
             );
 
-            console.log(`✅ Narration audio generated successfully!`);
+            console.error(`✅ Narration audio generated successfully!`);
             return audioPath;
 
         } catch (error: any) {
@@ -304,12 +304,12 @@ class GeminiTTSService {
         const audioUrls: string[] = [];
 
         for (let i = 0; i < narrations.length; i++) {
-            console.log(`Generating narration part ${i + 1} of ${narrations.length}...`);
+            console.error(`Generating narration part ${i + 1} of ${narrations.length}...`);
 
             const narration = narrations[i];
             const outputPath = path.join(outputDir, `narration-part-${i + 1}.wav`);
 
-            console.log(`\n🎬 Generating narration part ${i + 1} of ${narrations.length}...`);
+            console.error(`\n🎬 Generating narration part ${i + 1} of ${narrations.length}...`);
 
             try {
                 const audioPath = await this.generateNarrationAudio(
@@ -318,7 +318,7 @@ class GeminiTTSService {
                     config
                 );
 
-                console.log(`Uploading narration part ${i + 1} of ${narrations.length} to Cloudinary...`);
+                console.error(`Uploading narration part ${i + 1} of ${narrations.length} to Cloudinary...`);
 
                 const upload = await this.cloudinaryService.uploadAudio(
                     audioPath,
@@ -326,7 +326,7 @@ class GeminiTTSService {
                     'narration-audio'
                 );
 
-                console.log(`✅ Narration part ${i + 1} uploaded to Cloudinary: ${upload.secureUrl}`);
+                console.error(`✅ Narration part ${i + 1} uploaded to Cloudinary: ${upload.secureUrl}`);
                 audioUrls.push(upload.secureUrl);
 
                 // Clean up local file

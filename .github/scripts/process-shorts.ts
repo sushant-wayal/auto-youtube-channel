@@ -30,7 +30,7 @@ async function processAllShorts(videoId: string, scriptData: string) {
     const data: ScriptData = JSON.parse(scriptData);
     const shorts = data.script.shorts;
 
-    console.log(`📱 Processing ${shorts.length} shorts for video ${videoId}`);
+    console.error(`📱 Processing ${shorts.length} shorts for video ${videoId}`);
 
     const results = [];
 
@@ -38,10 +38,10 @@ async function processAllShorts(videoId: string, scriptData: string) {
         const short = shorts[i];
         const shortId = `${videoId}-short-${i}`;
 
-        console.log(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook}`);
+        console.error(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook}`);
 
         // 1. Render scenes for short
-        console.log(`🎬 Rendering scenes for short ${i + 1}...`);
+        console.error(`🎬 Rendering scenes for short ${i + 1}...`);
         const { urls: clips, timings, animationStopTimes } = await renderScenes({
             scenes: [{
                 id: short.id,
@@ -54,7 +54,7 @@ async function processAllShorts(videoId: string, scriptData: string) {
         });
 
         // 2. Generate voice-over for short
-        console.log(`🎤 Generating voice-over for short ${i + 1}...`);
+        console.error(`🎤 Generating voice-over for short ${i + 1}...`);
         const { urls: voiceovers } = await generateVoiceOvers({
             perSceneNarration: [short.narration],
             videoId: shortId,
@@ -62,7 +62,7 @@ async function processAllShorts(videoId: string, scriptData: string) {
         });
 
         // 3. Assemble short
-        console.log(`🧩 Assembling short ${i + 1}...`);
+        console.error(`🧩 Assembling short ${i + 1}...`);
         const assembled = await assembleVideo({
             jobId: shortId,
             videoId: shortId,
@@ -76,7 +76,7 @@ async function processAllShorts(videoId: string, scriptData: string) {
         });
 
         // 4. Upload to YouTube
-        console.log(`📤 Uploading short ${i + 1} to YouTube...`);
+        console.error(`📤 Uploading short ${i + 1} to YouTube...`);
         const { videoId: youtubeId } = await uploadToYouTube({
             videoUrl: assembled.outputUrl,
             isShort: true,
@@ -86,7 +86,7 @@ async function processAllShorts(videoId: string, scriptData: string) {
             privacyStatus: 'public',
         });
 
-        console.log(`✅ Short ${i + 1} completed: ${youtubeId}`);
+        console.error(`✅ Short ${i + 1} completed: ${youtubeId}`);
 
         results.push({
             shortId,
@@ -95,7 +95,7 @@ async function processAllShorts(videoId: string, scriptData: string) {
         });
     }
 
-    console.log(`\n✅ All ${shorts.length} shorts processed successfully`);
+    console.error(`\n✅ All ${shorts.length} shorts processed successfully`);
     return results;
 }
 

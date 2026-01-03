@@ -35,7 +35,7 @@ export class ClipsRenderService {
     const animationStopTimes: number[] = [];
 
     for (let i = 0; i < this.scenes.length; i++) {
-      console.log(`🎬 Rendering scene ${i + 1} of ${this.scenes.length}...`);
+      console.error(`🎬 Rendering scene ${i + 1} of ${this.scenes.length}...`);
 
       const scene = this.scenes[i];
 
