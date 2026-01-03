@@ -49,17 +49,16 @@ jobs:
           RESPONSE=$(npx tsx .github/scripts/generate-script.ts "${{ github.event.inputs.video_idea }}")
           echo "script_data=$RESPONSE" >> $GITHUB_OUTPUT
 
-  # Step 2 & 3: Parallel execution of scene rendering and voice-over generation
-  parallel-rendering:
-    name: Parallel Asset Generation
+  # Step 2: Render scenes (runs in parallel with voice-over)
+  render-scenes:
+    name: Render Video Scenes
     needs: generate-script
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     outputs:
       clips_urls: ${{ steps.scenes.outputs.clips_urls }}
       clips_timings: ${{ steps.scenes.outputs.clips_timings }}
       animation_stop_times: ${{ steps.scenes.outputs.animation_stop_times }}
-      voiceover_urls: ${{ steps.voiceover.outputs.voiceover_urls }}
     
     steps:
       - name: Checkout code
@@ -82,7 +81,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Render scenes (parallel with voice-over)
+      - name: Render scenes
         id: scenes
         env:
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
@@ -93,7 +92,29 @@ jobs:
           RESULT=$(npx tsx .github/scripts/render-scenes.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
 
-      - name: Generate voice-overs (parallel with scenes)
+  # Step 3: Generate voice-overs (runs in parallel with scene rendering)
+  generate-voiceover:
+    name: Generate Voice-overs
+    needs: generate-script
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      voiceover_urls: ${{ steps.voiceover.outputs.voiceover_urls }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate voice-overs
         id: voiceover
         env:
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
@@ -109,7 +130,7 @@ jobs:
   # Step 4: Assemble video
   assemble-video:
     name: Assemble Video
-    needs: [generate-script, parallel-rendering]
+    needs: [generate-script, render-scenes, generate-voiceover]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
@@ -139,14 +160,13 @@ jobs:
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
+          CLIPS_URLS: ${{ needs.render-scenes.outputs.clips_urls }}
+          CLIPS_TIMINGS: ${{ needs.render-scenes.outputs.clips_timings }}
+          ANIMATION_STOP_TIMES: ${{ needs.render-scenes.outputs.animation_stop_times }}
+          VOICEOVER_URLS: ${{ needs.generate-voiceover.outputs.voiceover_urls }}
         run: |
-          RESULT=$(npx tsx .github/scripts/assemble-video.ts \
-            "${{ needs.generate-script.outputs.video_id }}" \
-            '${{ needs.generate-script.outputs.script_data }}' \
-            '${{ needs.parallel-rendering.outputs.clips_urls }}' \
-            '${{ needs.parallel-rendering.outputs.clips_timings }}' \
-            '${{ needs.parallel-rendering.outputs.animation_stop_times }}' \
-            '${{ needs.parallel-rendering.outputs.voiceover_urls }}')
+          RESULT=$(npx tsx .github/scripts/assemble-video.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
 
   # Step 5: Upload to YouTube (main video)
@@ -177,12 +197,10 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
+          THUMBNAIL_URL: ${{ needs.generate-thumbnail.outputs.thumbnail_url }}
         run: |
-          THUMBNAIL_URL="${{ needs.generate-thumbnail.outputs.thumbnail_url }}"
-          RESULT=$(npx tsx .github/scripts/upload-youtube.ts \
-            "${{ needs.assemble-video.outputs.video_url }}" \
-            '${{ needs.generate-script.outputs.script_data }}' \
-            "$THUMBNAIL_URL")
+          RESULT=$(npx tsx .github/scripts/upload-youtube.ts "${{ needs.assemble-video.outputs.video_url }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
 
   # Step 5: Generate thumbnail before YouTube upload
@@ -211,10 +229,9 @@ jobs:
         id: thumbnail
         env:
           WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
-          RESULT=$(npx tsx .github/scripts/generate-thumbnail.ts \
-            "${{ needs.generate-script.outputs.video_id }}" \
-            '${{ needs.generate-script.outputs.script_data }}')
+          RESULT=$(npx tsx .github/scripts/generate-thumbnail.ts "${{ needs.generate-script.outputs.video_id }}")
           THUMBNAIL_URL=$(echo "$RESULT" | grep -oP 'thumbnail_url=\K.*')
           echo "thumbnail_url=$THUMBNAIL_URL" >> $GITHUB_OUTPUT
 
@@ -256,15 +273,14 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
-          npx tsx .github/scripts/process-shorts.ts \
-            "${{ needs.generate-script.outputs.video_id }}" \
-            '${{ needs.generate-script.outputs.script_data }}'
+          npx tsx .github/scripts/process-shorts.ts "${{ needs.generate-script.outputs.video_id }}"
 
   # Summary job
   pipeline-summary:
     name: Pipeline Summary
-    needs: [generate-script, parallel-rendering, assemble-video, upload-youtube, process-shorts, generate-thumbnail]
+    needs: [generate-script, render-scenes, generate-voiceover, assemble-video, upload-youtube, process-shorts, generate-thumbnail]
     runs-on: ubuntu-latest
     if: always()
     
@@ -284,7 +300,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
           echo "- Script Generation: ${{ needs['generate-script'].result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Asset Generation: ${{ needs['parallel-rendering'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Scene Rendering: ${{ needs['render-scenes'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Voice-over Generation: ${{ needs['generate-voiceover'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Video Assembly: ${{ needs['assemble-video'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Thumbnail Generation: ${{ needs['generate-thumbnail'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- YouTube Upload: ${{ needs['upload-youtube'].result }}" >> $GITHUB_STEP_SUMMARY

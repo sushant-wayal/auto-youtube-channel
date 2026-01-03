@@ -42,11 +42,11 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
 (async () => {
     try {
         const videoUrl = process.argv[2];
-        const scriptData = process.argv[3];
-        const thumbnailUrl = process.argv[4]; // Optional
+        const scriptData = process.env.SCRIPT_DATA;
+        const thumbnailUrl = process.env.THUMBNAIL_URL; // Optional
 
         if (!videoUrl || !scriptData) {
-            throw new Error('Missing required arguments: videoUrl and scriptData');
+            throw new Error('Missing required: videoUrl (arg) or SCRIPT_DATA (env)');
         }
 
         const result = await uploadVideo(videoUrl, scriptData, thumbnailUrl);

@@ -52,10 +52,15 @@ async function assembleMainVideo(
 // Main execution
 (async () => {
     try {
-        const [videoId, scriptData, clipsUrls, clipsTimings, animationStopTimes, voiceoverUrls] = process.argv.slice(2);
+        const videoId = process.argv[2];
+        const scriptData = process.env.SCRIPT_DATA;
+        const clipsUrls = process.env.CLIPS_URLS;
+        const clipsTimings = process.env.CLIPS_TIMINGS;
+        const animationStopTimes = process.env.ANIMATION_STOP_TIMES;
+        const voiceoverUrls = process.env.VOICEOVER_URLS;
 
         if (!videoId || !scriptData || !clipsUrls || !clipsTimings || !animationStopTimes || !voiceoverUrls) {
-            throw new Error('Missing required arguments');
+            throw new Error('Missing required: videoId (arg) or env vars (SCRIPT_DATA, CLIPS_URLS, CLIPS_TIMINGS, ANIMATION_STOP_TIMES, VOICEOVER_URLS)');
         }
 
         const result = await assembleMainVideo(

@@ -103,10 +103,10 @@ async function processAllShorts(videoId: string, scriptData: string) {
 (async () => {
     try {
         const videoId = process.argv[2];
-        const scriptData = process.argv[3];
+        const scriptData = process.env.SCRIPT_DATA;
 
         if (!videoId || !scriptData) {
-            throw new Error('Missing required arguments: videoId and scriptData');
+            throw new Error('Missing required: videoId (arg) or SCRIPT_DATA (env)');
         }
 
         const results = await processAllShorts(videoId, scriptData);
