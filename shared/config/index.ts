@@ -91,7 +91,7 @@ export function validateConfig(required: string[] = []): void {
         process.exit(1);
     }
 
-    console.log('✅ Configuration validated successfully');
+    console.error('✅ Configuration validated successfully');
 }
 
 export default config;
