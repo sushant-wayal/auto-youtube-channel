@@ -242,7 +242,7 @@ export class VideoAssemblyService {
         console.error(`✅ Video assembly complete! Duration: ${duration.toFixed(2)}s`);
         return {
             videoId: input.videoId,
-            outputPath: `${input.videoId}/final.mp4`,
+            outputPath: finalOutput,
             duration,
             clipCount: input.clips.length,
         };
