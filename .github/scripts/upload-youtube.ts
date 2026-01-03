@@ -41,13 +41,17 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
 // Main execution
 (async () => {
     try {
-        const videoUrl = process.argv[2];
+        const videoUrlEncoded = process.env.VIDEO_URL;
         const scriptData = process.env.SCRIPT_DATA;
-        const thumbnailUrl = process.env.THUMBNAIL_URL; // Optional
+        const thumbnailUrlEncoded = process.env.THUMBNAIL_URL; // Optional
 
-        if (!videoUrl || !scriptData) {
-            throw new Error('Missing required: videoUrl (arg) or SCRIPT_DATA (env)');
+        if (!videoUrlEncoded || !scriptData) {
+            throw new Error('Missing required: VIDEO_URL (env) or SCRIPT_DATA (env)');
         }
+
+        // Decode base64 values
+        const videoUrl = Buffer.from(videoUrlEncoded, 'base64').toString('utf-8');
+        const thumbnailUrl = thumbnailUrlEncoded ? Buffer.from(thumbnailUrlEncoded, 'base64').toString('utf-8') : undefined;
 
         const result = await uploadVideo(videoUrl, scriptData, thumbnailUrl);
 

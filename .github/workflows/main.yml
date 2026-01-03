@@ -197,8 +197,9 @@ jobs:
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
           THUMBNAIL_URL: ${{ needs.generate-thumbnail.outputs.thumbnail_url }}
+          VIDEO_URL: ${{ needs.assemble-video.outputs.video_url }}
         run: |
-          RESULT=$(npx tsx .github/scripts/upload-youtube.ts "${{ needs.assemble-video.outputs.video_url }}")
+          RESULT=$(npx tsx .github/scripts/upload-youtube.ts)
           echo "$RESULT" >> $GITHUB_OUTPUT
 
   # Step 5: Generate thumbnail before YouTube upload
@@ -229,9 +230,7 @@ jobs:
           WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
-          RESULT=$(npx tsx .github/scripts/generate-thumbnail.ts "${{ needs.generate-script.outputs.video_id }}")
-          THUMBNAIL_URL=$(echo "$RESULT" | grep -oP 'thumbnail_url=\K.*')
-          echo "thumbnail_url=$THUMBNAIL_URL" >> $GITHUB_OUTPUT
+          npx tsx .github/scripts/generate-thumbnail.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
 
   # Process shorts sequentially after main video
   process-shorts:

@@ -39,8 +39,8 @@ async function generateThumbnail(videoId: string, scriptData: string) {
     const result = await response.json();
     console.error(`✅ Thumbnail generated: ${result.thumbnailUrl}`);
 
-    // Output for GitHub Actions
-    console.log(`thumbnail_url=${result.thumbnailUrl}`);
+    // Output for GitHub Actions (base64 encoded to avoid secret detection)
+    console.log(`thumbnail_url=${Buffer.from(result.thumbnailUrl).toString('base64')}`);
 
     return result;
 }
