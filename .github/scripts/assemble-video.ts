@@ -59,8 +59,23 @@ async function assembleMainVideo(
         const animationStopTimes = process.env.ANIMATION_STOP_TIMES;
         const voiceoverUrls = process.env.VOICEOVER_URLS;
 
-        if (!videoId || !scriptData || !clipsUrls || !clipsTimings || !animationStopTimes || !voiceoverUrls) {
-            throw new Error('Missing required: videoId (arg) or env vars (SCRIPT_DATA, CLIPS_URLS, CLIPS_TIMINGS, ANIMATION_STOP_TIMES, VOICEOVER_URLS)');
+        if (!videoId) {
+            throw new Error('Missing required: videoId');
+        }
+        if (!scriptData) {
+            throw new Error('Missing required: SCRIPT_DATA env var');
+        }
+        if (!clipsUrls || clipsUrls.trim() === '') {
+            throw new Error('Missing required: CLIPS_URLS env var (render-scenes job may have failed)');
+        }
+        if (!clipsTimings) {
+            throw new Error('Missing required: CLIPS_TIMINGS env var');
+        }
+        if (!animationStopTimes) {
+            throw new Error('Missing required: ANIMATION_STOP_TIMES env var');
+        }
+        if (!voiceoverUrls || voiceoverUrls.trim() === '') {
+            throw new Error('Missing required: VOICEOVER_URLS env var (generate-voiceover job may have failed)');
         }
 
         const result = await assembleMainVideo(
