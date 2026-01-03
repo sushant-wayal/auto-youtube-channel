@@ -42,11 +42,18 @@ async function processAllShorts(videoId: string, scriptData: string) {
 
         // 1. Render scenes for short
         console.error(`🎬 Rendering scenes for short ${i + 1}...`);
+
+        // Use default durations if not provided
+        const baseDuration = short.baseDuration ?? 25;
+        const holdDuration = short.holdDuration ?? 0;
+
+        console.error(`   Duration: ${baseDuration}s base + ${holdDuration}s hold = ${baseDuration + holdDuration}s total`);
+
         const { urls: clips, timings, animationStopTimes } = await renderScenes({
             scenes: [{
                 id: short.id,
-                baseDuration: short.baseDuration,
-                holdDuration: short.holdDuration,
+                baseDuration,
+                holdDuration,
                 actions: short.actions,
             }],
             isShort: true,

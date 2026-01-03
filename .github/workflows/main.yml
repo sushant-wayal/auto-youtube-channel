@@ -49,7 +49,7 @@ jobs:
           RESPONSE=$(npx tsx .github/scripts/generate-script.ts "${{ github.event.inputs.video_idea }}")
           echo "script_data=$RESPONSE" >> $GITHUB_OUTPUT
 
-  # Step 2: Render scenes (runs in parallel with voice-over)
+  # Step 2: Render scenes (runs in parallel with voice-over and thumbnail)
   render-scenes:
     name: Render Video Scenes
     needs: generate-script
@@ -125,7 +125,37 @@ jobs:
         run: |
           npx tsx .github/scripts/generate-voiceover.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
 
-  # Step 4: Assemble video
+  # Step 4: Generate thumbnail (runs in parallel with everything above)
+  generate-thumbnail:
+    name: Generate Thumbnail
+    needs: generate-script
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      thumbnail_url: ${{ steps.thumbnail.outputs.thumbnail_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate thumbnail
+        id: thumbnail
+        env:
+          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
+        run: |
+          npx tsx .github/scripts/generate-thumbnail.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
+
+  # Step 5: Assemble video
   assemble-video:
     name: Assemble Video
     needs: [generate-script, render-scenes, generate-voiceover]
@@ -167,10 +197,10 @@ jobs:
           RESULT=$(npx tsx .github/scripts/assemble-video.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
 
-  # Step 5: Upload to YouTube (main video)
+  # Step 6: Upload to YouTube (waits for both assembly and thumbnail)
   upload-youtube:
     name: Upload to YouTube
-    needs: [generate-script, assemble-video]
+    needs: [generate-script, assemble-video, generate-thumbnail]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -201,36 +231,6 @@ jobs:
         run: |
           RESULT=$(npx tsx .github/scripts/upload-youtube.ts)
           echo "$RESULT" >> $GITHUB_OUTPUT
-
-  # Step 5: Generate thumbnail before YouTube upload
-  generate-thumbnail:
-    name: Generate Thumbnail
-    needs: [generate-script, assemble-video]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    outputs:
-      thumbnail_url: ${{ steps.thumbnail.outputs.thumbnail_url }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Generate thumbnail
-        id: thumbnail
-        env:
-          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
-          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
-        run: |
-          npx tsx .github/scripts/generate-thumbnail.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
 
   # Process shorts sequentially after main video
   process-shorts:
