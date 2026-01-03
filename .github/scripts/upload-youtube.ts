@@ -51,7 +51,12 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
 
         // Decode hex values
         const videoUrl = Buffer.from(videoUrlEncoded, 'hex').toString('utf-8');
-        const thumbnailUrl = thumbnailUrlEncoded ? Buffer.from(thumbnailUrlEncoded, 'hex').toString('utf-8') : undefined;
+        const thumbnailUrl = thumbnailUrlEncoded && thumbnailUrlEncoded.length > 0
+            ? Buffer.from(thumbnailUrlEncoded, 'hex').toString('utf-8')
+            : undefined;
+
+        console.error(`[DEBUG] Thumbnail URL encoded: ${thumbnailUrlEncoded || '(empty)'}`);
+        console.error(`[DEBUG] Thumbnail URL decoded: ${thumbnailUrl || '(none)'}`);
 
         const result = await uploadVideo(videoUrl, scriptData, thumbnailUrl);
 

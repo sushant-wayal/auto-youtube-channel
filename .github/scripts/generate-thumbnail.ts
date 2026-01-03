@@ -9,6 +9,8 @@ interface ScriptData {
     script: {
         title: string;
         description: string;
+        narration: string;
+        tags?: string[];
     };
 }
 
@@ -21,26 +23,38 @@ async function generateThumbnail(videoId: string, scriptData: string) {
 
     const websiteDomain = process.env.WEBSITE_DOMAIN || 'http://localhost:3000';
 
+    const requestBody = {
+        videoId,
+        title: data.script.title,
+        description: data.script.description,
+        narration: data.script.narration || 'No narration provided.',
+        tags: data.script.tags || [],
+    };
+
+    console.error(`[DEBUG] API endpoint: ${websiteDomain}/api/generate-thumbnail`);
+    console.error(`[DEBUG] Request body:`, JSON.stringify(requestBody, null, 2));
+
     // Call the thumbnail generation API
     const response = await fetch(`${websiteDomain}/api/generate-thumbnail`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            videoId,
-            title: data.script.title,
-            description: data.script.description,
-        }),
+        body: JSON.stringify(requestBody),
     });
 
+    console.error(`[DEBUG] Response status: ${response.status} ${response.statusText}`);
+
     if (!response.ok) {
-        throw new Error(`Thumbnail generation failed: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`[DEBUG] Response body: ${errorText}`);
+        throw new Error(`Thumbnail generation failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const result = await response.json();
-    console.error(`✅ Thumbnail generated: ${result.thumbnailUrl}`);
+    const thumbnailUrl = result.thumbnail?.thumbnailPath || result.thumbnailUrl;
+    console.error(`✅ Thumbnail generated: ${thumbnailUrl}`);
 
     // Output for GitHub Actions (hex encoded to avoid secret detection patterns)
-    console.log(`thumbnail_url=${Buffer.from(result.thumbnailUrl).toString('hex')}`);
+    console.log(`thumbnail_url=${Buffer.from(thumbnailUrl).toString('hex')}`);
 
     return result;
 }
@@ -58,8 +72,8 @@ async function generateThumbnail(videoId: string, scriptData: string) {
         await generateThumbnail(videoId, scriptData);
         process.exit(0);
     } catch (error) {
-        console.error('⚠️ Thumbnail generation failed (non-critical):', error);
-        // Don't fail the pipeline if thumbnail generation fails
-        process.exit(0);
+        console.error('❌ Thumbnail generation failed:', error);
+        // Fail the pipeline so thumbnail issue is visible
+        process.exit(1);
     }
 })();

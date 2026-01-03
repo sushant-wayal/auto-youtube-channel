@@ -1,8 +1,8 @@
 name: Daily Video Generation Pipeline
 
 on:
-  push:
-    branches: [add-github-actions]  # Temporary: for testing on feature branch
+  # push:
+  #   branches: [add-github-actions]  # Temporary: for testing on feature branch
   workflow_dispatch:
     inputs:
       video_idea:
@@ -284,16 +284,20 @@ jobs:
     steps:
       - name: Output summary
         run: |
+          # Decode hex-encoded URLs
+          VIDEO_URL=$(echo "${{ needs.assemble-video.outputs.video_url }}" | xxd -r -p)
+          THUMBNAIL_URL=$(echo "${{ needs.generate-thumbnail.outputs.thumbnail_url }}" | xxd -r -p)
+          
           echo "## Video Generation Pipeline Complete 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Video ID:** ${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📺 YouTube Videos" >> $GITHUB_STEP_SUMMARY
           echo "**Main Video:** https://youtube.com/watch?v=${{ needs.upload-youtube.outputs.youtube_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Thumbnail:** ${{ needs.generate-thumbnail.outputs.thumbnail_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Thumbnail:** $THUMBNAIL_URL" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🎬 Video Assets" >> $GITHUB_STEP_SUMMARY
-          echo "**Assembled Video:** ${{ needs.assemble-video.outputs.video_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Assembled Video:** $VIDEO_URL" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
           echo "- Script Generation: ${{ needs['generate-script'].result }}" >> $GITHUB_STEP_SUMMARY

@@ -24,19 +24,19 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
     const data: ScriptData = JSON.parse(scriptData);
     console.error(`🎬 Rendering ${data.script.scenes.length} scenes for video ${videoId}`);
 
-    return {
-        urls: [
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232798/video-gen/scenes/scene_scene-1.mp4',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232865/video-gen/scenes/scene_scene-2.mp4',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232965/video-gen/scenes/scene_scene-3.mp4',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233065/video-gen/scenes/scene_scene-4.mp4',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233166/video-gen/scenes/scene_scene-5.mp4',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233276/video-gen/scenes/scene_scene-6.mp4',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233369/video-gen/scenes/scene_scene-7.mp4'
-        ],
-        timings: [40, 40, 60, 60, 60, 65, 55],
-        animationStopTimes: [24.5, 21.5, 38, 20.5, 24.5, 25, 20.5],
-    };
+    // return {
+    //     urls: [
+    //         'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232798/video-gen/scenes/scene_scene-1.mp4',
+    //         'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232865/video-gen/scenes/scene_scene-2.mp4',
+    //         'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232965/video-gen/scenes/scene_scene-3.mp4',
+    //         'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233065/video-gen/scenes/scene_scene-4.mp4',
+    //         'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233166/video-gen/scenes/scene_scene-5.mp4',
+    //         'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233276/video-gen/scenes/scene_scene-6.mp4',
+    //         'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233369/video-gen/scenes/scene_scene-7.mp4'
+    //     ],
+    //     timings: [40, 40, 60, 60, 60, 65, 55],
+    //     animationStopTimes: [24.5, 21.5, 38, 20.5, 24.5, 25, 20.5],
+    // };
 
     const result = await renderScenes({
         scenes: data.script.scenes,

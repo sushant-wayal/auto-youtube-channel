@@ -22,13 +22,13 @@ async function generateNarration(videoId: string, scriptData: string) {
 
     console.error(`🎤 Generating ${narrations.length} voice-overs for video ${videoId}`);
 
-    // Hardcoded URLs split to avoid GitHub secret detection
-    const baseUrl = 'https://res.cloudinary.com/divc1cuwa/video/upload/';
-    const timestamps = ['v1766341277', 'v1766341306', 'v1766341337', 'v1766341368', 'v1766341407', 'v1766341443', 'v1766341486'];
+    // // Hardcoded URLs split to avoid GitHub secret detection
+    // const baseUrl = 'https://res.cloudinary.com/divc1cuwa/video/upload/';
+    // const timestamps = ['v1766341277', 'v1766341306', 'v1766341337', 'v1766341368', 'v1766341407', 'v1766341443', 'v1766341486'];
 
-    return {
-        urls: timestamps.map((ts, i) => `${baseUrl}${ts}/video-gen/narrations/part-${i + 1}/narration-audio.wav`),
-    };
+    // return {
+    //     urls: timestamps.map((ts, i) => `${baseUrl}${ts}/video-gen/narrations/part-${i + 1}/narration-audio.wav`),
+    // };
 
     const result = await generateVoiceOvers({
         perSceneNarration: narrations,
