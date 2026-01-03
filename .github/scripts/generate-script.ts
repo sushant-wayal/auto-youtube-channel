@@ -55,7 +55,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
         // Try to get idea from Redis queue (simple LPOP from existing queue)
         try {
             const redis = new Redis(process.env.REDIS_URL!);
-            const queueKey = 'video:ideas:test'; // TEST queue - separate from production
+            const queueKey = 'video:ideas'; // TEST queue - separate from production
 
             const idea = await redis.lpop(queueKey);
             await redis.quit();
