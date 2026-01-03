@@ -1,6 +1,8 @@
 name: Daily Video Generation Pipeline
 
 on:
+  push:
+    branches: [add-github-actions]  # Temporary: for testing on feature branch
   workflow_dispatch:
     inputs:
       video_idea:
