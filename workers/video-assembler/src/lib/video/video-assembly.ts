@@ -7,7 +7,6 @@ import fsPromises from 'fs/promises';
 import fs from 'fs';
 import path from 'path';
 import { runFFmpeg, getVideoDuration, checkFFmpeg } from './ffmpeg-utils';
-import RedisService from '../../services/redis-service';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { ReadableStream } from 'stream/web'; // ADD THIS
@@ -16,7 +15,7 @@ export interface VideoAssemblyInput {
     jobId: string;
     videoId: string;
     clips: string[];
-    clipTimings?: number[];   
+    clipTimings?: number[];
     animationStopTimes?: number[]; // Pre-calculated durations for each clip (from keyword extraction)
     narration?: string;          // Narration text for timing (fallback if no clipTimings)
     perSceneNarration: string[]; // Narration text per scene (for splitting audio if needed)
@@ -69,7 +68,7 @@ export class VideoAssemblyService {
     private async downloadFile(url: string, outPath: string) {
         const res = await fetch(url);
         if (!res.ok || !res.body) {
-        throw new Error(`Failed to download ${url}`);
+            throw new Error(`Failed to download ${url}`);
         }
 
         const webStream = res.body as unknown as ReadableStream;
@@ -84,15 +83,13 @@ export class VideoAssemblyService {
      * Assemble a complete video from all assets
      */
     async assembleVideo(input: VideoAssemblyInput): Promise<VideoAssemblyResult> {
-        const redisService = RedisService.getInstance();
-
-        await redisService.updateJobProgress(input.jobId, "processing", 5, "Starting assembly");
+        console.error(`Starting video assembly for ${input.videoId}...`);
 
         const outputDir = path.join(this.workDir, input.videoId);
         await fsPromises.mkdir(outputDir, { recursive: true });
 
-        console.log(`Number of narration audios: ${input.narrationAudios?.length}`);
-        console.log(`Narration audios: ${input.narrationAudios}`);
+        console.error(`Number of narration audios: ${input.narrationAudios?.length}`);
+        console.error(`Narration audios: ${input.narrationAudios}`);
         if (!input.narrationAudios || input.narrationAudios.length === 0) throw new Error("Narration audios required");
 
         /* -----------------------------------------
@@ -102,12 +99,6 @@ export class VideoAssemblyService {
         let combinedExists = false;
 
         for (let i = 0; i < input.clips.length; i++) {
-            await redisService.updateJobProgress(
-            input.jobId,
-            "processing",
-            10 + Math.floor((i / input.clips.length) * 50),
-            `Processing scene ${i + 1}`
-            );
 
             const clipUrl = input.clips[i];
 
@@ -115,44 +106,51 @@ export class VideoAssemblyService {
             const sceneAudio = path.join(outputDir, `scene_audio_${i}.wav`);
             const sceneVideo = path.join(outputDir, `scene_video_${i}.mp4`);
 
+            console.error(`🎬 Processing scene ${i + 1}/${input.clips.length}...`);
+
             // Download clip
+            console.error(`  ⬇️  Downloading scene ${i + 1} video...`);
             await this.downloadFile(clipUrl, clipPath);
 
             // Extract scene audio
+            console.error(`  ⬇️  Downloading scene ${i + 1} audio...`);
             await this.downloadFile(input.narrationAudios[i], sceneAudio);
 
             const sceneAudioDuration = await getVideoDuration(sceneAudio);
             const animationStop = input.animationStopTimes?.[i] ?? 0;
             const targetDuration = Math.max(animationStop + 0.5, sceneAudioDuration);
 
+            console.error(`  🎞️  Normalizing scene ${i + 1} to ${targetDuration.toFixed(2)}s...`);
             // Normalize clip to target duration
             await this.normalizeClipWithDuration(
-            clipPath,
-            sceneVideo,
-            targetDuration,
-            input.isShort
+                clipPath,
+                sceneVideo,
+                targetDuration,
+                input.isShort
             );
 
             // Attach audio to scene clip
+            console.error(`  🔊 Attaching audio to scene ${i + 1}...`);
             const sceneWithAudio = path.join(outputDir, `scene_with_audio_${i}.mp4`);
             await this.addAudioToVideo(sceneVideo, sceneAudio, sceneWithAudio);
 
             // Concat immediately
+            console.error(`  🔗 Concatenating scene ${i + 1} to combined video...`);
             if (!combinedExists) {
-            await fsPromises.copyFile(sceneWithAudio, combinedPath);
-            combinedExists = true;
+                await fsPromises.copyFile(sceneWithAudio, combinedPath);
+                combinedExists = true;
             } else {
-            const temp = path.join(outputDir, `temp_concat_${i}.mp4`);
-            await this.concatClips([combinedPath, sceneWithAudio], temp);
-            await fsPromises.rename(temp, combinedPath);
+                const temp = path.join(outputDir, `temp_concat_${i}.mp4`);
+                await this.concatClips([combinedPath, sceneWithAudio], temp);
+                await fsPromises.rename(temp, combinedPath);
             }
 
             // Cleanup aggressively
             await Promise.allSettled([
-            fsPromises.unlink(clipPath),
-            fsPromises.unlink(sceneAudio),
-            fsPromises.unlink(sceneVideo),
-            fsPromises.unlink(sceneWithAudio),
+                fsPromises.unlink(clipPath),
+                fsPromises.unlink(sceneAudio),
+                fsPromises.unlink(sceneVideo),
+                fsPromises.unlink(sceneWithAudio),
             ]);
         }
 
@@ -160,29 +158,26 @@ export class VideoAssemblyService {
             3. Add background music
         -------------------------- */
 
-        await redisService.updateJobProgress(
-            input.jobId,
-            "processing",
-            70,
-            "Adding background music..."
-        );
-
+        console.error(`🎵 Adding background music to video...`);
         const combinedDuration = await getVideoDuration(combinedPath);
         let finalAudio: string;
 
         if (input.music) {
+            console.error(`  📥 Preparing background music...`);
             finalAudio = await this.prepareBackgroundMusic(
-            input.music,
-            combinedDuration,
-            outputDir
+                input.music,
+                combinedDuration,
+                outputDir
             );
         } else {
+            console.error(`  🔇 No music provided, generating silence...`);
             finalAudio = path.join(outputDir, "silence.mp3");
             await this.generatePlaceholderNarration(combinedDuration, finalAudio);
         }
 
         const combinedWithMusic = path.join(outputDir, "combined_with_music.mp4");
 
+        console.error(`  🎼 Mixing audio tracks...`);
         await runFFmpeg({
             inputs: [combinedPath, finalAudio],
             output: combinedWithMusic,
@@ -209,24 +204,19 @@ export class VideoAssemblyService {
             4. Intro / Outro
         -------------------------- */
 
-        await redisService.updateJobProgress(
-            input.jobId,
-            "processing",
-            85,
-            "Adding intro/outro..."
-        );
-
+        console.error(`🎬 Checking for intro/outro branding...`);
         const normalizedDir = path.join(outputDir, 'normalized');
         await fsPromises.mkdir(normalizedDir, { recursive: true });
 
         let finalVideo = combinedWithMusic;
 
         if (!input.isShort && (input.branding?.intro || input.branding?.outro)) {
+            console.error(`  🎞️  Adding intro/outro branding...`);
             const clips = await this.addIntroOutroWithOriginalAudio(
-            combinedWithMusic,
-            input.branding?.intro,
-            input.branding?.outro,
-            outputDir
+                combinedWithMusic,
+                input.branding?.intro,
+                input.branding?.outro,
+                outputDir
             );
 
             const withBranding = path.join(outputDir, "with_branding.mp4");
@@ -238,15 +228,10 @@ export class VideoAssemblyService {
             5. Logo (optional)
         -------------------------- */
 
-        await redisService.updateJobProgress(
-            input.jobId,
-            "processing",
-            90,
-            "Adding logo overlay..."
-        );
-
+        console.error(`🏷️  Finalizing video output...`);
         const finalOutput = path.join(outputDir, "final.mp4");
         if (input.isShort) {
+            console.error(`  📱 Overlaying logo for Shorts format...`);
             await this.overlayLogo(finalVideo, input.branding?.logo, finalOutput);
         } else {
             await fsPromises.copyFile(finalVideo, finalOutput);
@@ -254,9 +239,10 @@ export class VideoAssemblyService {
 
         const duration = await getVideoDuration(finalOutput);
 
+        console.error(`✅ Video assembly complete! Duration: ${duration.toFixed(2)}s`);
         return {
             videoId: input.videoId,
-            outputPath: `${input.videoId}/final.mp4`,
+            outputPath: finalOutput,
             duration,
             clipCount: input.clips.length,
         };
@@ -272,7 +258,6 @@ export class VideoAssemblyService {
         outputDir: string,
         isShort: boolean = false
     ): Promise<string> {
-        const redisService = RedisService.getInstance();
 
         const normalizedDir = path.join(outputDir, 'normalized');
         await fsPromises.mkdir(normalizedDir, { recursive: true });
@@ -283,20 +268,15 @@ export class VideoAssemblyService {
         const combinedVideoPath = path.join(outputDir, 'combined_clips.mp4');
 
         for (let i = 0; i < clips.length; i++) {
-            await redisService.updateJobProgress(jobId, 'processing',
-                10 + Math.floor((i / clips.length) * 60),
-                `Normalizing and adding clip ${i + 1} of ${clips.length}`
-            );
-
             const clipUrl = clips[i];
             const clipPath = path.join(downloadDir, `clip_${i + 1}.mp4`);
 
-            console.log(`  Downloading clip ${i + 1}/${clips.length} from ${clipUrl}...`);
+            console.error(`  Downloading clip ${i + 1}/${clips.length} from ${clipUrl}...`);
             await this.downloadFile(clipUrl, clipPath);
             const targetDuration = timings[i];
             const outputPath = path.join(normalizedDir, `clip_${i + 1}.mp4`);
 
-            console.log(`  Normalizing clip ${i + 1}/${clips.length} (target: ${targetDuration.toFixed(2)}s)...`);
+            console.error(`  Normalizing clip ${i + 1}/${clips.length} (target: ${targetDuration.toFixed(2)}s)...`);
             await this.normalizeClipWithDuration(clipPath, outputPath, targetDuration, isShort);
             await fsPromises.unlink(clipPath); // Delete downloaded clip after normalization
 
@@ -343,12 +323,12 @@ export class VideoAssemblyService {
             args: [
                 '-threads', '1',
                 '-t', targetDuration.toString(),
-            '-vf', vf,
+                '-vf', vf,
                 '-c:v', 'libx264',
                 '-x264-params', 'threads=1',
                 '-preset', 'veryfast',
                 '-crf', '23',
-            '-an', // no audio for stock clips
+                '-an', // no audio for stock clips
                 '-movflags', '+faststart',
             ],
         });
@@ -387,10 +367,10 @@ export class VideoAssemblyService {
         // Normalize intro if exists
         if (introPath) {
             const normalizedIntro = path.join(outputDir, 'normalized', 'intro.mp4');
-            console.log('  Normalizing intro video...');
+            console.error('  Normalizing intro video...');
             await this.normalizeClip(introPath, normalizedIntro);
             result.push(normalizedIntro);
-            console.log('  ✓ Intro added');
+            console.error('  ✓ Intro added');
         }
 
         // Add main clips
@@ -399,10 +379,10 @@ export class VideoAssemblyService {
         // Normalize outro if exists
         if (outroPath) {
             const normalizedOutro = path.join(outputDir, 'normalized', 'outro.mp4');
-            console.log('  Normalizing outro video...');
+            console.error('  Normalizing outro video...');
             await this.normalizeClip(outroPath, normalizedOutro);
             result.push(normalizedOutro);
-            console.log('  ✓ Outro added');
+            console.error('  ✓ Outro added');
         }
 
         return result;
@@ -423,10 +403,10 @@ export class VideoAssemblyService {
         // Normalize intro if exists (keeping original audio)
         if (introPath) {
             const normalizedIntro = path.join(outputDir, 'normalized', 'intro.mp4');
-            console.log('  Normalizing intro video (preserving original audio)...');
+            console.error('  Normalizing intro video (preserving original audio)...');
             await this.normalizeClipWithAudio(introPath, normalizedIntro);
             result.push(normalizedIntro);
-            console.log('  ✓ Intro added with original audio');
+            console.error('  ✓ Intro added with original audio');
         }
 
         // Add main video (already has narration + music)
@@ -435,10 +415,10 @@ export class VideoAssemblyService {
         // Normalize outro if exists (keeping original audio)
         if (outroPath) {
             const normalizedOutro = path.join(outputDir, 'normalized', 'outro.mp4');
-            console.log('  Normalizing outro video (preserving original audio)...');
+            console.error('  Normalizing outro video (preserving original audio)...');
             await this.normalizeClipWithAudio(outroPath, normalizedOutro);
             result.push(normalizedOutro);
-            console.log('  ✓ Outro added with original audio');
+            console.error('  ✓ Outro added with original audio');
         }
 
         return result;
@@ -477,7 +457,7 @@ export class VideoAssemblyService {
     ): Promise<string> {
         const outputPath = path.join(outputDir, 'background_music.mp3');
 
-        console.log(`  Preparing background music to loop for ${videoDuration.toFixed(2)}s...`);
+        console.error(`  Preparing background music to loop for ${videoDuration.toFixed(2)}s...`);
 
         // Always loop the music to match video duration
         await runFFmpeg({
@@ -492,7 +472,7 @@ export class VideoAssemblyService {
             ],
         });
 
-        console.log('  ✓ Background music looped to match video duration');
+        console.error('  ✓ Background music looped to match video duration');
         return outputPath;
     }
 
@@ -509,18 +489,18 @@ export class VideoAssemblyService {
     ): Promise<string> {
         const outputPath = path.join(outputDir, 'final_audio.mp3');
 
-        console.log(`  Mixing narration with background music...`);
-        console.log(`  Narration: ${narrationPath}`);
-        console.log(`  Music: ${musicPath}`);
+        console.error(`  Mixing narration with background music...`);
+        console.error(`  Narration: ${narrationPath}`);
+        console.error(`  Music: ${musicPath}`);
 
         // Get narration duration
         const narrationDuration = await getVideoDuration(narrationPath);
-        console.log(`  Narration duration: ${narrationDuration.toFixed(2)}s`);
-        console.log(`  Total video duration: ${videoDuration.toFixed(2)}s`);
+        console.error(`  Narration duration: ${narrationDuration.toFixed(2)}s`);
+        console.error(`  Total video duration: ${videoDuration.toFixed(2)}s`);
 
         // Calculate outro duration (time after narration ends)
         const outroDuration = Math.max(0, videoDuration - narrationDuration);
-        console.log(`  Outro duration: ${outroDuration.toFixed(2)}s`);
+        console.error(`  Outro duration: ${outroDuration.toFixed(2)}s`);
 
         // Create filter complex for proper audio mixing:
         // 1. Loop music throughout entire video
@@ -551,7 +531,7 @@ export class VideoAssemblyService {
             ],
         });
 
-        console.log(`  ✓ Audio mixing complete (BGM loops throughout, louder at outro)`);
+        console.error(`  ✓ Audio mixing complete (BGM loops throughout, louder at outro)`);
         return outputPath;
     }
 

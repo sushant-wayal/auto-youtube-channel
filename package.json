@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "workspaces": [
+    "workers/*",
+    "shared"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "daily": "npx tsx .github/scripts/generate-script.ts"
+  }
+}

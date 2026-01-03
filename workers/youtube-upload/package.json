@@ -11,8 +11,7 @@
   },
   "dependencies": {
     "dotenv": "^16.4.7",
-    "googleapis": "^131.0.0",
-    "ioredis": "^5.4.1"
+    "googleapis": "^131.0.0"
   },
   "devDependencies": {
     "@types/node": "^20",

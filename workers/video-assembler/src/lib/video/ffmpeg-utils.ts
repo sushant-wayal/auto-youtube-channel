@@ -11,8 +11,8 @@ import ffprobeInstaller from '@ffprobe-installer/ffprobe';
 const ffmpegPath = ffmpegInstaller.path;
 const ffprobePath = ffprobeInstaller.path;
 
-console.log('📦 FFmpeg binary path:', ffmpegPath);
-console.log('📦 FFprobe binary path:', ffprobePath);
+console.error('📦 FFmpeg binary path:', ffmpegPath);
+console.error('📦 FFprobe binary path:', ffprobePath);
 
 export interface FFmpegOptions {
     inputs: string[] | Array<{ flags?: string[], path: string }>;

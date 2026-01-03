@@ -57,11 +57,12 @@ export interface SceneIR {
 }
 
 export type ActionIR =
-  | { t: number; op: "line"; x1:number;y1:number;x2:number;y2:number; stroke?:string; strokeWidth?:number }
-  | { t: number; op: "rect"; x:number;y:number;w:number;h:number;r?:number; stroke?:string; strokeWidth?:string; fill?:string }
-  | { t: number; op: "ellipse"; cx:number;cy:number;rx:number;ry:number; fill?:string }
+  | { t: number; op: "line"; x1:number;y1:number;x2:number;y2:number; stroke?:string; strokeWidth?:number; fill?:string }
+  | { t: number; op: "rect"; x:number;y:number;w:number;h:number;r?:number; stroke?:string; strokeWidth?:number; fill?:string }
+  | { t: number; op: "ellipse"; cx:number;cy:number;rx:number;ry:number; stroke?:string; strokeWidth?:number; fill?:string }
   | { t: number; op: "path"; d:string; stroke?:string; strokeWidth?:number; fill?:string }
-  | { t: number; op: "text"; x:number;y:number; value:string; fontSize?: number; align?: "left" | "center" | "right"; fill?:string }
+  | { t: number; op: "text"; x:number;y:number; value:string; fontSize?:number; fill?:string; align?: "left" | "center" | "right" }
   | { t: number; op: "group"; children: ActionIR[] }
   | { t: number; op: "transform"; translate?:[number,number]; children: ActionIR[] };
+
 

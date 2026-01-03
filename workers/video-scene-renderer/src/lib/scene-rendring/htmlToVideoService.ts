@@ -41,7 +41,7 @@ export class HtmlToVideoService {
       throw new Error("Scene JS error: " + message);
     });
 
-    console.log(`🎥 Starting frame rendering: ${totalFrames} frames at ${fps} fps`);
+    console.error(`🎥 Starting frame rendering: ${totalFrames} frames at ${fps} fps`);
 
     for (let frame = 0; frame < totalFrames; frame++) {
       const time = frame / fps;

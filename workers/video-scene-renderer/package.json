@@ -15,7 +15,6 @@
     "@google/genai": "^1.32.0",
     "cloudinary": "^2.5.1",
     "dotenv": "^16.4.7",
-    "ioredis": "^5.4.1",
     "puppeteer": "^24.33.1"
   },
   "devDependencies": {

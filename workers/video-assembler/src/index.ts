@@ -1,109 +1,46 @@
+import VideoAssemblyService, { VideoAssemblyInput } from './lib/video/video-assembly';
+import CloudinaryService from '../../../shared/services/cloudinary-service';
+import { pickBackgroundTrack, getBrandingAssets } from './lib/assests/music-branding';
+import { validateConfig } from '../../../shared/config';
+
 /**
- * Video Generation Worker
- * Main entry point - polls Redis for jobs and processes them
+ * Pure function: assembles a video from provided assets and uploads to Cloudinary
+ * @param input VideoAssemblyInput
+ * @returns VideoAssemblyResult & Cloudinary URL
  */
+export async function assembleVideo(input: VideoAssemblyInput): Promise<{
+    videoId: string;
+    outputUrl: string;
+    duration: number;
+    clipCount: number;
+}> {
+    validateConfig(['cloudinary']);
+    
+    const assemblyService = new VideoAssemblyService();
+    const cloudinaryService = CloudinaryService.getInstance();
 
-import config, { validateConfig } from './config';
-import RedisService from './services/redis-service';
-import JobProcessor from './jobs/job-processor';
+    // Pick music and branding if not provided
+    const music = input.music || pickBackgroundTrack();
+    const branding = input.branding || getBrandingAssets();
 
-class Worker {
-    private redisService: RedisService;
-    private jobProcessor: JobProcessor;
-    private isRunning: boolean = false;
-    private pollInterval: number;
+    const assembledVideo = await assemblyService.assembleVideo({
+        ...input,
+        music,
+        branding,
+    });
 
-    constructor() {
-        // Validate configuration first
-        validateConfig();
+    // Upload to Cloudinary
+    const mainVideoPath = assembledVideo.outputPath;
+    const mainVideoUpload = await cloudinaryService.uploadVideo(
+        mainVideoPath,
+        `${input.jobId || input.videoId}/videos`,
+        'main-video'
+    );
 
-        this.redisService = RedisService.getInstance();
-        this.jobProcessor = new JobProcessor();
-        this.pollInterval = config.worker.pollInterval;
-    }
-
-    /**
-     * Start the worker
-     */
-    async start(): Promise<void> {
-        console.log('\n🚀 === CLIP COLLECTOR WORKER STARTED ===');
-        console.log(`📡 Redis URL: ${config.redis.url.replace(/:[^:@]+@/, ':****@')}`);
-        console.log(`⏱️  Poll interval: ${this.pollInterval}ms`);
-        console.log('👂 Listening for jobs...\n');
-
-        this.isRunning = true;
-
-        // Setup graceful shutdown
-        process.on('SIGINT', () => this.shutdown());
-        process.on('SIGTERM', () => this.shutdown());
-
-        // Start polling
-        await this.poll();
-    }
-
-    /**
-     * Poll Redis for new jobs
-     */
-    private async poll(): Promise<void> {
-        while (this.isRunning) {
-            try {
-                // Check queue length
-                const queueLength = await this.redisService.getQueueLength();
-
-                if (queueLength > 0) {
-                    console.log(`📬 ${queueLength} job(s) in queue`);
-                }
-
-                // Get next job
-                const job = await this.redisService.getNextJob();
-
-                if (job) {
-                    console.log(`\n📥 Picked up job: ${job.jobId}`);
-
-                    // Process the job
-                    await this.jobProcessor.processJob(job);
-
-                    console.log(`\n👂 Continuing to listen for jobs...`);
-                }
-
-                // Wait before next poll
-                await this.sleep(this.pollInterval);
-
-            } catch (error) {
-                console.error('❌ Error in poll loop:', error);
-                await this.sleep(this.pollInterval);
-            }
-        }
-    }
-
-    /**
-     * Graceful shutdown
-     */
-    private async shutdown(): Promise<void> {
-        console.log('\n🛑 Shutting down worker...');
-        this.isRunning = false;
-
-        try {
-            await this.redisService.close();
-            console.log('✅ Worker shut down gracefully');
-            process.exit(0);
-        } catch (error) {
-            console.error('❌ Error during shutdown:', error);
-            process.exit(1);
-        }
-    }
-
-    /**
-     * Sleep helper
-     */
-    private sleep(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
+    return {
+        videoId: assembledVideo.videoId,
+        outputUrl: mainVideoUpload.secureUrl,
+        duration: assembledVideo.duration,
+        clipCount: assembledVideo.clipCount,
+    };
 }
-
-// Create and start worker
-const worker = new Worker();
-worker.start().catch(error => {
-    console.error('❌ Failed to start worker:', error);
-    process.exit(1);
-});

@@ -1,109 +1,28 @@
+import { ClipsRenderService } from './lib/actios-to-clips';
+import { SceneIR } from './types';
+import { config, validateConfig } from '../../../shared/config';
+import path from 'path';
+
 /**
- * Video Generation Worker
- * Main entry point - polls Redis for jobs and processes them
+ * Pure function: renders scenes to video clips and uploads to Cloudinary
+ * @param scenes SceneIR[]
+ * @param videoId string (for output folder naming)
+ * @param isShort boolean (default: false) - whether video is short form
+ * @returns { urls: string[], timings: number[], animationStopTimes: number[] }
  */
+export async function renderScenes({
+    scenes,
+    isShort = false,
+    videoId
+}: {
+    scenes: SceneIR[];
+    isShort?: boolean;
+    videoId: string;
+}): Promise<{ urls: string[]; timings: number[]; animationStopTimes: number[] }> {
+    validateConfig(['cloudinary']);
 
-import config, { validateConfig } from './config';
-import RedisService from './services/redis-service';
-import JobProcessor from './jobs/job-processor';
-
-class Worker {
-    private redisService: RedisService;
-    private jobProcessor: JobProcessor;
-    private isRunning: boolean = false;
-    private pollInterval: number;
-
-    constructor() {
-        // Validate configuration first
-        validateConfig();
-
-        this.redisService = RedisService.getInstance();
-        this.jobProcessor = new JobProcessor();
-        this.pollInterval = config.worker.pollInterval;
-    }
-
-    /**
-     * Start the worker
-     */
-    async start(): Promise<void> {
-        console.log('\n🚀 === VIDEO SCENE RENDERER WORKER STARTED ===');
-        console.log(`📡 Redis URL: ${config.redis.url.replace(/:[^:@]+@/, ':****@')}`);
-        console.log(`⏱️  Poll interval: ${this.pollInterval}ms`);
-        console.log('👂 Listening for jobs...\n');
-
-        this.isRunning = true;
-
-        // Setup graceful shutdown
-        process.on('SIGINT', () => this.shutdown());
-        process.on('SIGTERM', () => this.shutdown());
-
-        // Start polling
-        await this.poll();
-    }
-
-    /**
-     * Poll Redis for new jobs
-     */
-    private async poll(): Promise<void> {
-        while (this.isRunning) {
-            try {
-                // Check queue length
-                const queueLength = await this.redisService.getQueueLength();
-
-                if (queueLength > 0) {
-                    console.log(`📬 ${queueLength} job(s) in queue`);
-                }
-
-                // Get next job
-                const job = await this.redisService.getNextJob();
-
-                if (job) {
-                    console.log(`\n📥 Picked up job: ${job.jobId}`);
-
-                    // Process the job
-                    await this.jobProcessor.processJob(job);
-
-                    console.log(`\n👂 Continuing to listen for jobs...`);
-                }
-
-                // Wait before next poll
-                await this.sleep(this.pollInterval);
-
-            } catch (error) {
-                console.error('❌ Error in poll loop:', error);
-                await this.sleep(this.pollInterval);
-            }
-        }
-    }
-
-    /**
-     * Graceful shutdown
-     */
-    private async shutdown(): Promise<void> {
-        console.log('\n🛑 Shutting down worker...');
-        this.isRunning = false;
-
-        try {
-            await this.redisService.close();
-            console.log('✅ Worker shut down gracefully');
-            process.exit(0);
-        } catch (error) {
-            console.error('❌ Error during shutdown:', error);
-            process.exit(1);
-        }
-    }
-
-    /**
-     * Sleep helper
-     */
-    private sleep(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
+    const { width, height, fps } = isShort ? config.video.short : config.video.long;
+    const outputDir = path.join(config.workDir, videoId, 'scenes');
+    const service = new ClipsRenderService(scenes, videoId);
+    return service.renderScenes(width, height, fps, outputDir);
 }
-
-// Create and start worker
-const worker = new Worker();
-worker.start().catch(error => {
-    console.error('❌ Failed to start worker:', error);
-    process.exit(1);
-});

@@ -1,13 +1,20 @@
 /**
- * Cloudinary Service
- * Handles file uploads and management for intermediate and final video files
+ * Shared Cloudinary Service
+ * Handles file uploads and management for all workers
  */
 
 import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 import config from '../config';
-import { CloudinaryUploadResult } from '../types';
 import fs from 'fs';
 import path from 'path';
+
+export interface CloudinaryUploadResult {
+    publicId: string;
+    secureUrl: string;
+    format: string;
+    duration?: number;
+    bytes: number;
+}
 
 class CloudinaryService {
     private static instance: CloudinaryService;
@@ -18,7 +25,7 @@ class CloudinaryService {
             api_key: config.cloudinary.apiKey,
             api_secret: config.cloudinary.apiSecret,
         });
-        console.log('✅ Cloudinary configured');
+        console.error('✅ Cloudinary configured');
     }
 
     static getInstance(): CloudinaryService {
@@ -36,7 +43,7 @@ class CloudinaryService {
         folder: string,
         publicId?: string
     ): Promise<CloudinaryUploadResult> {
-        console.log(`☁️ Uploading video to Cloudinary: ${filePath}`);
+        console.error(`☁️ Uploading video to Cloudinary: ${filePath}`);
 
         try {
             const result: UploadApiResponse = await cloudinary.uploader.upload(filePath, {
@@ -46,7 +53,7 @@ class CloudinaryService {
                 overwrite: true,
             });
 
-            console.log(`✅ Video uploaded: ${result.secure_url}`);
+            console.error(`✅ Video uploaded: ${result.secure_url}`);
 
             return {
                 publicId: result.public_id,
@@ -69,7 +76,7 @@ class CloudinaryService {
         folder: string,
         publicId?: string
     ): Promise<CloudinaryUploadResult> {
-        console.log(`☁️ Uploading audio to Cloudinary: ${filePath}`);
+        console.error(`☁️ Uploading audio to Cloudinary: ${filePath}`);
 
         try {
             const result: UploadApiResponse = await cloudinary.uploader.upload(filePath, {
@@ -79,7 +86,7 @@ class CloudinaryService {
                 overwrite: true,
             });
 
-            console.log(`✅ Audio uploaded: ${result.secure_url}`);
+            console.error(`✅ Audio uploaded: ${result.secure_url}`);
 
             return {
                 publicId: result.public_id,
@@ -102,7 +109,7 @@ class CloudinaryService {
         folder: string,
         publicId?: string
     ): Promise<CloudinaryUploadResult> {
-        console.log(`☁️ Uploading image to Cloudinary: ${filePath}`);
+        console.error(`☁️ Uploading image to Cloudinary: ${filePath}`);
 
         try {
             const result: UploadApiResponse = await cloudinary.uploader.upload(filePath, {
@@ -112,7 +119,7 @@ class CloudinaryService {
                 overwrite: true,
             });
 
-            console.log(`✅ Image uploaded: ${result.secure_url}`);
+            console.error(`✅ Image uploaded: ${result.secure_url}`);
 
             return {
                 publicId: result.public_id,
@@ -130,7 +137,7 @@ class CloudinaryService {
      * Download a file from URL to local path
      */
     async downloadFile(url: string, outputPath: string): Promise<void> {
-        console.log(`⬇️ Downloading file from: ${url}`);
+        console.error(`⬇️ Downloading file from: ${url}`);
 
         try {
             const response = await fetch(url);
@@ -148,7 +155,7 @@ class CloudinaryService {
             }
 
             fs.writeFileSync(outputPath, buffer);
-            console.log(`✅ Downloaded to: ${outputPath}`);
+            console.error(`✅ Downloaded to: ${outputPath}`);
         } catch (error) {
             console.error('❌ File download failed:', error);
             throw new Error(`Failed to download file: ${error}`);
@@ -163,7 +170,7 @@ class CloudinaryService {
             await cloudinary.uploader.destroy(publicId, {
                 resource_type: resourceType,
             });
-            console.log(`🗑️ Deleted from Cloudinary: ${publicId}`);
+            console.error(`🗑️ Deleted from Cloudinary: ${publicId}`);
         } catch (error) {
             console.error('❌ Cloudinary delete failed:', error);
         }
@@ -177,7 +184,7 @@ class CloudinaryService {
             await cloudinary.api.delete_resources(publicIds, {
                 resource_type: resourceType,
             });
-            console.log(`🗑️ Deleted ${publicIds.length} files from Cloudinary`);
+            console.error(`🗑️ Deleted ${publicIds.length} files from Cloudinary`);
         } catch (error) {
             console.error('❌ Cloudinary bulk delete failed:', error);
         }
@@ -192,7 +199,7 @@ class CloudinaryService {
             await cloudinary.api.delete_resources_by_prefix(`video-gen/${jobId}/intermediate`, {
                 resource_type: 'video',
             });
-            console.log(`🧹 Cleaned up intermediate files for job: ${jobId}`);
+            console.error(`🧹 Cleaned up intermediate files for job: ${jobId}`);
         } catch (error) {
             console.error('❌ Cleanup failed:', error);
         }
