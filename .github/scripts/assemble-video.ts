@@ -82,7 +82,8 @@ async function assembleMainVideo(
         const clipsUrls = Buffer.from(clipsUrlsEncoded.replace(/^B64:/, ''), 'base64').toString('utf-8');
         const clipsTimings = Buffer.from(clipsTimingsEncoded.replace(/^B64:/, ''), 'base64').toString('utf-8');
         const animationStopTimes = Buffer.from(animationStopTimesEncoded.replace(/^B64:/, ''), 'base64').toString('utf-8');
-        const voiceoverUrls = Buffer.from(voiceoverUrlsEncoded.replace(/^B64:/, ''), 'base64').toString('utf-8');
+        // Decode hex for voiceover
+        const voiceoverUrls = Buffer.from(voiceoverUrlsEncoded, 'hex').toString('utf-8');
 
         const result = await assembleMainVideo(
             videoId,

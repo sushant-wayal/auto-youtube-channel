@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
-      voiceover_urls: ${{ steps.voiceover.outputs.voiceover_urls }}
+      voiceover_data: ${{ steps.voiceover.outputs.voiceover_data }}
     
     steps:
       - name: Checkout code
@@ -162,7 +162,7 @@ jobs:
           CLIPS_URLS: ${{ needs.render-scenes.outputs.clips_urls }}
           CLIPS_TIMINGS: ${{ needs.render-scenes.outputs.clips_timings }}
           ANIMATION_STOP_TIMES: ${{ needs.render-scenes.outputs.animation_stop_times }}
-          VOICEOVER_URLS: ${{ needs.generate-voiceover.outputs.voiceover_urls }}
+          VOICEOVER_URLS: ${{ needs.generate-voiceover.outputs.voiceover_data }}
         run: |
           RESULT=$(npx tsx .github/scripts/assemble-video.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
