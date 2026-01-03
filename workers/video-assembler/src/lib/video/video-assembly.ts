@@ -106,16 +106,21 @@ export class VideoAssemblyService {
             const sceneAudio = path.join(outputDir, `scene_audio_${i}.wav`);
             const sceneVideo = path.join(outputDir, `scene_video_${i}.mp4`);
 
+            console.error(`🎬 Processing scene ${i + 1}/${input.clips.length}...`);
+
             // Download clip
+            console.error(`  ⬇️  Downloading scene ${i + 1} video...`);
             await this.downloadFile(clipUrl, clipPath);
 
             // Extract scene audio
+            console.error(`  ⬇️  Downloading scene ${i + 1} audio...`);
             await this.downloadFile(input.narrationAudios[i], sceneAudio);
 
             const sceneAudioDuration = await getVideoDuration(sceneAudio);
             const animationStop = input.animationStopTimes?.[i] ?? 0;
             const targetDuration = Math.max(animationStop + 0.5, sceneAudioDuration);
 
+            console.error(`  🎞️  Normalizing scene ${i + 1} to ${targetDuration.toFixed(2)}s...`);
             // Normalize clip to target duration
             await this.normalizeClipWithDuration(
                 clipPath,
@@ -125,10 +130,12 @@ export class VideoAssemblyService {
             );
 
             // Attach audio to scene clip
+            console.error(`  🔊 Attaching audio to scene ${i + 1}...`);
             const sceneWithAudio = path.join(outputDir, `scene_with_audio_${i}.mp4`);
             await this.addAudioToVideo(sceneVideo, sceneAudio, sceneWithAudio);
 
             // Concat immediately
+            console.error(`  🔗 Concatenating scene ${i + 1} to combined video...`);
             if (!combinedExists) {
                 await fsPromises.copyFile(sceneWithAudio, combinedPath);
                 combinedExists = true;
@@ -151,23 +158,26 @@ export class VideoAssemblyService {
             3. Add background music
         -------------------------- */
 
-
+        console.error(`🎵 Adding background music to video...`);
         const combinedDuration = await getVideoDuration(combinedPath);
         let finalAudio: string;
 
         if (input.music) {
+            console.error(`  📥 Preparing background music...`);
             finalAudio = await this.prepareBackgroundMusic(
                 input.music,
                 combinedDuration,
                 outputDir
             );
         } else {
+            console.error(`  🔇 No music provided, generating silence...`);
             finalAudio = path.join(outputDir, "silence.mp3");
             await this.generatePlaceholderNarration(combinedDuration, finalAudio);
         }
 
         const combinedWithMusic = path.join(outputDir, "combined_with_music.mp4");
 
+        console.error(`  🎼 Mixing audio tracks...`);
         await runFFmpeg({
             inputs: [combinedPath, finalAudio],
             output: combinedWithMusic,
@@ -194,13 +204,14 @@ export class VideoAssemblyService {
             4. Intro / Outro
         -------------------------- */
 
-
+        console.error(`🎬 Checking for intro/outro branding...`);
         const normalizedDir = path.join(outputDir, 'normalized');
         await fsPromises.mkdir(normalizedDir, { recursive: true });
 
         let finalVideo = combinedWithMusic;
 
         if (!input.isShort && (input.branding?.intro || input.branding?.outro)) {
+            console.error(`  🎞️  Adding intro/outro branding...`);
             const clips = await this.addIntroOutroWithOriginalAudio(
                 combinedWithMusic,
                 input.branding?.intro,
@@ -217,9 +228,10 @@ export class VideoAssemblyService {
             5. Logo (optional)
         -------------------------- */
 
-
+        console.error(`🏷️  Finalizing video output...`);
         const finalOutput = path.join(outputDir, "final.mp4");
         if (input.isShort) {
+            console.error(`  📱 Overlaying logo for Shorts format...`);
             await this.overlayLogo(finalVideo, input.branding?.logo, finalOutput);
         } else {
             await fsPromises.copyFile(finalVideo, finalOutput);
@@ -227,6 +239,7 @@ export class VideoAssemblyService {
 
         const duration = await getVideoDuration(finalOutput);
 
+        console.error(`✅ Video assembly complete! Duration: ${duration.toFixed(2)}s`);
         return {
             videoId: input.videoId,
             outputPath: `${input.videoId}/final.mp4`,

@@ -55,21 +55,27 @@ export class YouTubeService {
 
     try {
       /* 1️⃣ Download video */
+      console.error(`📥 Downloading video from Cloudinary...`);
       await this.downloadFile(videoUrl, videoPath);
+      console.error(`✅ Video downloaded successfully`);
+
       if (thumbnailUrl && thumbnailPath) {
+        console.error(`📥 Downloading thumbnail from Cloudinary...`);
         await this.downloadFile(thumbnailUrl, thumbnailPath);
+        console.error(`✅ Thumbnail downloaded successfully`);
       }
 
-      console.error("Video downloaded, uploading to YouTube...");
+      console.error("🚀 Starting YouTube upload...");
 
       /* 2️⃣ Upload video to YouTube */
       const videoId = await this.uploadVideoToYouTube(videoPath, isShort ?? false, title, description, tags, privacyStatus);
 
-      console.error(`Video uploaded successfully: ${videoId}`);
+      console.error(`✅ Video uploaded successfully! Video ID: ${videoId}`);
+      console.error(`🔗 YouTube URL: https://youtube.com/watch?v=${videoId}`);
 
       /* 3️⃣ Upload thumbnail (optional) */
       if (!isShort && thumbnailUrl && thumbnailPath) {
-        console.error("Uploading thumbnail...");
+        console.error("🖼️  Uploading custom thumbnail to YouTube...");
 
         await this.youtube.thumbnails.set({
           videoId,
@@ -77,15 +83,19 @@ export class YouTubeService {
             body: fs.createReadStream(thumbnailPath),
           },
         });
+
+        console.error(`✅ Thumbnail uploaded successfully`);
       }
 
       return videoId;
     } finally {
       /* 4️⃣ Cleanup local files */
+      console.error(`🧹 Cleaning up temporary files...`);
       await this.safeDelete(videoPath);
       if (thumbnailPath) {
         await this.safeDelete(thumbnailPath);
       }
+      console.error(`✅ Cleanup complete`);
     }
   }
 
@@ -99,6 +109,11 @@ export class YouTubeService {
     tags: string[],
     privacyStatus: string
   ): Promise<string> {
+    console.error(`📹 Preparing video metadata...`);
+    console.error(`   Title: ${title}`);
+    console.error(`   Type: ${isShort ? 'YouTube Short' : 'Regular Video'}`);
+    console.error(`   Privacy: ${privacyStatus}`);
+
     const snippet: any = {
       title,
       description,
@@ -114,6 +129,7 @@ export class YouTubeService {
       }
     }
 
+    console.error(`📤 Uploading video to YouTube API...`);
     const response = await this.youtube.videos.insert({
       part: ["snippet", "status"],
       requestBody: {
@@ -127,6 +143,7 @@ export class YouTubeService {
       },
     });
 
+    console.error(`✅ YouTube API upload completed`);
     return response.data.id!;
   }
 

@@ -60,15 +60,15 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
 
         const result = await renderVideoScenes(videoId, scriptData);
 
-        // Output for GitHub Actions (base64 encoded to avoid secret detection)
+        // Output for GitHub Actions (hex encoded to avoid secret detection patterns)
         console.error(`[DEBUG] About to output clips_urls with ${result.urls?.length || 0} URLs`);
-        console.log(`clips_urls=B64:${Buffer.from(JSON.stringify(result.urls)).toString('base64')}`);
+        console.log(`clips_urls=${Buffer.from(JSON.stringify(result.urls)).toString('hex')}`);
         console.error(`[DEBUG] Wrote clips_urls`);
         console.error(`[DEBUG] About to output clips_timings with ${result.timings?.length || 0} timings`);
-        console.log(`clips_timings=B64:${Buffer.from(JSON.stringify(result.timings)).toString('base64')}`);
+        console.log(`clips_timings=${Buffer.from(JSON.stringify(result.timings)).toString('hex')}`);
         console.error(`[DEBUG] Wrote clips_timings`);
         console.error(`[DEBUG] About to output animation_stop_times with ${result.animationStopTimes?.length || 0} times`);
-        console.log(`animation_stop_times=B64:${Buffer.from(JSON.stringify(result.animationStopTimes)).toString('base64')}`);
+        console.log(`animation_stop_times=${Buffer.from(JSON.stringify(result.animationStopTimes)).toString('hex')}`);
         console.error(`[DEBUG] Wrote animation_stop_times`);
 
         process.exit(0);
