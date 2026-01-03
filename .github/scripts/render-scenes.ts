@@ -26,18 +26,17 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
 
     return {
         urls: [
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232798/video-gen/scenes/scene_scene-1.mp4',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232865/video-gen/scenes/scene_scene-2.mp4',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232965/video-gen/scenes/scene_scene-3.mp4',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233065/video-gen/scenes/scene_scene-4.mp4',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233166/video-gen/scenes/scene_scene-5.mp4',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233276/video-gen/scenes/scene_scene-6.mp4',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233369/video-gen/scenes/scene_scene-7.mp4'
-                ],
-                timings: [40, 40, 60, 60, 60, 65, 55],
-                animationStopTimes: [24.5, 21.5, 38, 20.5, 24.5, 25, 20.5],
-
-    }
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232798/video-gen/scenes/scene_scene-1.mp4',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232865/video-gen/scenes/scene_scene-2.mp4',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766232965/video-gen/scenes/scene_scene-3.mp4',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233065/video-gen/scenes/scene_scene-4.mp4',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233166/video-gen/scenes/scene_scene-5.mp4',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233276/video-gen/scenes/scene_scene-6.mp4',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766233369/video-gen/scenes/scene_scene-7.mp4'
+        ],
+        timings: [40, 40, 60, 60, 60, 65, 55],
+        animationStopTimes: [24.5, 21.5, 38, 20.5, 24.5, 25, 20.5],
+    };
 
     const result = await renderScenes({
         scenes: data.script.scenes,
@@ -62,8 +61,13 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
         const result = await renderVideoScenes(videoId, scriptData);
 
         // Output for GitHub Actions
-        console.log(`clips_urls=${JSON.stringify(result.urls)}`);
+        console.error(`[DEBUG] About to output clips_urls with ${result.urls?.length || 0} URLs`);
+        console.log('clips_urls<<EOF');
+        console.log(JSON.stringify(result.urls));
+        console.log('EOF');
+        console.error(`[DEBUG] About to output clips_timings with ${result.timings?.length || 0} timings`);
         console.log(`clips_timings=${JSON.stringify(result.timings)}`);
+        console.error(`[DEBUG] About to output animation_stop_times with ${result.animationStopTimes?.length || 0} times`);
         console.log(`animation_stop_times=${JSON.stringify(result.animationStopTimes)}`);
 
         process.exit(0);

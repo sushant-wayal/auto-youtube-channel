@@ -24,15 +24,15 @@ async function generateNarration(videoId: string, scriptData: string) {
 
     return {
         urls: [
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341277/video-gen/narrations/part-1/narration-audio.wav',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341306/video-gen/narrations/part-2/narration-audio.wav',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341337/video-gen/narrations/part-3/narration-audio.wav',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341368/video-gen/narrations/part-4/narration-audio.wav',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341407/video-gen/narrations/part-5/narration-audio.wav',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341443/video-gen/narrations/part-6/narration-audio.wav',
-                    'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341486/video-gen/narrations/part-7/narration-audio.wav'
-                ]
-    }
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341277/video-gen/narrations/part-1/narration-audio.wav',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341306/video-gen/narrations/part-2/narration-audio.wav',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341337/video-gen/narrations/part-3/narration-audio.wav',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341368/video-gen/narrations/part-4/narration-audio.wav',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341407/video-gen/narrations/part-5/narration-audio.wav',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341443/video-gen/narrations/part-6/narration-audio.wav',
+            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341486/video-gen/narrations/part-7/narration-audio.wav'
+        ],
+    };
 
     const result = await generateVoiceOvers({
         perSceneNarration: narrations,
@@ -57,7 +57,10 @@ async function generateNarration(videoId: string, scriptData: string) {
         const result = await generateNarration(videoId, scriptData);
 
         // Output for GitHub Actions
-        console.log(`voiceover_urls=${JSON.stringify(result.urls)}`);
+        console.error(`[DEBUG] About to output voiceover_urls with ${result.urls?.length || 0} URLs`);
+        console.log('voiceover_urls<<EOF');
+        console.log(JSON.stringify(result.urls));
+        console.log('EOF');
 
         process.exit(0);
     } catch (error) {
