@@ -40,7 +40,7 @@ async function generateThumbnail(videoId: string, scriptData: string) {
     console.error(`✅ Thumbnail generated: ${result.thumbnailUrl}`);
 
     // Output for GitHub Actions (base64 encoded to avoid secret detection)
-    console.log(`thumbnail_url=${Buffer.from(result.thumbnailUrl).toString('base64')}`);
+    console.log(`thumbnail_url=B64:${Buffer.from(result.thumbnailUrl).toString('base64')}`);
 
     return result;
 }

@@ -78,11 +78,11 @@ async function assembleMainVideo(
             throw new Error('Missing required: VOICEOVER_URLS env var (generate-voiceover job may have failed)');
         }
 
-        // Decode base64 values
-        const clipsUrls = Buffer.from(clipsUrlsEncoded, 'base64').toString('utf-8');
-        const clipsTimings = Buffer.from(clipsTimingsEncoded, 'base64').toString('utf-8');
-        const animationStopTimes = Buffer.from(animationStopTimesEncoded, 'base64').toString('utf-8');
-        const voiceoverUrls = Buffer.from(voiceoverUrlsEncoded, 'base64').toString('utf-8');
+        // Decode base64 values (strip B64: prefix)
+        const clipsUrls = Buffer.from(clipsUrlsEncoded.replace(/^B64:/, ''), 'base64').toString('utf-8');
+        const clipsTimings = Buffer.from(clipsTimingsEncoded.replace(/^B64:/, ''), 'base64').toString('utf-8');
+        const animationStopTimes = Buffer.from(animationStopTimesEncoded.replace(/^B64:/, ''), 'base64').toString('utf-8');
+        const voiceoverUrls = Buffer.from(voiceoverUrlsEncoded.replace(/^B64:/, ''), 'base64').toString('utf-8');
 
         const result = await assembleMainVideo(
             videoId,
@@ -94,7 +94,7 @@ async function assembleMainVideo(
         );
 
         // Output for GitHub Actions (base64 encoded to avoid secret detection)
-        console.log(`video_url=${Buffer.from(result.outputUrl).toString('base64')}`);
+        console.log(`video_url=B64:${Buffer.from(result.outputUrl).toString('base64')}`);
 
         process.exit(0);
     } catch (error) {

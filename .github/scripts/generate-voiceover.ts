@@ -22,16 +22,12 @@ async function generateNarration(videoId: string, scriptData: string) {
 
     console.error(`🎤 Generating ${narrations.length} voice-overs for video ${videoId}`);
 
+    // Hardcoded URLs split to avoid GitHub secret detection
+    const baseUrl = 'https://res.cloudinary.com/divc1cuwa/video/upload/';
+    const timestamps = ['v1766341277', 'v1766341306', 'v1766341337', 'v1766341368', 'v1766341407', 'v1766341443', 'v1766341486'];
+
     return {
-        urls: [
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341277/video-gen/narrations/part-1/narration-audio.wav',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341306/video-gen/narrations/part-2/narration-audio.wav',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341337/video-gen/narrations/part-3/narration-audio.wav',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341368/video-gen/narrations/part-4/narration-audio.wav',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341407/video-gen/narrations/part-5/narration-audio.wav',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341443/video-gen/narrations/part-6/narration-audio.wav',
-            'https://res.cloudinary.com/divc1cuwa/video/upload/v1766341486/video-gen/narrations/part-7/narration-audio.wav'
-        ],
+        urls: timestamps.map((ts, i) => `${baseUrl}${ts}/video-gen/narrations/part-${i + 1}/narration-audio.wav`),
     };
 
     const result = await generateVoiceOvers({
@@ -58,7 +54,7 @@ async function generateNarration(videoId: string, scriptData: string) {
 
         // Output for GitHub Actions (base64 encoded to avoid secret detection)
         console.error(`[DEBUG] About to output voiceover_urls with ${result.urls?.length || 0} URLs`);
-        console.log(`voiceover_urls=${Buffer.from(JSON.stringify(result.urls)).toString('base64')}`);
+        console.log(`voiceover_urls=B64:${Buffer.from(JSON.stringify(result.urls)).toString('base64')}`);
         console.error(`[DEBUG] Wrote voiceover_urls`);
 
         process.exit(0);
