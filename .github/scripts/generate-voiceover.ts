@@ -58,9 +58,8 @@ async function generateNarration(videoId: string, scriptData: string) {
 
         // Output for GitHub Actions
         console.error(`[DEBUG] About to output voiceover_urls with ${result.urls?.length || 0} URLs`);
-        console.log('voiceover_urls<<EOF');
-        console.log(JSON.stringify(result.urls));
-        console.log('EOF');
+        console.log(`voiceover_urls=${JSON.stringify(result.urls)}`);
+        console.error(`[DEBUG] Wrote voiceover_urls`);
 
         process.exit(0);
     } catch (error) {

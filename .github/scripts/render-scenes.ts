@@ -62,13 +62,14 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
 
         // Output for GitHub Actions
         console.error(`[DEBUG] About to output clips_urls with ${result.urls?.length || 0} URLs`);
-        console.log('clips_urls<<EOF');
-        console.log(JSON.stringify(result.urls));
-        console.log('EOF');
+        console.log(`clips_urls=${JSON.stringify(result.urls)}`);
+        console.error(`[DEBUG] Wrote clips_urls`);
         console.error(`[DEBUG] About to output clips_timings with ${result.timings?.length || 0} timings`);
         console.log(`clips_timings=${JSON.stringify(result.timings)}`);
+        console.error(`[DEBUG] Wrote clips_timings`);
         console.error(`[DEBUG] About to output animation_stop_times with ${result.animationStopTimes?.length || 0} times`);
         console.log(`animation_stop_times=${JSON.stringify(result.animationStopTimes)}`);
+        console.error(`[DEBUG] Wrote animation_stop_times`);
 
         process.exit(0);
     } catch (error) {
