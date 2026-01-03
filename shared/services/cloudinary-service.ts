@@ -1,13 +1,20 @@
 /**
- * Cloudinary Service
- * Handles file uploads and management for intermediate and final video files
+ * Shared Cloudinary Service
+ * Handles file uploads and management for all workers
  */
 
 import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 import config from '../config';
-import { CloudinaryUploadResult } from '../types';
 import fs from 'fs';
 import path from 'path';
+
+export interface CloudinaryUploadResult {
+    publicId: string;
+    secureUrl: string;
+    format: string;
+    duration?: number;
+    bytes: number;
+}
 
 class CloudinaryService {
     private static instance: CloudinaryService;

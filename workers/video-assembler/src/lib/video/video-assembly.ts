@@ -7,7 +7,6 @@ import fsPromises from 'fs/promises';
 import fs from 'fs';
 import path from 'path';
 import { runFFmpeg, getVideoDuration, checkFFmpeg } from './ffmpeg-utils';
-import RedisService from '../../services/redis-service';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { ReadableStream } from 'stream/web'; // ADD THIS
@@ -16,7 +15,7 @@ export interface VideoAssemblyInput {
     jobId: string;
     videoId: string;
     clips: string[];
-    clipTimings?: number[];   
+    clipTimings?: number[];
     animationStopTimes?: number[]; // Pre-calculated durations for each clip (from keyword extraction)
     narration?: string;          // Narration text for timing (fallback if no clipTimings)
     perSceneNarration: string[]; // Narration text per scene (for splitting audio if needed)
@@ -69,7 +68,7 @@ export class VideoAssemblyService {
     private async downloadFile(url: string, outPath: string) {
         const res = await fetch(url);
         if (!res.ok || !res.body) {
-        throw new Error(`Failed to download ${url}`);
+            throw new Error(`Failed to download ${url}`);
         }
 
         const webStream = res.body as unknown as ReadableStream;
@@ -84,9 +83,7 @@ export class VideoAssemblyService {
      * Assemble a complete video from all assets
      */
     async assembleVideo(input: VideoAssemblyInput): Promise<VideoAssemblyResult> {
-        const redisService = RedisService.getInstance();
-
-        await redisService.updateJobProgress(input.jobId, "processing", 5, "Starting assembly");
+        console.log(`Starting video assembly for ${input.videoId}...`);
 
         const outputDir = path.join(this.workDir, input.videoId);
         await fsPromises.mkdir(outputDir, { recursive: true });
@@ -102,12 +99,6 @@ export class VideoAssemblyService {
         let combinedExists = false;
 
         for (let i = 0; i < input.clips.length; i++) {
-            await redisService.updateJobProgress(
-            input.jobId,
-            "processing",
-            10 + Math.floor((i / input.clips.length) * 50),
-            `Processing scene ${i + 1}`
-            );
 
             const clipUrl = input.clips[i];
 
@@ -127,10 +118,10 @@ export class VideoAssemblyService {
 
             // Normalize clip to target duration
             await this.normalizeClipWithDuration(
-            clipPath,
-            sceneVideo,
-            targetDuration,
-            input.isShort
+                clipPath,
+                sceneVideo,
+                targetDuration,
+                input.isShort
             );
 
             // Attach audio to scene clip
@@ -139,20 +130,20 @@ export class VideoAssemblyService {
 
             // Concat immediately
             if (!combinedExists) {
-            await fsPromises.copyFile(sceneWithAudio, combinedPath);
-            combinedExists = true;
+                await fsPromises.copyFile(sceneWithAudio, combinedPath);
+                combinedExists = true;
             } else {
-            const temp = path.join(outputDir, `temp_concat_${i}.mp4`);
-            await this.concatClips([combinedPath, sceneWithAudio], temp);
-            await fsPromises.rename(temp, combinedPath);
+                const temp = path.join(outputDir, `temp_concat_${i}.mp4`);
+                await this.concatClips([combinedPath, sceneWithAudio], temp);
+                await fsPromises.rename(temp, combinedPath);
             }
 
             // Cleanup aggressively
             await Promise.allSettled([
-            fsPromises.unlink(clipPath),
-            fsPromises.unlink(sceneAudio),
-            fsPromises.unlink(sceneVideo),
-            fsPromises.unlink(sceneWithAudio),
+                fsPromises.unlink(clipPath),
+                fsPromises.unlink(sceneAudio),
+                fsPromises.unlink(sceneVideo),
+                fsPromises.unlink(sceneWithAudio),
             ]);
         }
 
@@ -160,21 +151,15 @@ export class VideoAssemblyService {
             3. Add background music
         -------------------------- */
 
-        await redisService.updateJobProgress(
-            input.jobId,
-            "processing",
-            70,
-            "Adding background music..."
-        );
 
         const combinedDuration = await getVideoDuration(combinedPath);
         let finalAudio: string;
 
         if (input.music) {
             finalAudio = await this.prepareBackgroundMusic(
-            input.music,
-            combinedDuration,
-            outputDir
+                input.music,
+                combinedDuration,
+                outputDir
             );
         } else {
             finalAudio = path.join(outputDir, "silence.mp3");
@@ -209,12 +194,6 @@ export class VideoAssemblyService {
             4. Intro / Outro
         -------------------------- */
 
-        await redisService.updateJobProgress(
-            input.jobId,
-            "processing",
-            85,
-            "Adding intro/outro..."
-        );
 
         const normalizedDir = path.join(outputDir, 'normalized');
         await fsPromises.mkdir(normalizedDir, { recursive: true });
@@ -223,10 +202,10 @@ export class VideoAssemblyService {
 
         if (!input.isShort && (input.branding?.intro || input.branding?.outro)) {
             const clips = await this.addIntroOutroWithOriginalAudio(
-            combinedWithMusic,
-            input.branding?.intro,
-            input.branding?.outro,
-            outputDir
+                combinedWithMusic,
+                input.branding?.intro,
+                input.branding?.outro,
+                outputDir
             );
 
             const withBranding = path.join(outputDir, "with_branding.mp4");
@@ -238,12 +217,6 @@ export class VideoAssemblyService {
             5. Logo (optional)
         -------------------------- */
 
-        await redisService.updateJobProgress(
-            input.jobId,
-            "processing",
-            90,
-            "Adding logo overlay..."
-        );
 
         const finalOutput = path.join(outputDir, "final.mp4");
         if (input.isShort) {
@@ -272,7 +245,6 @@ export class VideoAssemblyService {
         outputDir: string,
         isShort: boolean = false
     ): Promise<string> {
-        const redisService = RedisService.getInstance();
 
         const normalizedDir = path.join(outputDir, 'normalized');
         await fsPromises.mkdir(normalizedDir, { recursive: true });
@@ -283,11 +255,6 @@ export class VideoAssemblyService {
         const combinedVideoPath = path.join(outputDir, 'combined_clips.mp4');
 
         for (let i = 0; i < clips.length; i++) {
-            await redisService.updateJobProgress(jobId, 'processing',
-                10 + Math.floor((i / clips.length) * 60),
-                `Normalizing and adding clip ${i + 1} of ${clips.length}`
-            );
-
             const clipUrl = clips[i];
             const clipPath = path.join(downloadDir, `clip_${i + 1}.mp4`);
 
@@ -343,12 +310,12 @@ export class VideoAssemblyService {
             args: [
                 '-threads', '1',
                 '-t', targetDuration.toString(),
-            '-vf', vf,
+                '-vf', vf,
                 '-c:v', 'libx264',
                 '-x264-params', 'threads=1',
                 '-preset', 'veryfast',
                 '-crf', '23',
-            '-an', // no audio for stock clips
+                '-an', // no audio for stock clips
                 '-movflags', '+faststart',
             ],
         });

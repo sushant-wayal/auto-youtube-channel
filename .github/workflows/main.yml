@@ -1,0 +1,281 @@
+name: Daily Video Generation Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_idea:
+        description: 'Custom video idea (optional - will use random from list if not provided)'
+        required: false
+        type: string
+  schedule:
+    - cron: '0 2 * * *'  # Run daily at 2 AM UTC
+
+jobs:
+  # Step 1: Generate video script
+  generate-script:
+    name: Generate Script
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      video_id: ${{ steps.script.outputs.video_id }}
+      script_data: ${{ steps.script.outputs.script_data }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate script
+        id: script
+        env:
+          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: |
+          VIDEO_ID="video-$(date +%s)"
+          echo "video_id=$VIDEO_ID" >> $GITHUB_OUTPUT
+          
+          # Generate script via API or local function
+          # If custom idea provided, use it; otherwise fetch from Redis queue
+          RESPONSE=$(npx tsx .github/scripts/generate-script.ts "${{ github.event.inputs.video_idea }}")
+          echo "script_data=$RESPONSE" >> $GITHUB_OUTPUT
+
+  # Step 2 & 3: Parallel execution of scene rendering and voice-over generation
+  parallel-rendering:
+    name: Parallel Asset Generation
+    needs: generate-script
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      clips_urls: ${{ steps.scenes.outputs.clips_urls }}
+      clips_timings: ${{ steps.scenes.outputs.clips_timings }}
+      animation_stop_times: ${{ steps.scenes.outputs.animation_stop_times }}
+      voiceover_urls: ${{ steps.voiceover.outputs.voiceover_urls }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+            libxkbcommon0 libxcomposite1 libxrandr2 libgbm1 \
+            libpangocairo-1.0-0 libasound2
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Render scenes (parallel with voice-over)
+        id: scenes
+        env:
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+        run: |
+          RESULT=$(npx tsx .github/scripts/render-scenes.ts "${{ needs.generate-script.outputs.video_id }}" '${{ needs.generate-script.outputs.script_data }}')
+          echo "$RESULT" >> $GITHUB_OUTPUT
+
+      - name: Generate voice-overs (parallel with scenes)
+        id: voiceover
+        env:
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+        run: |
+          RESULT=$(npx tsx .github/scripts/generate-voiceover.ts "${{ needs.generate-script.outputs.video_id }}" '${{ needs.generate-script.outputs.script_data }}')
+          echo "$RESULT" >> $GITHUB_OUTPUT
+
+  # Step 4: Assemble video
+  assemble-video:
+    name: Assemble Video
+    needs: [generate-script, parallel-rendering]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      video_url: ${{ steps.assemble.outputs.video_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Assemble video
+        id: assemble
+        env:
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+        run: |
+          RESULT=$(npx tsx .github/scripts/assemble-video.ts \
+            "${{ needs.generate-script.outputs.video_id }}" \
+            '${{ needs.generate-script.outputs.script_data }}' \
+            '${{ needs.parallel-rendering.outputs.clips_urls }}' \
+            '${{ needs.parallel-rendering.outputs.clips_timings }}' \
+            '${{ needs.parallel-rendering.outputs.animation_stop_times }}' \
+            '${{ needs.parallel-rendering.outputs.voiceover_urls }}')
+          echo "$RESULT" >> $GITHUB_OUTPUT
+
+  # Step 5: Upload to YouTube (main video)
+  upload-youtube:
+    name: Upload to YouTube
+    needs: [generate-script, assemble-video]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      youtube_id: ${{ steps.upload.outputs.youtube_id }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Upload to YouTube
+        id: upload
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          THUMBNAIL_URL="${{ needs.generate-thumbnail.outputs.thumbnail_url }}"
+          RESULT=$(npx tsx .github/scripts/upload-youtube.ts \
+            "${{ needs.assemble-video.outputs.video_url }}" \
+            '${{ needs.generate-script.outputs.script_data }}' \
+            "$THUMBNAIL_URL")
+          echo "$RESULT" >> $GITHUB_OUTPUT
+
+  # Step 5: Generate thumbnail before YouTube upload
+  generate-thumbnail:
+    name: Generate Thumbnail
+    needs: [generate-script, assemble-video]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      thumbnail_url: ${{ steps.thumbnail.outputs.thumbnail_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate thumbnail
+        id: thumbnail
+        env:
+          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+        run: |
+          RESULT=$(npx tsx .github/scripts/generate-thumbnail.ts \
+            "${{ needs.generate-script.outputs.video_id }}" \
+            '${{ needs.generate-script.outputs.script_data }}')
+          THUMBNAIL_URL=$(echo "$RESULT" | grep -oP 'thumbnail_url=\K.*')
+          echo "thumbnail_url=$THUMBNAIL_URL" >> $GITHUB_OUTPUT
+
+  # Process shorts sequentially after main video
+  process-shorts:
+    name: Process Shorts
+    needs: [generate-script, upload-youtube]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+            libxkbcommon0 libxcomposite1 libxrandr2 libgbm1 \
+            libpangocairo-1.0-0 libasound2
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Process all shorts
+        env:
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          npx tsx .github/scripts/process-shorts.ts \
+            "${{ needs.generate-script.outputs.video_id }}" \
+            '${{ needs.generate-script.outputs.script_data }}'
+
+  # Summary job
+  pipeline-summary:
+    name: Pipeline Summary
+    needs: [generate-script, parallel-rendering, assemble-video, upload-youtube, process-shorts, generate-thumbnail]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Output summary
+        run: |
+          echo "## Video Generation Pipeline Complete 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Video ID:** ${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**YouTube ID:** ${{ needs.upload-youtube.outputs.youtube_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- Script Generation: ${{ needs['generate-script'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Asset Generation: ${{ needs['parallel-rendering'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Video Assembly: ${{ needs['assemble-video'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- YouTube Upload: ${{ needs['upload-youtube'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Shorts Processing: ${{ needs['process-shorts'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Thumbnail Generation: ${{ needs['generate-thumbnail'].result }}" >> $GITHUB_STEP_SUMMARY

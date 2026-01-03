@@ -1,10 +1,7 @@
 import { google } from "googleapis";
 import fs from 'fs';
 import path from "path";
-import fetch from "node-fetch";
 import { pipeline } from "stream/promises";
-import config from "../config";
-import RedisService from "./redis-service";
 
 type UploadCommonArgs = {
   videoUrl: string;          // Cloudinary video URL
@@ -21,12 +18,12 @@ export class YouTubeService {
 
   constructor() {
     const oauth2Client = new google.auth.OAuth2(
-      config.youtube.clientId,
-      config.youtube.clientSecret
+      process.env.YT_CLIENT_ID,
+      process.env.YT_CLIENT_SECRET
     );
 
     oauth2Client.setCredentials({
-      refresh_token: config.youtube.refreshToken,
+      refresh_token: process.env.YT_REFRESH_TOKEN,
     });
 
     this.youtube = google.youtube({
@@ -46,8 +43,7 @@ export class YouTubeService {
     tags = [],
     thumbnailUrl,
     privacyStatus = "public"
-  }: {jobId : string} & UploadCommonArgs): Promise<string> {
-    const redisService = RedisService.getInstance();
+  }: { jobId: string } & UploadCommonArgs): Promise<string> {
 
     const tmpDir = "/tmp/youtube";
     await fs.promises.mkdir(tmpDir, { recursive: true });
@@ -64,48 +60,16 @@ export class YouTubeService {
         await this.downloadFile(thumbnailUrl, thumbnailPath);
       }
 
-      await redisService.updateJobProgress(
-        jobId, 
-        'processing',
-        20, // 20% after download
-        "Video downloaded, uploading to YouTube..."
-      );
+      console.log("Video downloaded, uploading to YouTube...");
 
-      /* 2️⃣ Upload video */
-      const res = await this.youtube.videos.insert({
-        part: ["snippet", "status"],
-        requestBody: {
-          snippet: {
-            title,
-            description,
-            tags,
-            categoryId: "28", // Science & Technology
-          },
-          status: {
-            privacyStatus,
-            selfDeclaredMadeForKids: false,
-          },
-        },
-        media: {
-          body: fs.createReadStream(videoPath),
-        },
-      });
+      /* 2️⃣ Upload video to YouTube */
+      const videoId = await this.uploadVideoToYouTube(videoPath, isShort ?? false, title, description, tags, privacyStatus);
 
-      const videoId = res.data.id;
-      if (!videoId) {
-        throw new Error("YouTube did not return a videoId");
-      }
+      console.log(`Video uploaded successfully: ${videoId}`);
 
-      // /* 3️⃣ Upload thumbnail (optional) */
+      /* 3️⃣ Upload thumbnail (optional) */
       if (!isShort && thumbnailUrl && thumbnailPath) {
-        await redisService.updateJobProgress(
-          jobId, 
-          'processing',
-          80, // 80% after upload
-          "Video uploaded to YouTube, setting thumbnail..."
-        );
-
-        await this.downloadFile(thumbnailUrl, thumbnailPath);
+        console.log("Uploading thumbnail...");
 
         await this.youtube.thumbnails.set({
           videoId,
@@ -119,13 +83,52 @@ export class YouTubeService {
     } finally {
       /* 4️⃣ Cleanup local files */
       await this.safeDelete(videoPath);
-      if (!isShort && thumbnailPath) {
+      if (thumbnailPath) {
         await this.safeDelete(thumbnailPath);
       }
     }
   }
 
   /* -------------------- HELPERS -------------------- */
+
+  private async uploadVideoToYouTube(
+    videoPath: string,
+    isShort: boolean,
+    title: string,
+    description: string,
+    tags: string[],
+    privacyStatus: string
+  ): Promise<string> {
+    const snippet: any = {
+      title,
+      description,
+      tags,
+      categoryId: "22", // People & Blogs
+    };
+
+    // Add #Shorts tag for YouTube Shorts
+    if (isShort) {
+      snippet.tags = [...(tags || []), "Shorts"];
+      if (!description.includes("#Shorts")) {
+        snippet.description = `${description}\n\n#Shorts`;
+      }
+    }
+
+    const response = await this.youtube.videos.insert({
+      part: ["snippet", "status"],
+      requestBody: {
+        snippet,
+        status: {
+          privacyStatus,
+        },
+      },
+      media: {
+        body: fs.createReadStream(videoPath),
+      },
+    });
+
+    return response.data.id!;
+  }
 
   private async downloadFile(url: string, outPath: string) {
     const res = await fetch(url);

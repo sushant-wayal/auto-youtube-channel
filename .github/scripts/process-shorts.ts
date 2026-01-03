@@ -1,0 +1,120 @@
+/**
+ * GitHub Actions Script: Process Shorts
+ * Called by: process-shorts job
+ */
+
+import { renderScenes } from '../../workers/video-scene-renderer/src/index';
+import { generateVoiceOvers } from '../../workers/voice-over-generation/src/index';
+import { assembleVideo } from '../../workers/video-assembler/src/index';
+import { uploadToYouTube } from '../../workers/youtube-upload/src/index';
+import { validateConfig } from '../../shared/config';
+
+interface ScriptData {
+    script: {
+        description: string;
+        tags: string[];
+        shorts: Array<{
+            id: string;
+            hook: string;
+            narration: string;
+            baseDuration: number;
+            holdDuration: number;
+            actions: any[];
+        }>;
+    };
+}
+
+async function processAllShorts(videoId: string, scriptData: string) {
+    validateConfig(['cloudinary', 'gemini', 'youtube']);
+
+    const data: ScriptData = JSON.parse(scriptData);
+    const shorts = data.script.shorts;
+
+    console.log(`📱 Processing ${shorts.length} shorts for video ${videoId}`);
+
+    const results = [];
+
+    for (let i = 0; i < shorts.length; i++) {
+        const short = shorts[i];
+        const shortId = `${videoId}-short-${i}`;
+
+        console.log(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook}`);
+
+        // 1. Render scenes for short
+        console.log(`🎬 Rendering scenes for short ${i + 1}...`);
+        const { urls: clips, timings, animationStopTimes } = await renderScenes({
+            scenes: [{
+                id: short.id,
+                baseDuration: short.baseDuration,
+                holdDuration: short.holdDuration,
+                actions: short.actions,
+            }],
+            isShort: true,
+            videoId: shortId,
+        });
+
+        // 2. Generate voice-over for short
+        console.log(`🎤 Generating voice-over for short ${i + 1}...`);
+        const { urls: voiceovers } = await generateVoiceOvers({
+            perSceneNarration: [short.narration],
+            videoId: shortId,
+            voice: 'Puck',
+        });
+
+        // 3. Assemble short
+        console.log(`🧩 Assembling short ${i + 1}...`);
+        const assembled = await assembleVideo({
+            jobId: shortId,
+            videoId: shortId,
+            narration: short.narration,
+            perSceneNarration: [short.narration],
+            narrationAudios: voiceovers,
+            clips,
+            clipTimings: timings,
+            animationStopTimes,
+            isShort: true,
+        });
+
+        // 4. Upload to YouTube
+        console.log(`📤 Uploading short ${i + 1} to YouTube...`);
+        const { videoId: youtubeId } = await uploadToYouTube({
+            videoUrl: assembled.outputUrl,
+            isShort: true,
+            title: short.hook,
+            description: data.script.description,
+            tags: data.script.tags,
+            privacyStatus: 'public',
+        });
+
+        console.log(`✅ Short ${i + 1} completed: ${youtubeId}`);
+
+        results.push({
+            shortId,
+            youtubeId,
+            videoUrl: assembled.outputUrl,
+        });
+    }
+
+    console.log(`\n✅ All ${shorts.length} shorts processed successfully`);
+    return results;
+}
+
+// Main execution
+(async () => {
+    try {
+        const videoId = process.argv[2];
+        const scriptData = process.argv[3];
+
+        if (!videoId || !scriptData) {
+            throw new Error('Missing required arguments: videoId and scriptData');
+        }
+
+        const results = await processAllShorts(videoId, scriptData);
+        console.log(JSON.stringify(results, null, 2));
+
+        process.exit(0);
+    } catch (error) {
+        console.error('❌ Shorts processing failed:', error);
+        process.exit(1);
+    }
+})();

@@ -4,31 +4,28 @@ import fs from "fs";
 import { SceneHtmlRenderer } from "./scene-rendring/action-flow-to-html";
 import { HtmlToVideoService } from "./scene-rendring/htmlToVideoService";
 import { SceneIR } from "../types";
-import CloudinaryService from "../services/cloudinary-service";
-import RedisService from "../services/redis-service";
+import CloudinaryService from '../../../../shared/services/cloudinary-service';
 
 export class ClipsRenderService {
   private htmlRenderer;
   private videoRenderer;
   private cloudinaryService;
-	private redisService;
-	private scenes: SceneIR[];
-	private jobId: string;
+  private scenes: SceneIR[];
+  private jobId: string;
 
-	constructor(scenes: SceneIR[], jobId: string) {
-		this.scenes = scenes;
-		this.jobId = jobId;
-		this.cloudinaryService = CloudinaryService.getInstance();
-		this.redisService = RedisService.getInstance();
-		this.htmlRenderer = new SceneHtmlRenderer();
-		this.videoRenderer = new HtmlToVideoService();
-	}
+  constructor(scenes: SceneIR[], jobId: string) {
+    this.scenes = scenes;
+    this.jobId = jobId;
+    this.cloudinaryService = CloudinaryService.getInstance();
+    this.htmlRenderer = new SceneHtmlRenderer();
+    this.videoRenderer = new HtmlToVideoService();
+  }
 
   async renderScenes(
-		width: number,
-		height: number,
-		fps: number,
-		outputDir: string
+    width: number,
+    height: number,
+    fps: number,
+    outputDir: string
   ): Promise<{ urls: string[]; timings: number[]; animationStopTimes: number[] }> {
 
     fs.mkdirSync(outputDir, { recursive: true });
@@ -38,17 +35,12 @@ export class ClipsRenderService {
     const animationStopTimes: number[] = [];
 
     for (let i = 0; i < this.scenes.length; i++) {
-			await this.redisService.updateJobProgress(
-				this.jobId,
-				"processing",
-				5 + Math.floor((90 * i) / this.scenes.length),
-				`Rendering scene ${i + 1} of ${this.scenes.length}...`
-			);
+      console.log(`🎬 Rendering scene ${i + 1} of ${this.scenes.length}...`);
 
       const scene = this.scenes[i];
 
       const { html, animationStopTime } = this.htmlRenderer.render({
-        duration : scene.baseDuration,
+        duration: scene.baseDuration,
         actions: scene.actions
       }, height, width);
 
@@ -68,10 +60,10 @@ export class ClipsRenderService {
       });
 
       const result = await this.cloudinaryService.uploadVideo(
-				outPath,
-				"scenes",
-				`scene_${scene.id}`
-			);
+        outPath,
+        "scenes",
+        `scene_${scene.id}`
+      );
 
       fs.unlinkSync(outPath);
 

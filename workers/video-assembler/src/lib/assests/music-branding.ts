@@ -5,14 +5,15 @@
 
 import fs from 'fs';
 import path from 'path';
-import config from '../../config';
+
+const assetsDir = path.join(__dirname, '../../assets');
 
 /**
  * Pick a random background music track from assets/music
  * @returns Absolute path to a random .mp3 file
  */
 export function pickBackgroundTrack(): string {
-  const musicDir = path.join(config.worker.assetsDir, 'music');
+  const musicDir = path.join(assetsDir, 'music');
 
   // Check if directory exists
   if (!fs.existsSync(musicDir)) {
@@ -52,7 +53,7 @@ export interface BrandingAssets {
  * @returns Object containing paths to available branding assets
  */
 export function getBrandingAssets(): BrandingAssets {
-  const brandingDir = path.join(config.worker.assetsDir, 'branding');
+  const brandingDir = path.join(assetsDir, 'branding');
   const assets: BrandingAssets = {};
 
   // Check for logo.png

@@ -8,8 +8,7 @@ import GeminiClient from "./gemini-client";
 import type { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
-import CloudinaryService from "../../services/cloudinary-service";
-import RedisService from "../../services/redis-service";
+import CloudinaryService from '../../../../../shared/services/cloudinary-service';
 
 export interface GeminiTTSConfig {
     voice?: string; // Voice selection (Puck, Charon, Kore, Fenrir, Aoede)
@@ -20,7 +19,6 @@ class GeminiTTSService {
     private geminiClient: GeminiClient;
     private readonly MODEL_NAME = "gemini-2.5-flash-preview-tts"; // Correct TTS model name
     private cloudinaryService: CloudinaryService;
-    private redisService: RedisService;
 
     // Available voices for Gemini TTS
     private readonly VOICES = {
@@ -34,7 +32,6 @@ class GeminiTTSService {
     constructor() {
         this.geminiClient = GeminiClient.getInstance();
         this.cloudinaryService = CloudinaryService.getInstance();
-        this.redisService = RedisService.getInstance();
     }
 
     /**
@@ -42,8 +39,8 @@ class GeminiTTSService {
      * Includes exponential backoff for transient 5xx / overload errors
      */
     async generateSpeech(
-    text: string,
-    config?: GeminiTTSConfig
+        text: string,
+        config?: GeminiTTSConfig
     ): Promise<Buffer> {
         const MAX_RETRIES = 5;
         const BASE_DELAY_MS = 2_000; // 2s
@@ -59,7 +56,7 @@ class GeminiTTSService {
         const speechConfig: any = {};
         if (config?.voice) {
             speechConfig.voiceConfig = {
-            prebuiltVoiceConfig: { voiceName: config.voice },
+                prebuiltVoiceConfig: { voiceName: config.voice },
             };
         }
         if (config?.speed) {
@@ -72,49 +69,49 @@ class GeminiTTSService {
             attempt++;
 
             try {
-            console.log(
-                `🚀 Gemini TTS request (attempt ${attempt}/${MAX_RETRIES})`
-            );
+                console.log(
+                    `🚀 Gemini TTS request (attempt ${attempt}/${MAX_RETRIES})`
+                );
 
-            const result = await this.geminiClient.getGenAI().models.generateContent({
-                model: this.MODEL_NAME,
-                contents: processedText,
-                config: {
-                temperature: 1,
-                maxOutputTokens: 32000,
-                responseModalities: ["AUDIO"],
-                speechConfig:
-                    Object.keys(speechConfig).length > 0 ? speechConfig : undefined,
-                },
-            });
+                const result = await this.geminiClient.getGenAI().models.generateContent({
+                    model: this.MODEL_NAME,
+                    contents: processedText,
+                    config: {
+                        temperature: 1,
+                        maxOutputTokens: 32000,
+                        responseModalities: ["AUDIO"],
+                        speechConfig:
+                            Object.keys(speechConfig).length > 0 ? speechConfig : undefined,
+                    },
+                });
 
-            if (!result.candidates || result.candidates.length === 0) {
-                throw new Error("No audio generated in response");
-            }
+                if (!result.candidates || result.candidates.length === 0) {
+                    throw new Error("No audio generated in response");
+                }
 
-            const candidate = result.candidates[0];
-            console.log(`Finish Reason: ${candidate.finishReason}`);
+                const candidate = result.candidates[0];
+                console.log(`Finish Reason: ${candidate.finishReason}`);
 
-            const audioPart = candidate.content?.parts?.find(
-                (p: any) => p.inlineData
-            );
+                const audioPart = candidate.content?.parts?.find(
+                    (p: any) => p.inlineData
+                );
 
-            if (!audioPart?.inlineData?.data) {
-                throw new Error("No audio data found in response");
-            }
+                if (!audioPart?.inlineData?.data) {
+                    throw new Error("No audio data found in response");
+                }
 
-            const audioBuffer = Buffer.from(
-                audioPart.inlineData.data,
-                "base64"
-            );
+                const audioBuffer = Buffer.from(
+                    audioPart.inlineData.data,
+                    "base64"
+                );
 
-            console.log(`✅ Generated ${audioBuffer.length} bytes of audio`);
-            console.log(
-                `🎵 Audio format: ${audioPart.inlineData.mimeType || "audio/wav"}`
-            );
-            console.log(`✅ === GEMINI TTS GENERATION COMPLETE ===\n`);
+                console.log(`✅ Generated ${audioBuffer.length} bytes of audio`);
+                console.log(
+                    `🎵 Audio format: ${audioPart.inlineData.mimeType || "audio/wav"}`
+                );
+                console.log(`✅ === GEMINI TTS GENERATION COMPLETE ===\n`);
 
-            return audioBuffer;
+                return audioBuffer;
             } catch (error: any) {
                 const apiError =
                     error?.error ||
@@ -144,14 +141,14 @@ class GeminiTTSService {
                 if (!isRetryable || attempt >= MAX_RETRIES) {
                     console.error(`❌ Gemini TTS failed permanently:`, error);
                     throw new Error(
-                    `Failed to generate speech with Gemini TTS: ${error.message || error}`
+                        `Failed to generate speech with Gemini TTS: ${error.message || error}`
                     );
                 }
 
                 const delay =
                     Math.min(
-                    BASE_DELAY_MS * 2 ** (attempt - 1),
-                    MAX_DELAY_MS
+                        BASE_DELAY_MS * 2 ** (attempt - 1),
+                        MAX_DELAY_MS
                     ) +
                     Math.floor(Math.random() * 1_000); // jitter
 
@@ -307,18 +304,13 @@ class GeminiTTSService {
         const audioUrls: string[] = [];
 
         for (let i = 0; i < narrations.length; i++) {
-            await this.redisService.updateJobProgress(
-                jobId,
-                'processing',
-                Math.floor(((i + 1) / narrations.length) * 90) + 5,
-                `Generating narration part ${i + 1} of ${narrations.length}...`
-            );
+            console.log(`Generating narration part ${i + 1} of ${narrations.length}...`);
 
             const narration = narrations[i];
             const outputPath = path.join(outputDir, `narration-part-${i + 1}.wav`);
 
             console.log(`\n🎬 Generating narration part ${i + 1} of ${narrations.length}...`);
-            
+
             try {
                 const audioPath = await this.generateNarrationAudio(
                     narration,
@@ -326,13 +318,8 @@ class GeminiTTSService {
                     config
                 );
 
-                await this.redisService.updateJobProgress(
-                    jobId,
-                    'processing',
-                    Math.floor(((i + 1) / narrations.length) * 90) + 5,
-                    `Uploading narration part ${i + 1} of ${narrations.length} to Cloudinary...`
-                );
-                
+                console.log(`Uploading narration part ${i + 1} of ${narrations.length} to Cloudinary...`);
+
                 const upload = await this.cloudinaryService.uploadAudio(
                     audioPath,
                     `narrations/part-${i + 1}`,
