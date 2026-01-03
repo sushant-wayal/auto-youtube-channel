@@ -88,8 +88,9 @@ jobs:
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
-          RESULT=$(echo '${{ needs.generate-script.outputs.script_data }}' | npx tsx .github/scripts/render-scenes.ts "${{ needs.generate-script.outputs.video_id }}")
+          RESULT=$(npx tsx .github/scripts/render-scenes.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
 
       - name: Generate voice-overs (parallel with scenes)
@@ -100,8 +101,9 @@ jobs:
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
-          RESULT=$(echo '${{ needs.generate-script.outputs.script_data }}' | npx tsx .github/scripts/generate-voiceover.ts "${{ needs.generate-script.outputs.video_id }}")
+          RESULT=$(npx tsx .github/scripts/generate-voiceover.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
 
   # Step 4: Assemble video
