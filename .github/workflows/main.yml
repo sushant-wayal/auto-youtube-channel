@@ -272,12 +272,18 @@ jobs:
           echo "## Video Generation Pipeline Complete 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Video ID:** ${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "**YouTube ID:** ${{ needs.upload-youtube.outputs.youtube_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📺 YouTube Videos" >> $GITHUB_STEP_SUMMARY
+          echo "**Main Video:** https://youtube.com/watch?v=${{ needs.upload-youtube.outputs.youtube_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Thumbnail:** ${{ needs.generate-thumbnail.outputs.thumbnail_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎬 Video Assets" >> $GITHUB_STEP_SUMMARY
+          echo "**Assembled Video:** ${{ needs.assemble-video.outputs.video_url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
           echo "- Script Generation: ${{ needs['generate-script'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Asset Generation: ${{ needs['parallel-rendering'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Video Assembly: ${{ needs['assemble-video'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Thumbnail Generation: ${{ needs['generate-thumbnail'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- YouTube Upload: ${{ needs['upload-youtube'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Shorts Processing: ${{ needs['process-shorts'].result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Thumbnail Generation: ${{ needs['generate-thumbnail'].result }}" >> $GITHUB_STEP_SUMMARY
