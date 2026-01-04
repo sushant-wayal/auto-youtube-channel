@@ -118,7 +118,7 @@ export class YouTubeService {
       title,
       description,
       tags,
-      categoryId: "22", // People & Blogs
+      categoryId: "28", // Science & Technology
     };
 
     // Add #Shorts tag for YouTube Shorts
@@ -136,6 +136,7 @@ export class YouTubeService {
         snippet,
         status: {
           privacyStatus,
+          selfDeclaredMadeForKids: false,
         },
       },
       media: {
