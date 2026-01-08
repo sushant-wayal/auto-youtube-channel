@@ -13,9 +13,39 @@ on:
     - cron: '0 0 * * *'  # Run daily at 2 AM UTC
 
 jobs:
+  # Step 0: Check Redis queue and populate with AI-generated ideas if empty
+  populate-ideas:
+    name: Populate Ideas Queue
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check queue and run idea-selector if needed
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          npx tsx .github/scripts/check-and-populate-ideas.ts
+
   # Step 1: Generate video script
   generate-script:
     name: Generate Script
+    needs: populate-ideas
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -277,7 +307,7 @@ jobs:
   # Summary job
   pipeline-summary:
     name: Pipeline Summary
-    needs: [generate-script, render-scenes, generate-voiceover, assemble-video, upload-youtube, process-shorts, generate-thumbnail]
+    needs: [populate-ideas, generate-script, render-scenes, generate-voiceover, assemble-video, upload-youtube, process-shorts, generate-thumbnail]
     runs-on: ubuntu-latest
     if: always()
     
@@ -300,6 +330,7 @@ jobs:
           echo "**Assembled Video:** $VIDEO_URL" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- Populate Ideas: ${{ needs['populate-ideas'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Script Generation: ${{ needs['generate-script'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Scene Rendering: ${{ needs['render-scenes'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Voice-over Generation: ${{ needs['generate-voiceover'].result }}" >> $GITHUB_STEP_SUMMARY

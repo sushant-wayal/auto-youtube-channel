@@ -11,7 +11,19 @@ export async function GET() {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",        // REQUIRED
     prompt: "consent",             // REQUIRED (forces refresh_token)
-    scope: ["https://www.googleapis.com/auth/youtube.upload"],
+    scope: [
+      // For uploading videos (existing functionality)
+      "https://www.googleapis.com/auth/youtube.upload",
+
+      // For idea-selector: read channel videos and playlists
+      "https://www.googleapis.com/auth/youtube.readonly",
+
+      // For idea-selector: read video analytics (views, CTR, retention)
+      "https://www.googleapis.com/auth/yt-analytics.readonly",
+
+      // Optional: full YouTube access (includes all above + modifications)
+      "https://www.googleapis.com/auth/youtube",
+    ],
   });
 
   return NextResponse.redirect(authUrl);
