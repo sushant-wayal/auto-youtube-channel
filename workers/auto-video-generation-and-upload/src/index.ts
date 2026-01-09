@@ -9,6 +9,30 @@ import { assembleVideo } from '../../video-assembler/src/index';
 import { uploadToYouTube } from '../../youtube-upload/src/index';
 import { validateConfig } from '../../../shared/config';
 
+/**
+ * Calculate the next 4:30 PM IST publish time
+ * @param dayOffset Number of days to offset from today (0 = today, 1 = tomorrow)
+ */
+function getNext430PMISTPublishTime(dayOffset: number = 0): string {
+    const now = new Date();
+
+    // IST is UTC+5:30
+    const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+    const istNow = new Date(now.getTime() + istOffset);
+
+    // Set to 4:30 PM IST (16:30)
+    const targetIST = new Date(istNow);
+    targetIST.setHours(16, 30, 0, 0);
+
+    // Add day offset
+    targetIST.setDate(targetIST.getDate() + dayOffset);
+
+    // Convert back to UTC for YouTube API
+    const utcPublishTime = new Date(targetIST.getTime() - istOffset);
+
+    return utcPublishTime.toISOString();
+}
+
 export interface VideoScript {
     title: string;
     description: string;
@@ -142,16 +166,22 @@ export async function orchestrateVideoGeneration(videoIdea: string) {
             isShort: true,
         });
 
+        // Schedule all shorts for the same time (today at 4:30 PM IST)
+        const scheduledPublishTime = getNext430PMISTPublishTime(0);
+        console.error(`📤 Scheduling short ${i + 1} for ${scheduledPublishTime}...`);
+
         const { videoId: youtubeShortId } = await uploadToYouTube({
             videoUrl: assembledShort.outputUrl,
             isShort: true,
             title: short.hook,
             description: script.description,
             tags: script.tags,
+            privacyStatus: 'private', // Required for scheduled publishing
+            scheduledPublishTime,
         });
 
-        console.error(`✅ Short ${i + 1} uploaded: ${youtubeShortId}`);
-        shortsResults.push({ youtubeShortId, videoUrl: assembledShort.outputUrl });
+        console.error(`✅ Short ${i + 1} uploaded: ${youtubeShortId} (scheduled for ${scheduledPublishTime})`);
+        shortsResults.push({ youtubeShortId, videoUrl: assembledShort.outputUrl, scheduledPublishTime });
     }
 
     return {

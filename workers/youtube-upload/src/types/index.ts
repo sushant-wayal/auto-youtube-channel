@@ -31,6 +31,7 @@ export interface YoutubeUploadJob {
     tags?: string[];
     thumbnailUrl?: string;
     privacyStatus?: "public" | "unlisted" | "private";
+    scheduledPublishTime?: string; // ISO 8601 timestamp for scheduled publishing
     createdAt: number;
     updatedAt: number;
     status: JobStatus;

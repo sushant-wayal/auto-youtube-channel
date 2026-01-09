@@ -11,6 +11,7 @@ type UploadCommonArgs = {
   tags?: string[];
   thumbnailUrl?: string;     // Optional Cloudinary thumbnail URL
   privacyStatus?: "public" | "unlisted" | "private";
+  scheduledPublishTime?: string; // ISO 8601 timestamp for scheduled publishing
 };
 
 export class YouTubeService {
@@ -42,7 +43,8 @@ export class YouTubeService {
     description,
     tags = [],
     thumbnailUrl,
-    privacyStatus = "public"
+    privacyStatus = "public",
+    scheduledPublishTime
   }: { jobId: string } & UploadCommonArgs): Promise<string> {
 
     const tmpDir = "/tmp/youtube";
@@ -68,7 +70,7 @@ export class YouTubeService {
       console.error("🚀 Starting YouTube upload...");
 
       /* 2️⃣ Upload video to YouTube */
-      const videoId = await this.uploadVideoToYouTube(videoPath, isShort ?? false, title, description, tags, privacyStatus);
+      const videoId = await this.uploadVideoToYouTube(videoPath, isShort ?? false, title, description, tags, privacyStatus, scheduledPublishTime);
 
       console.error(`✅ Video uploaded successfully! Video ID: ${videoId}`);
       console.error(`🔗 YouTube URL: https://youtube.com/watch?v=${videoId}`);
@@ -107,12 +109,16 @@ export class YouTubeService {
     title: string,
     description: string,
     tags: string[],
-    privacyStatus: string
+    privacyStatus: string,
+    scheduledPublishTime?: string
   ): Promise<string> {
     console.error(`📹 Preparing video metadata...`);
     console.error(`   Title: ${title}`);
     console.error(`   Type: ${isShort ? 'YouTube Short' : 'Regular Video'}`);
     console.error(`   Privacy: ${privacyStatus}`);
+    if (scheduledPublishTime) {
+      console.error(`   Scheduled Publish: ${scheduledPublishTime}`);
+    }
 
     const snippet: any = {
       title,
@@ -129,15 +135,22 @@ export class YouTubeService {
       }
     }
 
+    const status: any = {
+      privacyStatus,
+      selfDeclaredMadeForKids: false,
+    };
+
+    // Add publishAt for scheduled videos (requires private status)
+    if (scheduledPublishTime && privacyStatus === 'private') {
+      status.publishAt = scheduledPublishTime;
+    }
+
     console.error(`📤 Uploading video to YouTube API...`);
     const response = await this.youtube.videos.insert({
       part: ["snippet", "status"],
       requestBody: {
         snippet,
-        status: {
-          privacyStatus,
-          selfDeclaredMadeForKids: false,
-        },
+        status,
       },
       media: {
         body: fs.createReadStream(videoPath),

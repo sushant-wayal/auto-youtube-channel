@@ -20,6 +20,7 @@ export async function uploadToYouTube({
     tags = [],
     thumbnailUrl,
     privacyStatus = 'public',
+    scheduledPublishTime,
 }: {
     videoUrl: string;
     isShort?: boolean;
@@ -28,9 +29,10 @@ export async function uploadToYouTube({
     tags?: string[];
     thumbnailUrl?: string;
     privacyStatus?: 'public' | 'unlisted' | 'private';
+    scheduledPublishTime?: string; // ISO 8601 timestamp for scheduled publishing
 }): Promise<{ videoId: string }> {
     validateConfig(['youtube']);
-    
+
     const youtubeService = new YouTubeService();
     // Use a random string for jobId
     const jobId = `job-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -43,6 +45,7 @@ export async function uploadToYouTube({
         tags,
         thumbnailUrl,
         privacyStatus,
+        scheduledPublishTime,
     });
     return { videoId: uploadedVideoId };
 }
