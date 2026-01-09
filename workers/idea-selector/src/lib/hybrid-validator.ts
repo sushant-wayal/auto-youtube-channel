@@ -40,20 +40,58 @@ export class HybridValidator {
 
     /**
      * Apply hard elimination rules to AI ideas
+     * @param aiIdeas - AI-generated topic ideas
+     * @param history - Historical upload records
+     * @param queueIdeas - Ideas already in the queue (to avoid duplicates)
      */
     applyHardElimination(
         aiIdeas: TopicIdea[],
-        history: UploadRecord[]
+        history: UploadRecord[],
+        queueIdeas: string[] = []
     ): TopicIdea[] {
         console.error('\n🚫 STEP: Hard Elimination (Anti-Hallucination)');
 
         const beforeCount = aiIdeas.length;
 
+        // Filter out ideas that are too similar to queue ideas
+        let remainingIdeas = aiIdeas;
+        if (queueIdeas.length > 0) {
+            console.error(`   📋 Checking against ${queueIdeas.length} queued ideas...`);
+            remainingIdeas = aiIdeas.filter(aiIdea => {
+                // Check if AI idea topic is too similar to any queued idea
+                const aiTopicLower = aiIdea.topic.toLowerCase();
+                const isSimilarToQueue = queueIdeas.some(queueIdea => {
+                    const queueLower = queueIdea.toLowerCase();
+                    // Consider similar if:
+                    // 1. Exact match
+                    // 2. Queue idea is substring of AI idea
+                    // 3. AI idea is substring of queue idea
+                    // 4. High word overlap (>60%)
+                    if (aiTopicLower === queueLower) return true;
+                    if (aiTopicLower.includes(queueLower) || queueLower.includes(aiTopicLower)) return true;
+
+                    const aiWords = new Set(aiTopicLower.split(/\s+/).filter(w => w.length > 3));
+                    const queueWords = new Set(queueLower.split(/\s+/).filter(w => w.length > 3));
+                    const commonWords = [...aiWords].filter(w => queueWords.has(w));
+                    const overlapRatio = commonWords.length / Math.min(aiWords.size, queueWords.size);
+
+                    return overlapRatio > 0.6;
+                });
+
+                return !isSimilarToQueue;
+            });
+
+            const queueEliminated = beforeCount - remainingIdeas.length;
+            if (queueEliminated > 0) {
+                console.error(`   ✗ ${queueEliminated} ideas eliminated (similar to queued ideas)`);
+            }
+        }
+
         // Convert AI ideas to both formats for checking
         const ideasToCheck: Idea[] = [];
         const ideaMapping: Map<Idea, TopicIdea> = new Map();
 
-        for (const aiIdea of aiIdeas) {
+        for (const aiIdea of remainingIdeas) {
             const shortIdea = this.convertToIdea(aiIdea, 'short');
             const longIdea = this.convertToIdea(aiIdea, 'long');
             ideasToCheck.push(shortIdea, longIdea);

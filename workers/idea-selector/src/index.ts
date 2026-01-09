@@ -28,7 +28,11 @@ interface IdeaSelectorResult {
     error?: string;
 }
 
-async function runIdeaSelector(): Promise<IdeaSelectorResult> {
+interface IdeaSelectorOptions {
+    existingQueueIdeas?: string[]; // Ideas already in the queue to avoid duplicates
+}
+
+async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaSelectorResult> {
     console.error('🚀 Starting Autonomous Idea Selector Worker...\n');
 
     try {
@@ -82,7 +86,10 @@ async function runIdeaSelector(): Promise<IdeaSelectorResult> {
         console.error('\n🛡️  STEP 5: Applying Hard Elimination Rules...');
         const validator = new HybridValidator();
         const history = validator.convertAnalyticsToHistory(analytics);
-        const nonEliminated = validator.applyHardElimination(rawIdeas, history);
+
+        // Also consider existing queue ideas as "recent" to avoid duplicates
+        const queueIdeas = options.existingQueueIdeas || [];
+        const nonEliminated = validator.applyHardElimination(rawIdeas, history, queueIdeas);
 
         console.error(`   ${nonEliminated.length} ideas passed elimination`);
 

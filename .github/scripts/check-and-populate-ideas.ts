@@ -37,10 +37,21 @@ async function checkQueueAndPopulate(): Promise<void> {
 
         console.error(`⚠️  Queue is empty or below threshold, running idea-selector worker...`);
 
+        // Fetch existing queue ideas to avoid duplicates
+        const existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
+        if (existingIdeas.length > 0) {
+            console.error(`📋 Existing queue ideas (${existingIdeas.length}):`);
+            existingIdeas.forEach((idea, i) => {
+                console.error(`   ${i + 1}. ${idea}`);
+            });
+        }
+
         // Run idea-selector worker
         console.error(`🚀 Running idea-selector worker...`);
 
-        const result = await runIdeaSelector();
+        const result = await runIdeaSelector({
+            existingQueueIdeas: existingIdeas,
+        });
 
         if (!result.success || !result.selectedTopic) {
             throw new Error('Idea selector did not return a valid topic');
