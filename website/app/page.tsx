@@ -902,10 +902,18 @@
 
 "use client";
 
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
 export default function HomePage() {
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <h1 className="text-2xl font-bold">UI is temporarily Disabled</h1>
+      <div className="text-center space-y-4">
+        <h1 className="text-2xl font-bold">UI is temporarily Disabled</h1>
+        <Link href="/dashboard">
+          <Button size="lg">Go to Dashboard</Button>
+        </Link>
+      </div>
     </div>
   );
 }
