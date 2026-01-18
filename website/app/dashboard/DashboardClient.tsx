@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 
 type IdeasQueue = {
     ideas: string[];
@@ -17,8 +18,13 @@ export default function DashboardClient() {
     const [ideasLoading, setIdeasLoading] = useState(false);
     const [ideasError, setIdeasError] = useState<string | null>(null);
 
+    const [shortsPublishTime, setShortsPublishTime] = useState<string>('16:30');
+    const [shortsTimeLoading, setShortsTimeLoading] = useState(false);
+    const [shortsTimeError, setShortsTimeError] = useState<string | null>(null);
+
     useEffect(() => {
         loadIdeasQueue();
+        loadShortsPublishTime();
     }, []);
 
     const loadIdeasQueue = async () => {
@@ -32,6 +38,36 @@ export default function DashboardClient() {
             }
         } catch (err) {
             setIdeasError(String(err));
+        }
+    };
+
+    const loadShortsPublishTime = async () => {
+        try {
+            const res = await fetch('/api/shorts-publish-time');
+            const data = await res.json();
+            if (data.ok) {
+                setShortsPublishTime(data.time);
+            }
+        } catch (err) {
+            console.error('Failed to load shorts publish time:', err);
+        }
+    };
+
+    const saveShortsPublishTime = async () => {
+        setShortsTimeLoading(true);
+        setShortsTimeError(null);
+        try {
+            const res = await fetch('/api/shorts-publish-time', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ time: shortsPublishTime }),
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error);
+        } catch (err: any) {
+            setShortsTimeError(String(err));
+        } finally {
+            setShortsTimeLoading(false);
         }
     };
 
@@ -125,11 +161,47 @@ export default function DashboardClient() {
     return (
         <div className="p-8 max-w-4xl mx-auto space-y-6">
             <div>
-                <h1 className="text-3xl font-bold">Video Ideas Queue</h1>
+                <h1 className="text-3xl font-bold">Pipeline Dashboard</h1>
                 <p className="text-muted-foreground mt-2">
-                    Manage the queue of video ideas for your pipeline
+                    Manage video ideas queue and shorts publishing schedule
                 </p>
             </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Shorts Publish Time (IST)</CardTitle>
+                    <CardDescription>Set the default time for publishing YouTube Shorts</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {shortsTimeError && (
+                        <div className="text-sm text-red-600 bg-red-50 p-3 rounded">
+                            {shortsTimeError}
+                        </div>
+                    )}
+
+                    <div className="flex items-end gap-4">
+                        <div className="flex-1 space-y-2">
+                            <Label htmlFor="shorts-time">Time (24-hour format HH:MM)</Label>
+                            <Input
+                                id="shorts-time"
+                                type="time"
+                                value={shortsPublishTime}
+                                onChange={e => setShortsPublishTime(e.target.value)}
+                                disabled={shortsTimeLoading}
+                            />
+                        </div>
+                        <Button
+                            onClick={saveShortsPublishTime}
+                            disabled={shortsTimeLoading}
+                        >
+                            {shortsTimeLoading ? 'Saving...' : 'Save'}
+                        </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        Current: {shortsPublishTime} IST (Indian Standard Time)
+                    </p>
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>

@@ -2,6 +2,34 @@ import { google } from "googleapis";
 import fs from 'fs';
 import path from "path";
 import { pipeline } from "stream/promises";
+import { getShortsPublishTime } from "../../../../shared/services/shorts-publish-time-service";
+
+/**
+ * Calculate the publish time based on configured IST time
+ * @param timeIST Time in HH:MM format (IST timezone)
+ * @param dayOffset Number of days to offset from today (0 = today, 1 = tomorrow)
+ */
+function getPublishTimeFromISTTime(timeIST: string, dayOffset: number = 0): string {
+  const [hours, minutes] = timeIST.split(':').map(Number);
+
+  const now = new Date();
+
+  // IST is UTC+5:30
+  const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+  const istNow = new Date(now.getTime() + istOffset);
+
+  // Set to specified time in IST
+  const targetIST = new Date(istNow);
+  targetIST.setHours(hours, minutes, 0, 0);
+
+  // Add day offset
+  targetIST.setDate(targetIST.getDate() + dayOffset);
+
+  // Convert back to UTC for YouTube API
+  const utcPublishTime = new Date(targetIST.getTime() - istOffset);
+
+  return utcPublishTime.toISOString();
+}
 
 type UploadCommonArgs = {
   videoUrl: string;          // Cloudinary video URL
@@ -67,10 +95,29 @@ export class YouTubeService {
         console.error(`✅ Thumbnail downloaded successfully`);
       }
 
+      // For shorts without explicit scheduledPublishTime, fetch from config and set privacy to private
+      let finalScheduledTime = scheduledPublishTime;
+      let finalPrivacyStatus = privacyStatus;
+
+      if (isShort && !scheduledPublishTime) {
+        const configuredTime = await getShortsPublishTime();
+        finalScheduledTime = getPublishTimeFromISTTime(configuredTime, 0);
+        finalPrivacyStatus = 'private'; // Required for scheduled publishing
+        console.error(`⏰ Using configured shorts publish time: ${configuredTime} IST (${finalScheduledTime})`);
+      }
+
       console.error("🚀 Starting YouTube upload...");
 
       /* 2️⃣ Upload video to YouTube */
-      const videoId = await this.uploadVideoToYouTube(videoPath, isShort ?? false, title, description, tags, privacyStatus, scheduledPublishTime);
+      const videoId = await this.uploadVideoToYouTube(
+        videoPath,
+        isShort ?? false,
+        title,
+        description,
+        tags,
+        finalPrivacyStatus,
+        finalScheduledTime
+      );
 
       console.error(`✅ Video uploaded successfully! Video ID: ${videoId}`);
       console.error(`🔗 YouTube URL: https://youtube.com/watch?v=${videoId}`);
