@@ -128,15 +128,27 @@ class ScriptGenerationService {
         - Do not use PAUSE for moments longer than 2 seconds.
 
         ========================
-        SHORTS RULES
+        SHORTS RULES (CRITICAL)
         ========================
 
-        - 3-5 shorts maximum
-        - Each short is 15–25 seconds
+        - 3–5 shorts maximum
+        - Target length: 8–12 seconds (hard preference)
+        - Shorts MUST pass Shorts feed entry test:
+            - Visual motion at t ≤ 0.5s
+            - On-screen text at t ≤ 0.8s
+        - Shorts MUST start with a concrete system fact, not a metaphor
+        - Metaphors, if any, come AFTER the fact
+        - The start of narration must be strong to hook viewers quickly
+        - Shorts must end with a strong visual “punchline”:
+            - freeze frame
+            - bold text
+            - or contrast reveal
+        - Shorts must feel replayable
+        - Shorts must be understandable standalone
+        - Shorts must clearly relate to the main video topic
         - Each short has:
-        - its OWN narration
-        - its OWN actions
-        - Shorts must be understandable without the main video
+            - its OWN narration
+            - its OWN actions
         - Shorts reuse the SAME primitive rules as scenes
 
         ========================
