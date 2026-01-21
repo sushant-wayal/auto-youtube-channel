@@ -588,23 +588,35 @@ export class VideoAssemblyService {
 
     /**
      * Add audio track to video (replaces existing audio)
+     * Ensures output duration matches the longer of video or audio
      */
     async addAudioToVideo(
         videoPath: string,
         audioPath: string,
         outputPath: string
     ): Promise<void> {
+        // Get durations of both inputs
+        const videoDuration = await getVideoDuration(videoPath);
+        const audioDuration = await getVideoDuration(audioPath);
+        const maxDuration = Math.max(videoDuration, audioDuration);
+
+        console.error(`    Video: ${videoDuration.toFixed(2)}s, Audio: ${audioDuration.toFixed(2)}s, Output: ${maxDuration.toFixed(2)}s`);
+
         await runFFmpeg({
             inputs: [videoPath, audioPath],
             output: outputPath,
             args: [
-                '-threads', '1',
-                '-map', '0:v',      // Take video from first input
-                '-map', '1:a',      // Take audio from second input (narration + music)
-                '-c:v', 'copy',
-                '-c:a', 'aac',
-                '-b:a', '192k',
-                '-shortest',
+                "-threads", "1",
+                "-filter_complex",
+                `[0:v]tpad=stop_mode=clone:stop_duration=${Math.max(0, audioDuration - videoDuration)}[v];` +
+                `[1:a]apad[a]`,
+                "-map", "[v]",
+                "-map", "[a]",
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-t", maxDuration.toString(),
             ],
         });
     }
