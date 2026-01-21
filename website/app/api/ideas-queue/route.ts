@@ -80,6 +80,32 @@ export async function POST(request: Request) {
                 return NextResponse.json({ ok: true, ideas, count: ideas.length });
             }
 
+            case 'edit': {
+                if (typeof index !== 'number') {
+                    return NextResponse.json({ ok: false, error: 'Index is required' }, { status: 400 });
+                }
+                if (!idea || typeof idea !== 'string') {
+                    return NextResponse.json({ ok: false, error: 'Idea is required' }, { status: 400 });
+                }
+
+                // Get all ideas
+                const ideas = await redis.lrange(QUEUE_KEY, 0, -1);
+                if (index < 0 || index >= ideas.length) {
+                    return NextResponse.json({ ok: false, error: 'Invalid index' }, { status: 400 });
+                }
+
+                // Update the idea at the specified index
+                ideas[index] = idea;
+
+                // Clear the list and repopulate
+                await redis.del(QUEUE_KEY);
+                if (ideas.length > 0) {
+                    await redis.rpush(QUEUE_KEY, ...ideas);
+                }
+
+                return NextResponse.json({ ok: true, ideas, count: ideas.length });
+            }
+
             case 'clear': {
                 await redis.del(QUEUE_KEY);
                 return NextResponse.json({ ok: true, ideas: [], count: 0 });

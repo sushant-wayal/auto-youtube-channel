@@ -15,6 +15,8 @@ type IdeasQueue = {
 export default function DashboardClient() {
     const [ideasQueue, setIdeasQueue] = useState<IdeasQueue | null>(null);
     const [newIdea, setNewIdea] = useState('');
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [editingText, setEditingText] = useState('');
     const [ideasLoading, setIdeasLoading] = useState(false);
     const [ideasError, setIdeasError] = useState<string | null>(null);
 
@@ -93,6 +95,39 @@ export default function DashboardClient() {
         } finally {
             setIdeasLoading(false);
         }
+    };
+
+    const editIdea = async (index: number) => {
+        if (!editingText.trim()) return;
+
+        setIdeasLoading(true);
+        setIdeasError(null);
+        try {
+            const res = await fetch('/api/ideas-queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'edit', index, idea: editingText.trim() }),
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error);
+            setIdeasQueue({ ideas: data.ideas, count: data.count });
+            setEditingIndex(null);
+            setEditingText('');
+        } catch (err: any) {
+            setIdeasError(String(err));
+        } finally {
+            setIdeasLoading(false);
+        }
+    };
+
+    const startEditing = (index: number, currentIdea: string) => {
+        setEditingIndex(index);
+        setEditingText(currentIdea);
+    };
+
+    const cancelEditing = () => {
+        setEditingIndex(null);
+        setEditingText('');
     };
 
     const removeIdea = async (index: number) => {
@@ -274,7 +309,7 @@ export default function DashboardClient() {
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => moveIdea(index, 'up')}
-                                                disabled={index === 0 || ideasLoading}
+                                                disabled={index === 0 || ideasLoading || editingIndex === index}
                                                 className="h-6 w-6 p-0"
                                                 title="Move up"
                                             >
@@ -284,24 +319,77 @@ export default function DashboardClient() {
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => moveIdea(index, 'down')}
-                                                disabled={index === ideasQueue.ideas.length - 1 || ideasLoading}
+                                                disabled={index === ideasQueue.ideas.length - 1 || ideasLoading || editingIndex === index}
                                                 className="h-6 w-6 p-0"
                                                 title="Move down"
                                             >
                                                 ↓
                                             </Button>
                                         </div>
-                                        <p className="flex-1 text-sm">{idea}</p>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeIdea(index)}
-                                            disabled={ideasLoading}
-                                            className="text-red-600 hover:text-red-700"
-                                            title="Remove idea"
-                                        >
-                                            ✕
-                                        </Button>
+                                        {editingIndex === index ? (
+                                            <div className="flex-1 flex items-center gap-2">
+                                                <Textarea
+                                                    value={editingText}
+                                                    onChange={(e) => setEditingText(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && e.ctrlKey) {
+                                                            editIdea(index);
+                                                        } else if (e.key === 'Escape') {
+                                                            cancelEditing();
+                                                        }
+                                                    }}
+                                                    className="flex-1 text-sm"
+                                                    rows={2}
+                                                    autoFocus
+                                                />
+                                                <div className="flex flex-col gap-1">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => editIdea(index)}
+                                                        disabled={!editingText.trim() || ideasLoading}
+                                                        className="h-8"
+                                                        title="Save (Ctrl+Enter)"
+                                                    >
+                                                        ✓
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={cancelEditing}
+                                                        disabled={ideasLoading}
+                                                        className="h-8"
+                                                        title="Cancel (Esc)"
+                                                    >
+                                                        ✕
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <p className="flex-1 text-sm">{idea}</p>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => startEditing(index, idea)}
+                                                    disabled={ideasLoading || editingIndex !== null}
+                                                    className="text-blue-600 hover:text-blue-700"
+                                                    title="Edit idea"
+                                                >
+                                                    ✎
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => removeIdea(index)}
+                                                    disabled={ideasLoading || editingIndex !== null}
+                                                    className="text-red-600 hover:text-red-700"
+                                                    title="Remove idea"
+                                                >
+                                                    ✕
+                                                </Button>
+                                            </>
+                                        )}
                                     </div>
                                 ))}
                             </div>
