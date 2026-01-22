@@ -23,8 +23,8 @@ class GeminiService {
      * Includes exponential backoff for transient 5xx / overload errors
      */
     async generateText(
-    prompt: string,
-    config?: GeminiConfig
+        prompt: string,
+        config?: GeminiConfig
     ): Promise<string> {
         const MAX_RETRIES = 5;
         const BASE_DELAY_MS = 2_000;
@@ -45,10 +45,10 @@ class GeminiService {
                     model: modelName,
                     contents: prompt,
                     config: {
-                    temperature: config?.temperature,
-                    maxOutputTokens: config?.maxOutputTokens,
-                    topP: config?.topP,
-                    topK: config?.topK,
+                        temperature: config?.temperature,
+                        maxOutputTokens: config?.maxOutputTokens,
+                        topP: config?.topP,
+                        topK: config?.topK,
                     },
                 });
 
@@ -66,7 +66,7 @@ class GeminiService {
                     apiError?.status ||
                     error?.status ||
                     error?.code;
-                
+
                 if (!statusCode) console.error(`Failed to get status code from error:`, error);
 
                 const message = error?.message?.toLowerCase?.() || "";
@@ -78,19 +78,24 @@ class GeminiService {
                     statusCode === 503 ||
                     message.includes("internal") ||
                     message.includes("overloaded") ||
-                    message.includes("unavailable");
+                    message.includes("unavailable") ||
+                    JSON.stringify(error).toLowerCase().includes("500") ||
+                    JSON.stringify(error).toLowerCase().includes("503") ||
+                    JSON.stringify(error).toLowerCase().includes("internal") ||
+                    JSON.stringify(error).toLowerCase().includes("overloaded") ||
+                    JSON.stringify(error).toLowerCase().includes("unavailable");
 
                 if (!isRetryable || attempt >= MAX_RETRIES) {
                     console.error("❌ Gemini text generation failed permanently:", error);
                     throw new Error(
-                    `Failed to generate text with Gemini: ${error.message || error}`
+                        `Failed to generate text with Gemini: ${error.message || error}`
                     );
                 }
 
                 const delay =
                     Math.min(
-                    BASE_DELAY_MS * 2 ** (attempt - 1),
-                    MAX_DELAY_MS
+                        BASE_DELAY_MS * 2 ** (attempt - 1),
+                        MAX_DELAY_MS
                     ) + Math.floor(Math.random() * 1_000); // jitter
 
                 console.warn(
