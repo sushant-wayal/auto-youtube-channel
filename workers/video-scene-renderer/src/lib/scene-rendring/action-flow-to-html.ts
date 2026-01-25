@@ -19,11 +19,13 @@ export class SceneHtmlRenderer {
     // const normalized = this.retimeByGapExpansion(scene.actions, scene.duration);
     const { actions: withDurations, animationStopTime } = this.assignDurations(scene.actions, scene.duration);
     const withTextLifetimes = this.applyTextReplacement(withDurations, scene.duration);
-    return { html: this.emitHtml(
-      { duration: scene.duration, actions: withTextLifetimes },
-      height,
-      width
-    ), animationStopTime };
+    return {
+      html: this.emitHtml(
+        { duration: scene.duration, actions: withTextLifetimes },
+        height,
+        width
+      ), animationStopTime
+    };
   }
 
   private applyTextReplacement(
@@ -365,7 +367,7 @@ function drawText(a, p) {
 }
 
 function drawTransform(a, p) {
-  
+  ctx.save();
 
   if (a.translate) {
     ctx.translate(
@@ -375,7 +377,9 @@ function drawTransform(a, p) {
   }
 
   a.children.forEach(c => draw(c, p));
-  resetStyles()
+
+  ctx.restore();
+  resetStyles();
 }
 
 function drawGroup(a, p) {
