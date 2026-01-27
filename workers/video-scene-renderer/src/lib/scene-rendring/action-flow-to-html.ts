@@ -147,201 +147,48 @@ export class SceneHtmlRenderer {
 <head>
 <meta charset="UTF-8"/>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { 
-    margin:0; 
-    overflow:hidden;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-  canvas { display:block; }
+  body { margin:0; background:#fafafa }
+  canvas { display:block }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <script>
-const W = ${width};
-const H = ${height};
-const DPR = Math.max(window.devicePixelRatio || 1, 2);
-
 const canvas = document.getElementById("c");
-canvas.width = W * DPR;
-canvas.height = H * DPR;
-canvas.style.width = W + "px";
-canvas.style.height = H + "px";
-
+canvas.width = ${width};
+canvas.height = ${height};
 const ctx = canvas.getContext("2d");
-ctx.scale(DPR, DPR);
 
-/* ------------------- THEME & COLORS ------------------- */
-const theme = {
-  bg: { start: "#0f0f23", end: "#1a1a3e" },
-  accent: "#6366f1",
-  accentAlt: "#8b5cf6",
-  glow: "rgba(99, 102, 241, 0.4)",
-  text: "#f8fafc",
-  textMuted: "#94a3b8",
-  stroke: "#e2e8f0",
-  surface: "rgba(255, 255, 255, 0.05)"
-};
-
-/* ------------------- PARTICLES ------------------- */
-const particles = [];
-const PARTICLE_COUNT = 35;
-
-for (let i = 0; i < PARTICLE_COUNT; i++) {
-  particles.push({
-    x: Math.random() * W,
-    y: Math.random() * H,
-    r: Math.random() * 2 + 0.5,
-    vx: (Math.random() - 0.5) * 0.3,
-    vy: (Math.random() - 0.5) * 0.3,
-    alpha: Math.random() * 0.3 + 0.1,
-    pulse: Math.random() * Math.PI * 2
-  });
-}
-
-function updateParticles(time) {
-  for (const p of particles) {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.pulse += 0.02;
-    
-    if (p.x < 0) p.x = W;
-    if (p.x > W) p.x = 0;
-    if (p.y < 0) p.y = H;
-    if (p.y > H) p.y = 0;
-  }
-}
-
-function drawParticles(time) {
-  for (const p of particles) {
-    const alpha = p.alpha * (0.5 + 0.5 * Math.sin(p.pulse));
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(99, 102, 241, " + alpha + ")";
-    ctx.fill();
-  }
-}
-
-/* ------------------- BACKGROUND ------------------- */
-function drawBackground(time) {
-  const grad = ctx.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0, theme.bg.start);
-  grad.addColorStop(1, theme.bg.end);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-  
-  // Subtle grid pattern
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.02)";
-  ctx.lineWidth = 1;
-  const gridSize = 50;
-  for (let x = 0; x < W; x += gridSize) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, H);
-    ctx.stroke();
-  }
-  for (let y = 0; y < H; y += gridSize) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(W, y);
-    ctx.stroke();
-  }
-  
-  // Animated gradient orbs
-  const orbX = W * 0.7 + Math.sin(time * 0.5) * 50;
-  const orbY = H * 0.3 + Math.cos(time * 0.3) * 30;
-  const orbGrad = ctx.createRadialGradient(orbX, orbY, 0, orbX, orbY, 250);
-  orbGrad.addColorStop(0, "rgba(139, 92, 246, 0.15)");
-  orbGrad.addColorStop(0.5, "rgba(99, 102, 241, 0.05)");
-  orbGrad.addColorStop(1, "transparent");
-  ctx.fillStyle = orbGrad;
-  ctx.fillRect(0, 0, W, H);
-  
-  const orbX2 = W * 0.2 + Math.cos(time * 0.4) * 40;
-  const orbY2 = H * 0.7 + Math.sin(time * 0.6) * 35;
-  const orbGrad2 = ctx.createRadialGradient(orbX2, orbY2, 0, orbX2, orbY2, 200);
-  orbGrad2.addColorStop(0, "rgba(59, 130, 246, 0.12)");
-  orbGrad2.addColorStop(0.5, "rgba(99, 102, 241, 0.04)");
-  orbGrad2.addColorStop(1, "transparent");
-  ctx.fillStyle = orbGrad2;
-  ctx.fillRect(0, 0, W, H);
-  
-  drawParticles(time);
-}
+ctx.strokeStyle = "#111";
+ctx.fillStyle = "#111";
+ctx.lineWidth = 2;
+ctx.font = "28px Arial";
 
 const actions = [
 ${actionsJS}
 ].sort((a,b)=>a.t-b.t);
 
-/* ------------------- EASING FUNCTIONS ------------------- */
 function ease(p, type) {
   switch(type) {
-    case "easeIn": return p * p * p;
-    case "easeOut": return 1 - Math.pow(1 - p, 3);
-    case "easeInOut": return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
-    case "spring": {
-      const c4 = (2 * Math.PI) / 3;
-      return p === 0 ? 0 : p === 1 ? 1 : Math.pow(2, -10 * p) * Math.sin((p * 10 - 0.75) * c4) + 1;
-    }
-    case "bounce": {
-      const n1 = 7.5625, d1 = 2.75;
-      if (p < 1/d1) return n1*p*p;
-      if (p < 2/d1) return n1*(p-=1.5/d1)*p+0.75;
-      if (p < 2.5/d1) return n1*(p-=2.25/d1)*p+0.9375;
-      return n1*(p-=2.625/d1)*p+0.984375;
-    }
+    case "easeIn": return p*p;
+    case "easeOut": return p*(2-p);
+    case "easeInOut": return p < 0.5 ? 2*p*p : 1 - Math.pow(-2*p+2,2)/2;
     default: return p;
   }
 }
 
-function smoothStep(p) {
-  return p * p * (3 - 2 * p);
-}
-
-/* ------------------- GLOW EFFECTS ------------------- */
-function setGlow(color, blur) {
-  ctx.shadowColor = color;
-  ctx.shadowBlur = blur;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 0;
-}
-
-function clearGlow() {
-  ctx.shadowColor = "transparent";
-  ctx.shadowBlur = 0;
-}
-
 /* ------------------- PRIMITIVE DRAWERS ------------------- */
 
-function applyStrokeFill(a, p) {
-  const alpha = smoothStep(Math.min(1, p * 1.5));
-  
-  if (a.stroke) {
-    ctx.strokeStyle = a.stroke;
-    setGlow(a.stroke, 8 * alpha);
-  } else {
-    ctx.strokeStyle = theme.stroke;
-    setGlow(theme.glow, 6 * alpha);
-  }
-  
+function applyStrokeFill(a) {
+  if (a.stroke) ctx.strokeStyle = a.stroke;
   if (a.strokeWidth) ctx.lineWidth = a.strokeWidth;
-  else ctx.lineWidth = 2.5;
-  
   if (a.fill) ctx.fillStyle = a.fill;
-  else ctx.fillStyle = theme.surface;
 }
 
 function resetStyles() {
-  ctx.strokeStyle = theme.stroke;
-  ctx.fillStyle = theme.text;
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  clearGlow();
-  ctx.setLineDash([]);
-  ctx.lineDashOffset = 0;
-  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "#111";
+  ctx.fillStyle = "#111";
+  ctx.lineWidth = 2;
 }
 
 function lerp(a, b, p) {
@@ -349,11 +196,8 @@ function lerp(a, b, p) {
 }
 
 function drawLine(a, p) {
-  const fadeIn = smoothStep(Math.min(1, p * 2));
-  ctx.globalAlpha = fadeIn;
   
-  applyStrokeFill(a, p);
-  ctx.lineCap = "round";
+  applyStrokeFill(a);
 
   ctx.beginPath();
   ctx.moveTo(a.x1, a.y1);
@@ -362,132 +206,102 @@ function drawLine(a, p) {
     lerp(a.y1, a.y2, p)
   );
   ctx.stroke();
-  
-  // Draw end cap glow
-  if (p < 1) {
-    const endX = lerp(a.x1, a.x2, p);
-    const endY = lerp(a.y1, a.y2, p);
-    const capGrad = ctx.createRadialGradient(endX, endY, 0, endX, endY, 12);
-    capGrad.addColorStop(0, a.stroke || theme.accent);
-    capGrad.addColorStop(0.3, "rgba(99, 102, 241, 0.5)");
-    capGrad.addColorStop(1, "transparent");
-    clearGlow();
-    ctx.fillStyle = capGrad;
-    ctx.beginPath();
-    ctx.arc(endX, endY, 12, 0, Math.PI * 2);
-    ctx.fill();
-  }
 
-  resetStyles();
+  resetStyles()
 }
 
 function drawRect(a, p) {
-  const fadeIn = smoothStep(Math.min(1, p * 2));
-  const scale = 0.95 + 0.05 * smoothStep(p);
-  ctx.globalAlpha = fadeIn;
   
-  applyStrokeFill(a, p);
+  applyStrokeFill(a);
 
   const x = a.x;
   const y = a.y;
   const w = a.w;
   const h = a.h;
-  const r = Math.min(a.r || 8, w / 2, h / 2);
+  const r = Math.min(a.r || 0, w / 2, h / 2);
 
-  // Center transform for scale animation
-  const cx = x + w / 2;
-  const cy = y + h / 2;
-  
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.scale(scale, scale);
-  ctx.translate(-cx, -cy);
-
+  // lengths
   const straightW = w - 2 * r;
   const straightH = h - 2 * r;
   const arcLen = Math.PI * r / 2;
-  const perimeter = 2 * straightW + 2 * straightH + 4 * arcLen;
+
+  const perimeter =
+    2 * straightW +
+    2 * straightH +
+    4 * arcLen;
 
   let len = perimeter * p;
 
   ctx.beginPath();
   ctx.moveTo(x + r, y);
 
+  // ─── Top edge ───
   if (len <= straightW) {
     ctx.lineTo(x + r + len, y);
     ctx.stroke();
-    ctx.restore();
-    resetStyles();
     return;
   }
   ctx.lineTo(x + r + straightW, y);
   len -= straightW;
 
+  // ─── Top-right corner ───
   if (len <= arcLen) {
     ctx.arc(x + w - r, y + r, r, -Math.PI / 2, -Math.PI / 2 + (len / arcLen) * (Math.PI / 2));
     ctx.stroke();
-    ctx.restore();
-    resetStyles();
     return;
   }
   ctx.arc(x + w - r, y + r, r, -Math.PI / 2, 0);
   len -= arcLen;
 
+  // ─── Right edge ───
   if (len <= straightH) {
     ctx.lineTo(x + w, y + r + len);
     ctx.stroke();
-    ctx.restore();
-    resetStyles();
     return;
   }
   ctx.lineTo(x + w, y + r + straightH);
   len -= straightH;
 
+  // ─── Bottom-right corner ───
   if (len <= arcLen) {
     ctx.arc(x + w - r, y + h - r, r, 0, (len / arcLen) * (Math.PI / 2));
     ctx.stroke();
-    ctx.restore();
-    resetStyles();
     return;
   }
   ctx.arc(x + w - r, y + h - r, r, 0, Math.PI / 2);
   len -= arcLen;
 
+  // ─── Bottom edge ───
   if (len <= straightW) {
     ctx.lineTo(x + w - r - len, y + h);
     ctx.stroke();
-    ctx.restore();
-    resetStyles();
     return;
   }
-  ctx.lineTo(x + r, y + h);
+  ctx.lineTo(x + r, y + h); 
   len -= straightW;
 
+  // ─── Bottom-left corner ───
   if (len <= arcLen) {
     ctx.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI / 2 + (len / arcLen) * (Math.PI / 2));
     ctx.stroke();
-    ctx.restore();
-    resetStyles();
     return;
   }
   ctx.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI);
   len -= arcLen;
 
+  // ─── Left edge ───
   if (len <= straightH) {
     ctx.lineTo(x, y + h - r - len);
     ctx.stroke();
-    ctx.restore();
-    resetStyles();
     return;
   }
   ctx.lineTo(x, y + r);
   len -= straightH;
 
+  // ─── Top-left corner ───
   if (len <= arcLen) {
     ctx.arc(x + r, y + r, r, Math.PI, Math.PI + (len / arcLen) * (Math.PI / 2));
     ctx.stroke();
-    ctx.restore();
-    resetStyles();
     return;
   }
 
@@ -495,27 +309,13 @@ function drawRect(a, p) {
   ctx.closePath();
   ctx.stroke();
 
-  if (a.fill) {
-    clearGlow();
-    ctx.globalAlpha = fadeIn * 0.8;
-    ctx.fill();
-  }
-  
-  ctx.restore();
-  resetStyles();
+  if (a.fill) ctx.fill();
+  resetStyles()
 }
 
 function drawEllipse(a, p) {
-  const fadeIn = smoothStep(Math.min(1, p * 2));
-  const scale = 0.9 + 0.1 * smoothStep(p);
-  ctx.globalAlpha = fadeIn;
   
-  applyStrokeFill(a, p);
-
-  ctx.save();
-  ctx.translate(a.cx, a.cy);
-  ctx.scale(scale, scale);
-  ctx.translate(-a.cx, -a.cy);
+  applyStrokeFill(a);
 
   ctx.beginPath();
   ctx.ellipse(
@@ -528,86 +328,42 @@ function drawEllipse(a, p) {
     Math.PI * 2 * p
   );
 
-  if (a.fill && p > 0.98) {
-    clearGlow();
-    ctx.globalAlpha = fadeIn * 0.7;
-    ctx.fill();
-    ctx.globalAlpha = fadeIn;
-    setGlow(a.stroke || theme.glow, 8);
-  }
+  if (a.fill) ctx.fill();
   ctx.stroke();
 
-  ctx.restore();
-  resetStyles();
+  resetStyles()
 }
 
 function drawPath(a, p) {
-  const fadeIn = smoothStep(Math.min(1, p * 2));
-  ctx.globalAlpha = fadeIn;
   
-  applyStrokeFill(a, p);
+  applyStrokeFill(a);
 
   const path = new Path2D(a.d);
-  const dash = Math.max(W, H) * 2;
+  const dash = Math.max(canvas.width, canvas.height) * 1.5;
 
   ctx.setLineDash([dash]);
   ctx.lineDashOffset = dash * (1 - p);
 
-  if (a.fill && p > 0.95) {
-    clearGlow();
-    ctx.globalAlpha = fadeIn * 0.6;
-    ctx.fill(path);
-    ctx.globalAlpha = fadeIn;
-    setGlow(a.stroke || theme.glow, 8);
-  }
+  if (a.fill) ctx.fill(path);
 
   ctx.stroke(path);
 
-  resetStyles();
+  resetStyles()
 }
 
 function drawText(a, p) {
-  const fadeIn = smoothStep(Math.min(1, p * 3));
-  const slideUp = (1 - smoothStep(p)) * 15;
   
-  ctx.save();
-  ctx.globalAlpha = fadeIn;
-  
-  const fontSize = a.fontSize || 32;
-  const fontWeight = a.fontWeight || 600;
-  ctx.font = fontWeight + " " + fontSize + "px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
+
+  if (a.fill) ctx.fillStyle = a.fill;
+  else ctx.fillStyle = "#111";
+  if (a.fontSize) ctx.font = a.fontSize + "px Arial";
+  else ctx.font = "28px Arial";
   ctx.textAlign = a.align || "center";
-  ctx.textBaseline = "middle";
-  
-  if (a.fill) {
-    ctx.fillStyle = a.fill;
-    setGlow(a.fill, 12 * fadeIn);
-  } else {
-    ctx.fillStyle = theme.text;
-    setGlow("rgba(248, 250, 252, 0.5)", 10 * fadeIn);
-  }
 
-  const n = Math.max(1, Math.floor(a.value.length * smoothStep(p)));
-  const displayText = a.value.slice(0, n);
-  
-  // Draw text with subtle shadow
-  ctx.fillText(displayText, a.x, a.y - slideUp);
-  
-  // Typing cursor effect
-  if (p < 1 && n < a.value.length) {
-    const textWidth = ctx.measureText(displayText).width;
-    let cursorX = a.x;
-    if (a.align === "center") cursorX = a.x + textWidth / 2 + 4;
-    else if (a.align === "left") cursorX = a.x + textWidth + 4;
-    else cursorX = a.x + 4;
-    
-    ctx.fillStyle = theme.accent;
-    setGlow(theme.accent, 8);
-    ctx.fillRect(cursorX, a.y - slideUp - fontSize * 0.4, 3, fontSize * 0.8);
-  }
+  const n = Math.max(1, Math.floor(a.value.length * p));
+  ctx.fillText(a.value.slice(0, n), a.x, a.y);
 
-  ctx.restore();
-  resetStyles();
+  resetStyles()
 }
 
 function drawTransform(a, p) {
@@ -615,8 +371,8 @@ function drawTransform(a, p) {
 
   if (a.translate) {
     ctx.translate(
-      a.translate[0] * smoothStep(p),
-      a.translate[1] * smoothStep(p)
+      a.translate[0] * p,
+      a.translate[1] * p
     );
   }
 
@@ -647,8 +403,7 @@ function draw(a, p) {
 /* ------------------- FRAME ENTRY ------------------- */
 
 window.renderFrame = function(time) {
-  updateParticles(time);
-  drawBackground(time);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
   for (const a of actions) {
     if (time < a.t) continue;
