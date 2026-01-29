@@ -212,10 +212,10 @@ const theme = {
 
 const scale = IS_SHORTS ? {
   // Shorts: portrait, need larger relative text
-  title: Math.round(W * 0.052),      // ~56px on 1080w
-  subtitle: Math.round(W * 0.026),   // ~28px
-  body: Math.round(W * 0.020),       // ~22px
-  label: Math.round(W * 0.017),      // ~18px
+  title: Math.round(W * 0.070),      // ~76px on 1080w (increased for better readability)
+  subtitle: Math.round(W * 0.036),   // ~39px (increased for better readability)
+  body: Math.round(W * 0.028),       // ~30px (increased for better readability)
+  label: Math.round(W * 0.024),      // ~26px (increased for better readability)
   
   // Spacing
   marginX: Math.round(W * 0.08),     // 8% horizontal margin
