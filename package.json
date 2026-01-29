@@ -1,11 +1,19 @@
 {
   "private": true,
-  "workspaces": [
-    "workers/*",
-    "shared"
-  ],
+  "workspaces": {
+    "packages": [
+      "workers/*",
+      "shared"
+    ],
+    "nohoist": [
+      "**/mobile-app/**"
+    ]
+  },
   "scripts": {
     "build": "npm run build --workspaces",
     "daily": "npx tsx .github/scripts/generate-script.ts"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10"
   }
 }
