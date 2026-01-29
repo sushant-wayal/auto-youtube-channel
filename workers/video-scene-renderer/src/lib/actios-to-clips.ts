@@ -12,10 +12,12 @@ export class ClipsRenderService {
   private cloudinaryService;
   private scenes: SceneIR[];
   private jobId: string;
+  private hookText?: string;
 
-  constructor(scenes: SceneIR[], jobId: string) {
+  constructor(scenes: SceneIR[], jobId: string, hookText?: string) {
     this.scenes = scenes;
     this.jobId = jobId;
+    this.hookText = hookText;
     this.cloudinaryService = CloudinaryService.getInstance();
     this.htmlRenderer = new SceneHtmlRenderer();
     this.videoRenderer = new HtmlToVideoService();
@@ -41,7 +43,8 @@ export class ClipsRenderService {
 
       const { html, animationStopTime } = this.htmlRenderer.render({
         duration: scene.baseDuration,
-        actions: scene.actions
+        actions: scene.actions,
+        hookText: this.hookText
       }, height, width);
 
       const outPath = path.join(
@@ -49,7 +52,10 @@ export class ClipsRenderService {
         `scene_${String(i).padStart(3, "0")}.mp4`
       );
 
-      const duration = scene.baseDuration + scene.holdDuration;
+      // For Shorts with hookText, add hook phase duration (1.8s)
+      const HOOK_TOTAL = this.hookText && (height > width) ? 1.8 : 0;
+      const duration = scene.baseDuration + scene.holdDuration + HOOK_TOTAL;
+
       await this.videoRenderer.render({
         html,
         width: width,

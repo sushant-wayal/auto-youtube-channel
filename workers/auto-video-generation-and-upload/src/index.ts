@@ -48,6 +48,7 @@ export interface VideoScript {
     shorts: Array<{
         id: string;
         hook: string;
+        hookText: string;
         narration: string;
         baseDuration: number;
         holdDuration: number;
@@ -147,6 +148,7 @@ export async function orchestrateVideoGeneration(videoIdea: string) {
                 }],
                 isShort: true,
                 videoId: shortId,
+                hookText: short.hookText,
             });
 
         const { urls: shortVoiceOvers } = await generateVoiceOvers({

@@ -40,6 +40,7 @@ interface ScriptData {
         shorts: Array<{
             id: string;
             hook: string;
+            hookText: string;
             narration: string;
             baseDuration: number;
             holdDuration: number;
@@ -82,6 +83,7 @@ async function processAllShorts(videoId: string, scriptData: string) {
             }],
             isShort: true,
             videoId: shortId,
+            hookText: short.hookText,
         });
 
         // 2. Generate voice-over for short

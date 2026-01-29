@@ -105,6 +105,7 @@ REQUIRED OUTPUT FORMAT
     {
       "id": "short-1",
       "hook": "Why do databases look like cylinders?",
+      "hookText": "Everyone draws databases wrong.",
       "narration": "Databases are drawn as cylinders because they represent stored data.",
       "baseDuration": 12.0,
       "actions": [
@@ -188,6 +189,22 @@ SHORTS RULES (CRITICAL)
 - Strong hook in first sentence of narration
 - End with visual punchline (bold text, freeze, contrast)
 - Must be replayable and standalone
+
+**SHORTS VISUAL HOOK (NEW):**
+- Each short MUST have a "hookText" field (separate from hook and narration)
+- hookText: 1-2 short declarative sentences that create visual tension
+- hookText should:
+  - Assert or imply something is wrong/unexpected
+  - NOT explain the reason yet (that's for narration)
+  - Be bold and direct, not a question
+  - Avoid "what/why/how" openings
+  - Avoid metaphors
+- Examples of good hookText:
+  - "This system is lying."
+  - "This looks correct. It isn't."
+  - "This works. Until it doesn't."
+  - "Everyone does this wrong."
+- hookText appears visually BEFORE narration starts
 
 ========================
 ALLOWED ACTION OPS

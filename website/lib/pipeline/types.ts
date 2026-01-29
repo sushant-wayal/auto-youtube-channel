@@ -26,6 +26,7 @@ export interface VideoScript {
     shorts: {
         id: string;
         hook: string;
+        hookText: string;
         narration: string;
         baseDuration: number;
         holdDuration: number;

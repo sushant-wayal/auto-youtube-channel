@@ -1,6 +1,13 @@
 /**
  * Video Assembly Service
  * Assembles final video from clips, music, and branding using FFmpeg
+ * 
+ * SHORTS AUDIO STRUCTURE:
+ * For Shorts (isShort=true), narration audio is automatically prepended with:
+ * - 1.5s silence (visual hook phase)
+ * - 0.3s soft UI click sound (transition)
+ * - Original narration (explanation phase)
+ * Total hook phase duration: 1.8s before narration starts
  */
 
 import fsPromises from 'fs/promises';
@@ -66,6 +73,14 @@ export class VideoAssemblyService {
     }
 
     private async downloadFile(url: string, outPath: string) {
+        // Check if it's a local file path instead of URL
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            // It's a local file, just copy it
+            await fsPromises.copyFile(url, outPath);
+            return;
+        }
+
+        // It's a URL, download it
         const res = await fetch(url);
         if (!res.ok || !res.body) {
             throw new Error(`Failed to download ${url}`);
@@ -116,7 +131,16 @@ export class VideoAssemblyService {
             console.error(`  ⬇️  Downloading scene ${i + 1} audio...`);
             await this.downloadFile(input.narrationAudios[i], sceneAudio);
 
-            const sceneAudioDuration = await getVideoDuration(sceneAudio);
+            // For Shorts: prepend silence + click before narration
+            let finalSceneAudio = sceneAudio;
+            if (input.isShort) {
+                console.error(`  🔇 Adding hook silence + click for Shorts...`);
+                const hookAudio = path.join(outputDir, `hook_audio_${i}.wav`);
+                await this.prependHookAudioForShorts(sceneAudio, hookAudio);
+                finalSceneAudio = hookAudio;
+            }
+
+            const sceneAudioDuration = await getVideoDuration(finalSceneAudio);
             const animationStop = input.animationStopTimes?.[i] ?? 0;
             const targetDuration = Math.max(animationStop + 0.5, sceneAudioDuration);
 
@@ -132,7 +156,7 @@ export class VideoAssemblyService {
             // Attach audio to scene clip
             console.error(`  🔊 Attaching audio to scene ${i + 1}...`);
             const sceneWithAudio = path.join(outputDir, `scene_with_audio_${i}.mp4`);
-            await this.addAudioToVideo(sceneVideo, sceneAudio, sceneWithAudio);
+            await this.addAudioToVideo(sceneVideo, finalSceneAudio, sceneWithAudio);
 
             // Concat immediately
             console.error(`  🔗 Concatenating scene ${i + 1} to combined video...`);
@@ -146,12 +170,19 @@ export class VideoAssemblyService {
             }
 
             // Cleanup aggressively
-            await Promise.allSettled([
+            const cleanupFiles = [
                 fsPromises.unlink(clipPath),
                 fsPromises.unlink(sceneAudio),
                 fsPromises.unlink(sceneVideo),
                 fsPromises.unlink(sceneWithAudio),
-            ]);
+            ];
+
+            // Also cleanup hook audio if it was created (for Shorts)
+            if (input.isShort && finalSceneAudio !== sceneAudio) {
+                cleanupFiles.push(fsPromises.unlink(finalSceneAudio));
+            }
+
+            await Promise.allSettled(cleanupFiles);
         }
 
         /* -------------------------
@@ -584,6 +615,84 @@ export class VideoAssemblyService {
                 '-b:a', '128k',
             ],
         });
+    }
+
+    /**
+     * Prepend silence + click sound before narration for Shorts hook phase
+     * Hook phase: 1.5s silence + 0.3s click = 1.8s total before narration
+     */
+    async prependHookAudioForShorts(
+        narrationPath: string,
+        outputPath: string
+    ): Promise<void> {
+        const HOOK_DURATION = 1.5; // Silence for visual hook
+        const HOOK_PAUSE = 0.3;    // Click sound duration
+
+        // Path to the soft UI click sound
+        const clickSoundPath = path.join(__dirname, '../../assets/music/soft-ui-click.wav');
+
+        console.error(`    Prepending ${HOOK_DURATION}s silence + ${HOOK_PAUSE}s click...`);
+
+        // Convert narration to WAV for concatenation (same format as silence/click)
+        const narrationWavPath = path.join(path.dirname(outputPath), 'narration_temp.wav');
+        await runFFmpeg({
+            inputs: [narrationPath],
+            output: narrationWavPath,
+            args: [
+                '-c:a', 'pcm_s16le',
+                '-ar', '48000',
+                '-ac', '2',
+            ],
+        });
+
+        // Create silence audio using -t flag (compatible with older FFmpeg)
+        const silencePath = path.join(path.dirname(outputPath), 'hook_silence.wav');
+        await runFFmpeg({
+            inputs: [],
+            output: silencePath,
+            args: [
+                '-f', 'lavfi',
+                '-i', 'anullsrc=r=48000:cl=stereo',
+                '-t', HOOK_DURATION.toString(),
+                '-c:a', 'pcm_s16le',
+            ],
+        });
+
+        // Trim/pad click sound to exact HOOK_PAUSE duration
+        const clickPath = path.join(path.dirname(outputPath), 'hook_click.wav');
+        await runFFmpeg({
+            inputs: [clickSoundPath],
+            output: clickPath,
+            args: [
+                '-t', HOOK_PAUSE.toString(),
+                '-af', 'apad',
+                '-c:a', 'pcm_s16le',
+            ],
+        });
+
+        // Concatenate: silence + click + narration
+        const concatListPath = path.join(path.dirname(outputPath), 'hook_concat.txt');
+        const concatList = `file '${silencePath}'\nfile '${clickPath}'\nfile '${narrationWavPath}'`;
+        await fsPromises.writeFile(concatListPath, concatList);
+
+        await runFFmpeg({
+            inputs: [],
+            output: outputPath,
+            args: [
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concatListPath,
+                '-c:a', 'pcm_s16le',
+            ],
+        });
+
+        // Cleanup temporary files
+        await Promise.allSettled([
+            fsPromises.unlink(silencePath),
+            fsPromises.unlink(clickPath),
+            fsPromises.unlink(narrationWavPath),
+            fsPromises.unlink(concatListPath),
+        ]);
     }
 
     /**
