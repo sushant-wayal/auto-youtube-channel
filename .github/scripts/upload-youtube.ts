@@ -5,6 +5,7 @@
 
 import { uploadToYouTube } from '../../workers/youtube-upload/src/index';
 import { validateConfig } from '../../shared/config';
+import { getLongFormPublishTime } from '../../shared/services/shorts-publish-time-service';
 
 interface ScriptData {
     script: {
@@ -12,6 +13,32 @@ interface ScriptData {
         description: string;
         tags: string[];
     };
+}
+
+/**
+ * Calculate publish time from IST time string
+ * @param timeIST Time in HH:MM format (IST)
+ * @param dayOffset Number of days to offset from today (0 = today, 1 = tomorrow)
+ */
+function getPublishTimeFromISTTime(timeIST: string, dayOffset: number = 0): string {
+    const now = new Date();
+    const [hours, minutes] = timeIST.split(':').map(Number);
+
+    // IST is UTC+5:30
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+
+    // Set to target time IST
+    const targetIST = new Date(istNow);
+    targetIST.setHours(hours, minutes, 0, 0);
+
+    // Add day offset
+    targetIST.setDate(targetIST.getDate() + dayOffset);
+
+    // Convert back to UTC for YouTube API
+    const utcPublishTime = new Date(targetIST.getTime() - istOffset);
+
+    return utcPublishTime.toISOString();
 }
 
 async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: string) {
@@ -24,6 +51,11 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
         console.error(`🖼️  Thumbnail URL: ${thumbnailUrl}`);
     }
 
+    // Get configured long-form schedule time
+    const longFormTime = await getLongFormPublishTime();
+    const scheduledPublishTime = getPublishTimeFromISTTime(longFormTime, 0);
+    console.error(`📅 Scheduling long-form video for ${longFormTime} IST (${scheduledPublishTime})`);
+
     const result = await uploadToYouTube({
         videoUrl,
         isShort: false,
@@ -31,7 +63,8 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
         description: data.script.description,
         tags: data.script.tags,
         thumbnailUrl: thumbnailUrl || undefined,
-        privacyStatus: 'public',
+        privacyStatus: 'private', // Required for scheduled publishing
+        scheduledPublishTime,
     });
 
     console.error(`✅ Uploaded to YouTube: ${result.videoId}`);

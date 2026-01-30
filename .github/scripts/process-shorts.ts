@@ -8,21 +8,24 @@ import { generateVoiceOvers } from '../../workers/voice-over-generation/src/inde
 import { assembleVideo } from '../../workers/video-assembler/src/index';
 import { uploadToYouTube } from '../../workers/youtube-upload/src/index';
 import { validateConfig } from '../../shared/config';
+import { getShortsPublishTimeByRank } from '../../shared/services/shorts-publish-time-service';
 
 /**
- * Calculate the next 4:30 PM IST publish time
+ * Calculate publish time from IST time string
+ * @param timeIST Time in HH:MM format (IST)
  * @param dayOffset Number of days to offset from today (0 = today, 1 = tomorrow)
  */
-function getNext430PMISTPublishTime(dayOffset: number = 0): string {
+function getPublishTimeFromISTTime(timeIST: string, dayOffset: number = 0): string {
     const now = new Date();
+    const [hours, minutes] = timeIST.split(':').map(Number);
 
     // IST is UTC+5:30
-    const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+    const istOffset = 5.5 * 60 * 60 * 1000;
     const istNow = new Date(now.getTime() + istOffset);
 
-    // Set to 4:30 PM IST (16:30)
+    // Set to target time IST
     const targetIST = new Date(istNow);
-    targetIST.setHours(16, 30, 0, 0);
+    targetIST.setHours(hours, minutes, 0, 0);
 
     // Add day offset
     targetIST.setDate(targetIST.getDate() + dayOffset);
@@ -108,10 +111,12 @@ async function processAllShorts(videoId: string, scriptData: string) {
             isShort: true,
         });
 
-        // 4. Upload to YouTube with scheduled publish at 4:30 PM IST
-        // All shorts scheduled for the same time (today at 4:30 PM IST)
-        const scheduledPublishTime = getNext430PMISTPublishTime(0);
-        console.error(`📤 Uploading short ${i + 1} to YouTube (scheduled for ${scheduledPublishTime})...`);
+        // 4. Upload to YouTube with ranked schedule time
+        // Assign shorts to ranked time slots based on position (rank)
+        const shortsRank = Math.min(i, 4); // Cap at rank 4 (we have 5 slots)
+        const shortsTime = await getShortsPublishTimeByRank(shortsRank);
+        const scheduledPublishTime = getPublishTimeFromISTTime(shortsTime, 0);
+        console.error(`📤 Uploading short ${i + 1} (Rank ${shortsRank + 1}) to YouTube (scheduled for ${shortsTime} IST / ${scheduledPublishTime})...`);
 
         const { videoId: youtubeId } = await uploadToYouTube({
             videoUrl: assembled.outputUrl,
@@ -123,13 +128,14 @@ async function processAllShorts(videoId: string, scriptData: string) {
             scheduledPublishTime,
         });
 
-        console.error(`✅ Short ${i + 1} completed: ${youtubeId} (scheduled for ${scheduledPublishTime})`);
+        console.error(`✅ Short ${i + 1} completed: ${youtubeId} (Rank ${shortsRank + 1} - scheduled for ${shortsTime} IST)`);
 
         results.push({
             shortId,
             youtubeId,
             videoUrl: assembled.outputUrl,
             scheduledPublishTime,
+            rank: shortsRank + 1,
         });
     }
 

@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import fs from 'fs';
 import path from "path";
 import { pipeline } from "stream/promises";
-import { getShortsPublishTime } from "../../../../shared/services/shorts-publish-time-service";
+import { getShortsPublishTimes } from "../../../../shared/services/shorts-publish-time-service";
 
 /**
  * Calculate the publish time based on configured IST time
@@ -96,14 +96,17 @@ export class YouTubeService {
       }
 
       // For shorts without explicit scheduledPublishTime, fetch from config and set privacy to private
+      // NOTE: In production, GitHub Actions scripts (.github/scripts/process-shorts.ts) 
+      // provide explicit scheduledPublishTime, so this fallback is rarely used
       let finalScheduledTime = scheduledPublishTime;
       let finalPrivacyStatus = privacyStatus;
 
       if (isShort && !scheduledPublishTime) {
-        const configuredTime = await getShortsPublishTime();
-        finalScheduledTime = getPublishTimeFromISTTime(configuredTime, 0);
+        const configuredTimes = await getShortsPublishTimes();
+        const bestTime = configuredTimes[0]; // Use Rank 1 (best) time as fallback
+        finalScheduledTime = getPublishTimeFromISTTime(bestTime, 0);
         finalPrivacyStatus = 'private'; // Required for scheduled publishing
-        console.error(`⏰ Using configured shorts publish time: ${configuredTime} IST (${finalScheduledTime})`);
+        console.error(`⏰ Using fallback shorts publish time (Rank 1): ${bestTime} IST (${finalScheduledTime})`);
       }
 
       console.error("🚀 Starting YouTube upload...");

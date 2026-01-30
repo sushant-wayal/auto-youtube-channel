@@ -46,6 +46,14 @@ export type ShortsPublishTimeResponse = {
     error?: string;
 };
 
+// Schedule Times API Types
+export type ScheduleTimesResponse = {
+    ok: boolean;
+    shortsTimes?: string[];
+    longFormTime?: string;
+    error?: string;
+};
+
 // Ideas Queue API
 export const ideasApi = {
     // Get all ideas
@@ -216,6 +224,89 @@ export const shortsApi = {
             return data;
         } catch (error: any) {
             console.error('[API] Error updating publish time:', error.message || error);
+            return {
+                ok: false,
+                error: error.message || String(error)
+            };
+        }
+    },
+};
+
+// Schedule Times API (New unified API for both shorts and long-form)
+export const scheduleTimesApi = {
+    // Get all schedule times (shorts ranked times + long-form time)
+    getScheduleTimes: async (): Promise<ScheduleTimesResponse> => {
+        try {
+            console.log('[API] Fetching schedule times from:', `${API_BASE_URL}/api/schedule-times`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/schedule-times`);
+            const data = await response.json();
+            console.log('[API] Schedule times fetched successfully:', data);
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error fetching schedule times:', error.message || error);
+            return {
+                ok: false,
+                error: error.message || String(error)
+            };
+        }
+    },
+
+    // Update shorts times (array of 5 ranked times)
+    updateShortsTimes: async (shortsTimes: string[]): Promise<ScheduleTimesResponse> => {
+        try {
+            console.log('[API] Updating shorts times:', shortsTimes);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/schedule-times`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shortsTimes }),
+            });
+            const data = await response.json();
+            console.log('[API] Shorts times updated successfully');
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error updating shorts times:', error.message || error);
+            return {
+                ok: false,
+                error: error.message || String(error)
+            };
+        }
+    },
+
+    // Update long-form time
+    updateLongFormTime: async (longFormTime: string): Promise<ScheduleTimesResponse> => {
+        try {
+            console.log('[API] Updating long-form time:', longFormTime);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/schedule-times`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ longFormTime }),
+            });
+            const data = await response.json();
+            console.log('[API] Long-form time updated successfully');
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error updating long-form time:', error.message || error);
+            return {
+                ok: false,
+                error: error.message || String(error)
+            };
+        }
+    },
+
+    // Update both shorts and long-form times
+    updateAllScheduleTimes: async (shortsTimes: string[], longFormTime: string): Promise<ScheduleTimesResponse> => {
+        try {
+            console.log('[API] Updating all schedule times');
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/schedule-times`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shortsTimes, longFormTime }),
+            });
+            const data = await response.json();
+            console.log('[API] All schedule times updated successfully');
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error updating all schedule times:', error.message || error);
             return {
                 ok: false,
                 error: error.message || String(error)

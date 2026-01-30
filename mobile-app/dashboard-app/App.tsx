@@ -6,7 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View, Animated, Dimensions, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import IdeasScreen from './screens/IdeasScreen';
-import ShortsScheduleScreen from './screens/ShortsScheduleScreen';
+import ScheduleTimesScreen from './screens/ScheduleTimesScreen';
 import { colors } from './theme';
 
 const Tab = createMaterialTopTabNavigator();
@@ -119,7 +119,7 @@ export default function App() {
                         />
                         <Tab.Screen
                             name="Schedule"
-                            component={ShortsScheduleScreen}
+                            component={ScheduleTimesScreen}
                             options={{
                                 tabBarLabel: ({ focused }) => (
                                     <View style={{ width: 180, height: 40, backgroundColor: '#FF0000', justifyContent: 'center', alignItems: 'center' }}>

@@ -24,9 +24,17 @@ export default function DashboardClient() {
     const [shortsTimeLoading, setShortsTimeLoading] = useState(false);
     const [shortsTimeError, setShortsTimeError] = useState<string | null>(null);
 
+    // New schedule times state
+    const [shortsTimes, setShortsTimes] = useState<string[]>(['16:30', '18:00', '20:00', '12:00', '14:00']);
+    const [longFormTime, setLongFormTime] = useState<string>('18:30');
+    const [scheduleLoading, setScheduleLoading] = useState(false);
+    const [scheduleError, setScheduleError] = useState<string | null>(null);
+    const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
+
     useEffect(() => {
         loadIdeasQueue();
         loadShortsPublishTime();
+        loadScheduleTimes();
     }, []);
 
     const loadIdeasQueue = async () => {
@@ -70,6 +78,40 @@ export default function DashboardClient() {
             setShortsTimeError(String(err));
         } finally {
             setShortsTimeLoading(false);
+        }
+    };
+
+    const loadScheduleTimes = async () => {
+        try {
+            const res = await fetch('/api/schedule-times');
+            const data = await res.json();
+            if (data.ok) {
+                setShortsTimes(data.shortsTimes);
+                setLongFormTime(data.longFormTime);
+            }
+        } catch (err) {
+            console.error('Failed to load schedule times:', err);
+        }
+    };
+
+    const saveScheduleTimes = async () => {
+        setScheduleLoading(true);
+        setScheduleError(null);
+        setScheduleSuccess(null);
+        try {
+            const res = await fetch('/api/schedule-times', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shortsTimes, longFormTime }),
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error);
+            setScheduleSuccess('Schedule times updated successfully!');
+            setTimeout(() => setScheduleSuccess(null), 3000);
+        } catch (err: any) {
+            setScheduleError(String(err));
+        } finally {
+            setScheduleLoading(false);
         }
     };
 
@@ -204,39 +246,81 @@ export default function DashboardClient() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Shorts Publish Time (IST)</CardTitle>
-                    <CardDescription>Set the default time for publishing YouTube Shorts</CardDescription>
+                    <CardTitle>Shorts Schedule Times (IST)</CardTitle>
+                    <CardDescription>Configure 5 ranked publish times for shorts (best to worst performance)</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {shortsTimeError && (
+                    {scheduleError && (
                         <div className="text-sm text-red-600 bg-red-50 p-3 rounded">
-                            {shortsTimeError}
+                            {scheduleError}
+                        </div>
+                    )}
+                    {scheduleSuccess && (
+                        <div className="text-sm text-green-600 bg-green-50 p-3 rounded">
+                            {scheduleSuccess}
                         </div>
                     )}
 
-                    <div className="flex items-end gap-4">
-                        <div className="flex-1 space-y-2">
-                            <Label htmlFor="shorts-time">Time (24-hour format HH:MM)</Label>
-                            <Input
-                                id="shorts-time"
-                                type="time"
-                                value={shortsPublishTime}
-                                onChange={e => setShortsPublishTime(e.target.value)}
-                                disabled={shortsTimeLoading}
-                            />
-                        </div>
-                        <Button
-                            onClick={saveShortsPublishTime}
-                            disabled={shortsTimeLoading}
-                        >
-                            {shortsTimeLoading ? 'Saving...' : 'Save'}
-                        </Button>
+                    <div className="space-y-3">
+                        {shortsTimes.map((time, index) => (
+                            <div key={index} className="flex items-center gap-3">
+                                <div className="w-20 text-sm font-medium text-muted-foreground">
+                                    Rank {index + 1}
+                                    {index === 0 && ' 🏆'}
+                                </div>
+                                <Input
+                                    type="time"
+                                    value={time}
+                                    onChange={e => {
+                                        const newTimes = [...shortsTimes];
+                                        newTimes[index] = e.target.value;
+                                        setShortsTimes(newTimes);
+                                    }}
+                                    disabled={scheduleLoading}
+                                    className="flex-1"
+                                />
+                            </div>
+                        ))}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                        Current: {shortsPublishTime} IST (Indian Standard Time)
+                        Shorts are automatically assigned times based on their rank. Best shorts get Rank 1 time.
                     </p>
                 </CardContent>
             </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Long-Form Video Schedule Time (IST)</CardTitle>
+                    <CardDescription>Set the default publish time for long-form YouTube videos</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-end gap-4">
+                        <div className="flex-1 space-y-2">
+                            <Label htmlFor="longform-time">Time (24-hour format HH:MM)</Label>
+                            <Input
+                                id="longform-time"
+                                type="time"
+                                value={longFormTime}
+                                onChange={e => setLongFormTime(e.target.value)}
+                                disabled={scheduleLoading}
+                            />
+                        </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        Current: {longFormTime} IST (Indian Standard Time)
+                    </p>
+                </CardContent>
+            </Card>
+
+            <div className="flex justify-end">
+                <Button
+                    onClick={saveScheduleTimes}
+                    disabled={scheduleLoading}
+                    size="lg"
+                >
+                    {scheduleLoading ? 'Saving...' : 'Save Schedule Times'}
+                </Button>
+            </div>
 
             <Card>
                 <CardHeader>
