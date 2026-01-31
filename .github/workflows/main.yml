@@ -252,6 +252,7 @@ jobs:
       - name: Upload to YouTube
         id: upload
         env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
@@ -292,6 +293,7 @@ jobs:
 
       - name: Process all shorts
         env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
