@@ -13,9 +13,10 @@ export async function assembleVideo(input: VideoAssemblyInput): Promise<{
     outputUrl: string;
     duration: number;
     clipCount: number;
+    sceneDurations?: number[];
 }> {
     validateConfig(['cloudinary']);
-    
+
     const assemblyService = new VideoAssemblyService();
     const cloudinaryService = CloudinaryService.getInstance();
 
@@ -42,5 +43,6 @@ export async function assembleVideo(input: VideoAssemblyInput): Promise<{
         outputUrl: mainVideoUpload.secureUrl,
         duration: assembledVideo.duration,
         clipCount: assembledVideo.clipCount,
+        sceneDurations: assembledVideo.sceneDurations,  // Pass through scene durations
     };
 }

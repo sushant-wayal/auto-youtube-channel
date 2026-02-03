@@ -193,6 +193,7 @@ jobs:
     timeout-minutes: 60
     outputs:
       video_url: ${{ steps.assemble.outputs.video_url }}
+      scene_durations: ${{ steps.assemble.outputs.scene_durations }}
     
     steps:
       - name: Checkout code
@@ -259,6 +260,7 @@ jobs:
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
           THUMBNAIL_URL: ${{ needs.generate-thumbnail.outputs.thumbnail_url }}
           VIDEO_URL: ${{ needs.assemble-video.outputs.video_url }}
+          SCENE_DURATIONS: ${{ needs.assemble-video.outputs.scene_durations }}
         run: |
           RESULT=$(npx tsx .github/scripts/upload-youtube.ts)
           echo "$RESULT" >> $GITHUB_OUTPUT

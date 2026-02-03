@@ -88,6 +88,7 @@ REQUIRED OUTPUT FORMAT
   "scenes": [
     {
       "id": "scene-1",
+      "sceneTitle": "Brief descriptive title for this section (3-7 words)",
       "baseDuration": 20.0,
       "holdDuration": 2.0,
       "narration": "Full narration text for this scene, matching the duration.",
@@ -140,6 +141,9 @@ SCENE RULES (MAIN VIDEO)
 ========================
 
 - max 10 scenes, min 15 seconds baseDuration per scene
+- each scene MUST have a "sceneTitle" field: short descriptive title (3-7 words)
+- sceneTitle should capture the key concept/topic of that scene section
+- sceneTitle will be used for YouTube chapter timestamps
 - narration ~130-150 words per scene for ${duration} min video
 - narration length should match baseDuration + holdDuration
 - all action.t < baseDuration

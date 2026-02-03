@@ -12,6 +12,10 @@ interface ScriptData {
         title: string;
         description: string;
         tags: string[];
+        scenes: Array<{
+            sceneTitle?: string;
+            narration: string;
+        }>;
     };
 }
 
@@ -41,7 +45,7 @@ function getPublishTimeFromISTTime(timeIST: string, dayOffset: number = 0): stri
     return utcPublishTime.toISOString();
 }
 
-async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: string) {
+async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: string, sceneDurationsEncoded?: string) {
     validateConfig(['youtube']);
 
     const data: ScriptData = JSON.parse(scriptData);
@@ -49,6 +53,40 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
     console.error(`📤 Uploading video to YouTube: ${data.script.title}`);
     if (thumbnailUrl) {
         console.error(`🖼️  Thumbnail URL: ${thumbnailUrl}`);
+    }
+
+    // Extract scene titles and durations for timestamp generation
+    let sceneTitles: string[] | undefined;
+    let sceneDurations: number[] | undefined;
+
+    if (sceneDurationsEncoded) {
+        try {
+            const decoded = Buffer.from(sceneDurationsEncoded, 'hex').toString('utf-8');
+            sceneDurations = JSON.parse(decoded);
+
+            // Extract scene titles from script
+            sceneTitles = data.script.scenes.map(scene => {
+                // Use sceneTitle if available, otherwise extract from narration
+                if (scene.sceneTitle) {
+                    return scene.sceneTitle;
+                }
+                // Fallback: extract first sentence from narration
+                const narration = scene.narration.replace(/\[PAUSE=.*?\]/g, '').trim();
+                const firstSentence = narration.split(/[.!?]/)[0] || narration;
+                return firstSentence.length > 60
+                    ? firstSentence.substring(0, 57) + '...'
+                    : firstSentence;
+            });
+
+            if (sceneTitles && sceneDurations) {
+                console.error(`📊 Scene metadata: ${sceneTitles.length} titles, ${sceneDurations.length} durations`);
+                console.error(`📊 Video includes intro (8s) and outro (8s)`);
+            }
+        } catch (error) {
+            console.error(`⚠️ Failed to parse scene durations:`, error);
+            sceneTitles = undefined;
+            sceneDurations = undefined;
+        }
     }
 
     // Get configured long-form schedule time
@@ -65,6 +103,15 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
         thumbnailUrl: thumbnailUrl || undefined,
         privacyStatus: 'private', // Required for scheduled publishing
         scheduledPublishTime,
+        sceneTitles,  // Pass scene titles for chapters
+        sceneDurations,  // Pass actual durations from assembly
+        // Long-form videos have intro and outro
+        hasIntro: true,
+        introDuration: 8,
+        introTitle: 'Intro',
+        hasOutro: true,
+        outroDuration: 8,
+        outroTitle: 'Outro',
     });
 
     console.error(`✅ Uploaded to YouTube: ${result.videoId}`);
@@ -77,6 +124,7 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
         const videoUrlEncoded = process.env.VIDEO_URL;
         const scriptData = process.env.SCRIPT_DATA;
         const thumbnailUrlEncoded = process.env.THUMBNAIL_URL; // Optional
+        const sceneDurationsEncoded = process.env.SCENE_DURATIONS; // Optional for timestamps
 
         if (!videoUrlEncoded || !scriptData) {
             throw new Error('Missing required: VIDEO_URL (env) or SCRIPT_DATA (env)');
@@ -90,8 +138,9 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
 
         console.error(`[DEBUG] Thumbnail URL encoded: ${thumbnailUrlEncoded || '(empty)'}`);
         console.error(`[DEBUG] Thumbnail URL decoded: ${thumbnailUrl || '(none)'}`);
+        console.error(`[DEBUG] Scene durations: ${sceneDurationsEncoded ? 'present' : 'not available'}`);
 
-        const result = await uploadVideo(videoUrl, scriptData, thumbnailUrl);
+        const result = await uploadVideo(videoUrl, scriptData, thumbnailUrl, sceneDurationsEncoded);
 
         // Output for GitHub Actions
         console.log(`youtube_id=${result.videoId}`);

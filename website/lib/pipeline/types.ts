@@ -2,6 +2,7 @@
 
 export interface SceneIR {
     id: string;
+    sceneTitle?: string;  // Short title for YouTube chapters
     baseDuration: number;
     holdDuration: number;
     narration: string;
@@ -63,6 +64,7 @@ export interface VideoAssemblyResult {
     outputPath: string;
     duration: number;
     clipCount: number;
+    sceneDurations?: number[];  // Actual duration of each scene after assembly
 }
 
 export interface ThumbnailResult {

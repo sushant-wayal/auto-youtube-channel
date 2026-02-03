@@ -41,6 +41,7 @@ export interface VideoAssemblyResult {
     outputPath: string;
     duration: number;
     clipCount: number;
+    sceneDurations?: number[];  // Actual duration of each scene after assembly
 }
 
 export class VideoAssemblyService {
@@ -112,6 +113,7 @@ export class VideoAssemblyService {
         ------------------------------------------ */
         const combinedPath = path.join(outputDir, "combined_video.mp4");
         let combinedExists = false;
+        const sceneDurations: number[] = []; // Track actual scene durations
 
         for (let i = 0; i < input.clips.length; i++) {
 
@@ -143,6 +145,9 @@ export class VideoAssemblyService {
             const sceneAudioDuration = await getVideoDuration(finalSceneAudio);
             const animationStop = input.animationStopTimes?.[i] ?? 0;
             const targetDuration = Math.max(animationStop + 0.5, sceneAudioDuration);
+
+            // Store actual scene duration for timestamps
+            sceneDurations.push(targetDuration);
 
             console.error(`  🎞️  Normalizing scene ${i + 1} to ${targetDuration.toFixed(2)}s...`);
             // Normalize clip to target duration
@@ -271,11 +276,14 @@ export class VideoAssemblyService {
         const duration = await getVideoDuration(finalOutput);
 
         console.error(`✅ Video assembly complete! Duration: ${duration.toFixed(2)}s`);
+        console.error(`📊 Scene durations: ${sceneDurations.map(d => d.toFixed(2)).join(', ')}s`);
+
         return {
             videoId: input.videoId,
             outputPath: finalOutput,
             duration,
             clipCount: input.clips.length,
+            sceneDurations,  // Return actual scene durations for timestamps
         };
     }
 

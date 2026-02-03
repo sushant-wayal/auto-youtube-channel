@@ -11,6 +11,7 @@ interface ScriptData {
         narration: string;
         scenes: Array<{
             narration: string;
+            sceneTitle?: string;
         }>;
     };
 }
@@ -95,6 +96,11 @@ async function assembleMainVideo(
 
         // Output for GitHub Actions (hex encoded to avoid secret detection patterns)
         console.log(`video_url=${Buffer.from(result.outputUrl).toString('hex')}`);
+
+        // Output scene durations for timestamp generation
+        if (result.sceneDurations && result.sceneDurations.length > 0) {
+            console.log(`scene_durations=${Buffer.from(JSON.stringify(result.sceneDurations)).toString('hex')}`);
+        }
 
         process.exit(0);
     } catch (error) {
