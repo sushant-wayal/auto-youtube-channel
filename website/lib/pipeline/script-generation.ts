@@ -194,20 +194,36 @@ SHORTS RULES (CRITICAL)
 - End with visual punchline (bold text, freeze, contrast)
 - Must be replayable and standalone
 
-**SHORTS VISUAL HOOK (NEW):**
+**SHORTS VISUAL HOOK (CRITICAL POV REQUIREMENT):**
 - Each short MUST have a "hookText" field (separate from hook and narration)
-- hookText: 1-2 short declarative sentences that create visual tension
+- hookText MUST start with "YOU" or "YOUR" (exact word, UPPERCASE)
+- hookText must be 3-5 words maximum
+- hookText must directly address the viewer in second-person POV
+- hookText MUST include a concrete technical noun from the video topic
 - hookText should:
-  - Assert or imply something is wrong/unexpected
-  - NOT explain the reason yet (that's for narration)
-  - Be bold and direct, not a question
-  - Avoid "what/why/how" openings
-  - Avoid metaphors
-- Examples of good hookText:
-  - "This system is lying."
-  - "This looks correct. It isn't."
-  - "This works. Until it doesn't."
-  - "Everyone does this wrong."
+  - Be specific to the technical concept being explained
+  - Include the actual subject matter (e.g., database, clock, cache, API, server, token, React, CSS)
+  - Make a direct claim about that technical element
+  - Create immediate tension or realization
+  - NO vague phrases allowed
+  - NO generic statements like "YOU ARE DOING THIS WRONG", "YOU SHOULD STOP", "THIS IS BAD"
+  - NO abstract or filler words like "this", "that", "thing"
+  - NO questions - use direct assertions only
+  - NO metaphors or indirect language
+- Examples of CORRECT hookText (specific + technical noun):
+  - "YOUR DATABASE LIES" (for data consistency topic)
+  - "YOUR CLOCK IS WRONG" (for distributed systems time sync)
+  - "YOUR CACHE IS STALE" (for caching invalidation)
+  - "YOUR API LEAKS DATA" (for API security)
+  - "YOUR REACT RERENDERS TWICE" (for React rendering)
+  - "YOU TRUST BAD TOKENS" (for auth security)
+- Examples of INCORRECT hookText (DO NOT USE):
+  - "YOU'RE DOING THIS WRONG" (too vague, no technical noun)
+  - "YOU SHOULD STOP THIS" (too generic, no specificity)
+  - "THIS IS BAD" (not POV, no technical noun)
+  - "YOUR CODE IS BROKEN" (too generic, "code" is not specific enough)
+  - "This system is broken" (not POV, not starting with YOU/YOUR)
+  - "Everyone makes this mistake" (third-person)
 - hookText appears visually BEFORE narration starts
 
 ========================
