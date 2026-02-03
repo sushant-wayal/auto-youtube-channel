@@ -164,11 +164,11 @@ Runs daily at 2 AM UTC (configurable in `.github/workflows/main.yml`)
 
 ```yaml
 schedule:
-  - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  - cron: '0 0 * * *'  # Daily at Midnight UTC
 ```
 
 **Common Cron Patterns:**
-- `'0 0 * * *'` - Midnight UTC
+- `'0 2 * * *'` - 2 AM UTC
 - `'0 6 * * *'` - 6 AM UTC
 - `'0 */6 * * *'` - Every 6 hours
 - `'0 0 * * 0'` - Weekly (Sunday)
