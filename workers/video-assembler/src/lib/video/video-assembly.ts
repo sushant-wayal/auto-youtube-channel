@@ -1,13 +1,6 @@
 /**
  * Video Assembly Service
  * Assembles final video from clips, music, and branding using FFmpeg
- * 
- * SHORTS AUDIO STRUCTURE:
- * For Shorts (isShort=true), narration audio is automatically prepended with:
- * - 1.5s silence (visual hook phase)
- * - 0.3s soft UI click sound (transition)
- * - Original narration (explanation phase)
- * Total hook phase duration: 1.8s before narration starts
  */
 
 import fsPromises from 'fs/promises';
@@ -129,20 +122,30 @@ export class VideoAssemblyService {
             console.error(`  ⬇️  Downloading scene ${i + 1} video...`);
             await this.downloadFile(clipUrl, clipPath);
 
-            // Extract scene audio
-            console.error(`  ⬇️  Downloading scene ${i + 1} audio...`);
-            await this.downloadFile(input.narrationAudios[i], sceneAudio);
+            // Get scene video duration first (for silence generation if needed)
+            const clipDuration = await getVideoDuration(clipPath);
 
-            // For Shorts: prepend silence + click before narration
-            let finalSceneAudio = sceneAudio;
-            if (input.isShort) {
-                console.error(`  🔇 Adding hook silence + click for Shorts...`);
-                const hookAudio = path.join(outputDir, `hook_audio_${i}.wav`);
-                await this.prependHookAudioForShorts(sceneAudio, hookAudio);
-                finalSceneAudio = hookAudio;
+            // Handle scene audio - check if narration exists
+            let sceneAudioDuration: number;
+
+            console.error(`  ⬇️  Processing scene ${i + 1} audio...`);
+
+            // Check if we have a narration audio URL and if the scene has narration
+            const hasNarrationAudio = input.narrationAudios && input.narrationAudios[i];
+            const sceneNarration = input.perSceneNarration[i];
+            const isEmptyNarration = !sceneNarration || sceneNarration.trim() === '';
+
+            if (hasNarrationAudio && !isEmptyNarration) {
+                // Normal case: download narration audio
+                await this.downloadFile(input.narrationAudios[i], sceneAudio);
+                sceneAudioDuration = await getVideoDuration(sceneAudio);
+            } else {
+                // Empty narration: create silence matching clip duration
+                console.error(`  🔇 Empty narration detected - creating silence audio (${clipDuration.toFixed(2)}s)`);
+                await this.createSilenceAudio(sceneAudio, clipDuration);
+                sceneAudioDuration = clipDuration;
             }
 
-            const sceneAudioDuration = await getVideoDuration(finalSceneAudio);
             const animationStop = input.animationStopTimes?.[i] ?? 0;
             const targetDuration = Math.max(animationStop + 0.5, sceneAudioDuration);
 
@@ -161,7 +164,7 @@ export class VideoAssemblyService {
             // Attach audio to scene clip
             console.error(`  🔊 Attaching audio to scene ${i + 1}...`);
             const sceneWithAudio = path.join(outputDir, `scene_with_audio_${i}.mp4`);
-            await this.addAudioToVideo(sceneVideo, finalSceneAudio, sceneWithAudio);
+            await this.addAudioToVideo(sceneVideo, sceneAudio, sceneWithAudio);
 
             // Concat immediately
             console.error(`  🔗 Concatenating scene ${i + 1} to combined video...`);
@@ -175,19 +178,12 @@ export class VideoAssemblyService {
             }
 
             // Cleanup aggressively
-            const cleanupFiles = [
+            await Promise.allSettled([
                 fsPromises.unlink(clipPath),
                 fsPromises.unlink(sceneAudio),
                 fsPromises.unlink(sceneVideo),
                 fsPromises.unlink(sceneWithAudio),
-            ];
-
-            // Also cleanup hook audio if it was created (for Shorts)
-            if (input.isShort && finalSceneAudio !== sceneAudio) {
-                cleanupFiles.push(fsPromises.unlink(finalSceneAudio));
-            }
-
-            await Promise.allSettled(cleanupFiles);
+            ]);
         }
 
         /* -------------------------
@@ -626,81 +622,25 @@ export class VideoAssemblyService {
     }
 
     /**
-     * Prepend silence + click sound before narration for Shorts hook phase
-     * Hook phase: 1.5s silence + 0.3s click = 1.8s total before narration
+     * Create a silent audio file of specified duration
+     * Used for scenes with empty narration
      */
-    async prependHookAudioForShorts(
-        narrationPath: string,
-        outputPath: string
+    private async createSilenceAudio(
+        outputPath: string,
+        durationSeconds: number
     ): Promise<void> {
-        const HOOK_DURATION = 1.5; // Silence for visual hook
-        const HOOK_PAUSE = 0.3;    // Click sound duration
-
-        // Path to the soft UI click sound
-        const clickSoundPath = path.join(__dirname, '../../assets/music/soft-ui-click.wav');
-
-        console.error(`    Prepending ${HOOK_DURATION}s silence + ${HOOK_PAUSE}s click...`);
-
-        // Convert narration to WAV for concatenation (same format as silence/click)
-        const narrationWavPath = path.join(path.dirname(outputPath), 'narration_temp.wav');
-        await runFFmpeg({
-            inputs: [narrationPath],
-            output: narrationWavPath,
-            args: [
-                '-c:a', 'pcm_s16le',
-                '-ar', '48000',
-                '-ac', '2',
-            ],
-        });
-
-        // Create silence audio using -t flag (compatible with older FFmpeg)
-        const silencePath = path.join(path.dirname(outputPath), 'hook_silence.wav');
-        await runFFmpeg({
-            inputs: [],
-            output: silencePath,
-            args: [
-                '-f', 'lavfi',
-                '-i', 'anullsrc=r=48000:cl=stereo',
-                '-t', HOOK_DURATION.toString(),
-                '-c:a', 'pcm_s16le',
-            ],
-        });
-
-        // Trim/pad click sound to exact HOOK_PAUSE duration
-        const clickPath = path.join(path.dirname(outputPath), 'hook_click.wav');
-        await runFFmpeg({
-            inputs: [clickSoundPath],
-            output: clickPath,
-            args: [
-                '-t', HOOK_PAUSE.toString(),
-                '-af', 'apad',
-                '-c:a', 'pcm_s16le',
-            ],
-        });
-
-        // Concatenate: silence + click + narration
-        const concatListPath = path.join(path.dirname(outputPath), 'hook_concat.txt');
-        const concatList = `file '${silencePath}'\nfile '${clickPath}'\nfile '${narrationWavPath}'`;
-        await fsPromises.writeFile(concatListPath, concatList);
-
         await runFFmpeg({
             inputs: [],
             output: outputPath,
             args: [
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', concatListPath,
+                '-f', 'lavfi',
+                '-i', 'anullsrc=r=48000:cl=stereo',
+                '-t', durationSeconds.toString(),
                 '-c:a', 'pcm_s16le',
             ],
         });
 
-        // Cleanup temporary files
-        await Promise.allSettled([
-            fsPromises.unlink(silencePath),
-            fsPromises.unlink(clickPath),
-            fsPromises.unlink(narrationWavPath),
-            fsPromises.unlink(concatListPath),
-        ]);
+        console.error(`    Created ${durationSeconds.toFixed(2)}s silence audio`);
     }
 
     /**

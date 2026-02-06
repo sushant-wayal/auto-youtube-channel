@@ -295,6 +295,45 @@ class GeminiTTSService {
         }
     }
 
+    /**
+     * Create a silent WAV audio file of specified duration
+     * Used for scenes with empty narration (e.g., hook scenes)
+     */
+    private async createSilenceAudio(
+        outputPath: string,
+        durationSeconds: number
+    ): Promise<string> {
+        const sampleRate = 24000;
+        const numChannels = 1;
+        const bitsPerSample = 16;
+        const bytesPerSample = bitsPerSample / 8;
+
+        // Calculate number of samples needed
+        const numSamples = Math.floor(sampleRate * durationSeconds);
+        const dataSize = numSamples * numChannels * bytesPerSample;
+
+        // Create silent PCM data (all zeros)
+        const silentData = Buffer.alloc(dataSize, 0);
+
+        // Add WAV header
+        const wavBuffer = this.addWavHeader(silentData);
+
+        // Ensure directory exists
+        const dir = path.dirname(outputPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
+        // Write to file
+        const wavPath = outputPath.replace(/\.\w+$/, '.wav');
+        fs.writeFileSync(wavPath, wavBuffer);
+
+        console.error(`💾 Silent audio created: ${wavPath} (${durationSeconds}s)`);
+        console.error(`📊 File size: ${(wavBuffer.length / 1024).toFixed(2)} KB`);
+
+        return wavPath;
+    }
+
     async generateNarrationAudios(
         jobId: string,
         narrations: string[],
@@ -312,11 +351,19 @@ class GeminiTTSService {
             console.error(`\n🎬 Generating narration part ${i + 1} of ${narrations.length}...`);
 
             try {
-                const audioPath = await this.generateNarrationAudio(
-                    narration,
-                    outputPath,
-                    config
-                );
+                let audioPath: string;
+
+                // Check if narration is empty (hook scene or silent scene)
+                if (!narration || narration.trim() === '') {
+                    console.error(`🔇 Empty narration detected - creating 1 second silence`);
+                    audioPath = await this.createSilenceAudio(outputPath, 1.0);
+                } else {
+                    audioPath = await this.generateNarrationAudio(
+                        narration,
+                        outputPath,
+                        config
+                    );
+                }
 
                 console.error(`Uploading narration part ${i + 1} of ${narrations.length} to Cloudinary...`);
 

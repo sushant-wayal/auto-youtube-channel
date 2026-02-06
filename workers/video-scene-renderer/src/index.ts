@@ -8,24 +8,21 @@ import path from 'path';
  * @param scenes SceneIR[]
  * @param videoId string (for output folder naming)
  * @param isShort boolean (default: false) - whether video is short form
- * @param hookText string (optional) - visual hook text for Shorts (shown before actions)
  * @returns { urls: string[], timings: number[], animationStopTimes: number[] }
  */
 export async function renderScenes({
     scenes,
     isShort = false,
-    videoId,
-    hookText
+    videoId
 }: {
     scenes: SceneIR[];
     isShort?: boolean;
     videoId: string;
-    hookText?: string;
 }): Promise<{ urls: string[]; timings: number[]; animationStopTimes: number[] }> {
     validateConfig(['cloudinary']);
 
     const { width, height, fps } = isShort ? config.video.short : config.video.long;
     const outputDir = path.join(config.workDir, videoId, 'scenes');
-    const service = new ClipsRenderService(scenes, videoId, hookText);
+    const service = new ClipsRenderService(scenes, videoId);
     return service.renderScenes(width, height, fps, outputDir);
 }

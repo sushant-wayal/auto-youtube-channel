@@ -43,11 +43,13 @@ interface ScriptData {
         shorts: Array<{
             id: string;
             hook: string;
-            hookText: string;
-            narration: string;
-            baseDuration: number;
-            holdDuration: number;
-            actions: any[];
+            scenes: Array<{
+                id: string;
+                narration: string;
+                baseDuration: number;
+                holdDuration: number;
+                actions: any[];
+            }>;
         }>;
     };
 }
@@ -68,42 +70,59 @@ async function processAllShorts(videoId: string, scriptData: string) {
 
         console.error(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook}`);
 
-        // 1. Render scenes for short
-        console.error(`🎬 Rendering scenes for short ${i + 1}...`);
+        // 1. Render all scenes for short (hook + content)
+        console.error(`🎬 Rendering ${short.scenes.length} scenes for short ${i + 1}...`);
 
-        // Use default durations if not provided
-        const baseDuration = short.baseDuration ?? 25;
-        const holdDuration = short.holdDuration ?? 0;
+        // Validate first scene is hook scene
+        const hookScene = short.scenes[0];
+        if (!hookScene || hookScene.id !== 'hook') {
+            throw new Error(`Short ${i + 1} must have first scene with id='hook'`);
+        }
+        if (hookScene.narration !== '') {
+            throw new Error(`Hook scene must have empty narration (short ${i + 1})`);
+        }
+        if (hookScene.baseDuration < 0.8 || hookScene.baseDuration > 1.5) {
+            console.warn(`⚠️ Hook scene duration ${hookScene.baseDuration}s outside recommended range 0.8-1.5s`);
+        }
 
-        console.error(`   Duration: ${baseDuration}s base + ${holdDuration}s hold = ${baseDuration + holdDuration}s total`);
+        console.error(`   Hook scene: ${hookScene.baseDuration}s (no narration)`);
 
-        const { urls: clips, timings, animationStopTimes } = await renderScenes({
-            scenes: [{
-                id: short.id,
-                baseDuration,
-                holdDuration,
-                actions: short.actions,
-            }],
-            isShort: true,
-            videoId: shortId,
-            hookText: short.hookText,
+        // Log content scenes
+        const contentScenes = short.scenes.slice(1);
+        contentScenes.forEach((scene, idx) => {
+            const totalDuration = scene.baseDuration + scene.holdDuration;
+            console.error(`   Scene ${idx + 2}: ${totalDuration}s (${scene.baseDuration}s base + ${scene.holdDuration}s hold)`);
         });
 
-        // 2. Generate voice-over for short
-        console.error(`🎤 Generating voice-over for short ${i + 1}...`);
+        const { urls: clips, timings, animationStopTimes } = await renderScenes({
+            scenes: short.scenes,
+            isShort: true,
+            videoId: shortId,
+        });
+
+        // 2. Generate voice-over for ALL scenes (including hook with empty narration)
+        // This ensures array lengths match between clips and narrations
+        const allNarrations = short.scenes.map(scene => scene.narration);
+        console.error(`🎤 Generating voice-over for ${allNarrations.length} scenes (including hook)...`);
+
         const { urls: voiceovers } = await generateVoiceOvers({
-            perSceneNarration: [short.narration],
+            perSceneNarration: allNarrations,
             videoId: shortId,
             voice: 'Puck',
         });
 
         // 3. Assemble short
         console.error(`🧩 Assembling short ${i + 1}...`);
+
+        // Combine content narrations for metadata (skip empty hook narration)
+        const contentNarrations = contentScenes.map(scene => scene.narration);
+        const fullNarration = contentNarrations.join(' ');
+
         const assembled = await assembleVideo({
             jobId: shortId,
             videoId: shortId,
-            narration: short.narration,
-            perSceneNarration: [short.narration],
+            narration: fullNarration,
+            perSceneNarration: allNarrations,
             narrationAudios: voiceovers,
             clips,
             clipTimings: timings,

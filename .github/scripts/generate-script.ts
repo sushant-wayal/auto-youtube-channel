@@ -35,11 +35,13 @@ interface VideoScript {
     shorts: Array<{
         id: string;
         hook: string;
-        hookText: string;
-        narration: string;
-        baseDuration: number;
-        holdDuration: number;
-        actions: any[];
+        scenes: Array<{
+            id: string;
+            narration: string;
+            baseDuration: number;
+            holdDuration: number;
+            actions: any[];
+        }>;
     }>;
 }
 

@@ -105,13 +105,37 @@ REQUIRED OUTPUT FORMAT
   "shorts": [
     {
       "id": "short-1",
-      "hook": "Why do databases look like cylinders?",
-      "hookText": "Everyone draws databases wrong.",
-      "narration": "Databases are drawn as cylinders because they represent stored data.",
-      "baseDuration": 12.0,
-      "actions": [
-        { "t": 0.3, "op": "rect", "x": 260, "y": 400, "w": 200, "h": 120, "r": 12 },
-        { "t": 0.5, "op": "text", "x": 360, "y": 200, "value": "The Answer", "size": "title" }
+      "hook": "Why databases round-trip on every read?",
+      "scenes": [
+        {
+          "id": "hook",
+          "baseDuration": 1.2,
+          "holdDuration": 0.0,
+          "narration": "",
+          "actions": [
+            { "t": 0.0, "op": "rect", "x": 260, "y": 300, "w": 200, "h": 100, "fill": "#E0E7FF", "r": 12 },
+            { "t": 0.0, "op": "text", "x": 360, "y": 340, "value": "CACHE", "size": "body" },
+            { "t": 0.1, "op": "ellipse", "cx": 360, "cy": 150, "rx": 20, "ry": 20, "fill": "#F59E0B" },
+            { "t": 0.1, "op": "transform", "targetId": "request", "duration": 0.3, "cy": 250, "ease": "easeInQuad" },
+            { "t": 0.45, "op": "line", "x1": 360, "y1": 400, "x2": 360, "y2": 500, "arrow": true, "stroke": "#EF4444", "strokeWidth": 3 },
+            { "t": 0.5, "op": "rect", "x": 260, "y": 550, "w": 200, "h": 120, "stroke": "#3B82F6", "strokeWidth": 3 },
+            { "t": 0.5, "op": "text", "x": 360, "y": 600, "value": "DATABASE", "size": "body" },
+            { "t": 0.35, "op": "text", "x": 360, "y": 850, "value": "YOUR CACHE MISS COSTS", "size": "title", "fontWeight": "bold" }
+          ]
+        },
+        {
+          "id": "content",
+          "baseDuration": 10.0,
+          "holdDuration": 0.5,
+          "narration": "Cache misses force expensive database round-trips. Every miss adds latency and load. That's why cache hit rates matter so much.",
+          "actions": [
+            { "t": 0.3, "op": "rect", "x": 160, "y": 400, "w": 400, "h": 300, "fill": "#F5F5F4", "r": 12 },
+            { "t": 0.5, "op": "text", "x": 360, "y": 200, "value": "Cache Hit Rate", "size": "title" },
+            { "t": 1.0, "op": "text", "x": 360, "y": 500, "value": "99%", "size": "title", "fill": "#10B981" },
+            { "t": 1.5, "op": "text", "x": 360, "y": 600, "value": "vs", "size": "body" },
+            { "t": 2.0, "op": "text", "x": 360, "y": 700, "value": "90%", "size": "title", "fill": "#EF4444" }
+          ]
+        }
       ]
     }
   ]
@@ -187,20 +211,109 @@ NARRATION RULES
 SHORTS RULES (CRITICAL)
 ========================
 
-- 3-5 shorts maximum, 8-12 seconds each
-- Shorts entry test: visual motion at t <= 0.5s, text at t <= 0.8s
-- Start with concrete fact, not metaphor
-- Strong hook in first sentence of narration
-- End with visual punchline (bold text, freeze, contrast)
-- Must be replayable and standalone
+- 3-5 shorts maximum
+- Each short is divided into TWO phases:
+  1. HOOK SCENE (0.8-1.5 seconds): Silent visual-only scroll-stopper
+  2. CONTENT SCENE (8-12 seconds): Narrated explanation with visuals
 
-**SHORTS VISUAL HOOK (CRITICAL POV REQUIREMENT):**
-- Each short MUST have a "hookText" field (separate from hook and narration)
-- hookText MUST start with "YOU" or "YOUR" (exact word, UPPERCASE)
-- hookText must be 3-5 words maximum
-- hookText must directly address the viewer in second-person POV
-- hookText MUST include a concrete technical noun from the video topic
-- hookText should:
+========================
+HOOK SCENE REQUIREMENTS (CRITICAL)
+========================
+
+The FIRST scene in EVERY short MUST be a HOOK SCENE with these EXACT properties:
+
+{
+  "id": "hook",
+  "baseDuration": 1.2,    // Between 0.8-1.5 seconds ONLY (prefer 1.0-1.5s)
+  "holdDuration": 0.0,    // MUST be 0.0
+  "narration": "",        // MUST be EMPTY string
+  "actions": [...]        // Visual animation actions ONLY
+}
+
+HOOK SCENE ANIMATION RULES (MANDATORY):
+1. First action at t ≤ 0.1s (instant motion to grab attention)
+2. Visible change by t ≤ 0.2s (immediate visual impact)
+3. Hook text appears by t ≤ 0.3s (as text action in actions array)
+4. Total duration 0.8-1.5s MAXIMUM (never exceed 1.5s)
+5. ≤ 8 actions total (ultra-simple and digestible)
+6. Strong visual contrast at final frame
+
+SINGLE-MOTION CLARITY RULE (CRITICAL):
+- Show EXACTLY ONE object/element as the focus
+- Show EXACTLY ONE motion/transformation
+- Show EXACTLY ONE clear consequence/result
+- Pattern: [object appears] → [motion/change] → [consequence]
+- Example: queue → fills up → turns red + "FULL"
+- Example: request → misses cache → falls to database
+- Example: token bucket → depletes → blocks request
+- NO multiple diagrams competing for attention
+- NO complex multi-step sequences
+- NO abstract metaphors that require interpretation
+
+PACING GUIDELINES (CRITICAL):
+- Ultra-fast YES, but crystal clear
+- Space actions with 0.15-0.25s gaps minimum
+- Show cause → effect → result in simple progression
+- Maximum 2-3 visual elements total (including text)
+- Viewer must grasp the tension in <1 second
+- Scroll-worthy = immediate understanding + emotional hook
+- If viewer needs to replay to understand, it's TOO COMPLEX
+- Clarity and speed trump sophistication
+
+HOOK SCENE VISUAL CONTENT:
+
+**CRITICAL: The visual hook MUST be directly related to the video topic.**
+
+The examples below are INSPIRATION ONLY - do NOT blindly copy them.
+CREATE a topic-specific mechanical behavior that represents YOUR specific concept.
+
+Example system behaviors (adapt to your topic):
+  * Request missing cache → falling to database (for caching topics)
+  * Single write → splitting into retries (for retry logic topics)
+  * Memory container → filling to overflow (for memory/buffer topics)
+  * Two values → diverging then converging (for consistency topics)
+  * Queue → growing rapidly (for queue/backpressure topics)
+  * Disk write → delayed persistence (for durability topics)
+  * Token bucket → depleting on requests (for rate limiting topics)
+  * Rate limiter → blocking excess requests (for API throttling topics)
+  * Circuit breaker → opening under load (for resilience topics)
+  * Network packet → timing out (for network/latency topics)
+  * Lock → blocking concurrent access (for concurrency topics)
+
+The hook animation must:
+- Represent the ACTUAL system behavior from YOUR video topic
+- Be immediately recognizable as related to the concept
+- Show cause-and-effect of the specific technical problem/pattern
+- NOT be randomly chosen - must connect to the video content
+
+- Use ONLY primitives: line, rect, ellipse, path, text, transform
+- NO cinematic effects (zoom, pulse, glow, shake)
+- NO particles, logos, symbols, metaphors
+- NO generic animations that could apply to any topic
+- Everything must be concrete, mechanical, and topic-specific
+
+FORBIDDEN IN HOOK SCENE (NEVER DO THESE):
+- Generic text zoom-in
+- Abstract particles/sparkles
+- Pulsing/glowing effects
+- Decorative motion without meaning
+- Symbolic representations
+- Metaphorical animations
+- Multiple objects moving simultaneously
+- Scene transitions or multi-part sequences
+- Slow cinematic build-up
+- Complex diagrams with many components
+- Anything requiring >1 second to comprehend
+- Narration or audio cues (hook must work silently)
+
+**HOOK TEXT REQUIREMENTS (MANDATORY):**
+- Hook scene MUST include a text action that displays attention-grabbing text
+- Text MUST start with "YOU" or "YOUR" (direct address to viewer - non-negotiable)
+- Text MUST be ≤ 4 words maximum (brevity = impact)
+- Text must directly address the viewer in second-person POV
+- Text MUST include a concrete technical noun from the video topic
+- Text MUST relate to the SAME system behavior shown in hook animation
+- Text should:
   - Be specific to the technical concept being explained
   - Include the actual subject matter (e.g., database, clock, cache, API, server, token, React, CSS)
   - Make a direct claim about that technical element
@@ -210,21 +323,48 @@ SHORTS RULES (CRITICAL)
   - NO abstract or filler words like "this", "that", "thing"
   - NO questions - use direct assertions only
   - NO metaphors or indirect language
-- Examples of CORRECT hookText (specific + technical noun):
-  - "YOUR DATABASE LIES" (for data consistency topic)
-  - "YOUR CLOCK IS WRONG" (for distributed systems time sync)
-  - "YOUR CACHE IS STALE" (for caching invalidation)
-  - "YOUR API LEAKS DATA" (for API security)
-  - "YOUR REACT RERENDERS TWICE" (for React rendering)
-  - "YOU TRUST BAD TOKENS" (for auth security)
-- Examples of INCORRECT hookText (DO NOT USE):
+
+- Examples of CORRECT hook text (4 words max, specific + technical noun):
+  - "YOUR DATABASE LIED" (3 words - data consistency)
+  - "YOUR CLOCK DRIFTED" (3 words - distributed time sync)
+  - "YOUR CACHE STALE" (3 words - caching invalidation)
+  - "YOUR API LEAKED" (3 words - API security)
+  - "YOU LOST DATA" (3 words - data loss)
+  - "YOUR REQUEST BLOCKED" (3 words - rate limiting)
+  - "YOUR TOKENS EXPIRED" (3 words - auth security)
+  - "YOUR QUEUE FULL" (3 words - backpressure)
+
+- Examples of INCORRECT hook text (DO NOT USE):
   - "YOU'RE DOING THIS WRONG" (too vague, no technical noun)
   - "YOU SHOULD STOP THIS" (too generic, no specificity)
   - "THIS IS BAD" (not POV, no technical noun)
   - "YOUR CODE IS BROKEN" (too generic, "code" is not specific enough)
   - "This system is broken" (not POV, not starting with YOU/YOUR)
   - "Everyone makes this mistake" (third-person)
-- hookText appears visually BEFORE narration starts
+
+- Hook text appears as a text action in the actions array by t ≤ 0.4s (large, centered, readable)
+
+========================
+CONTENT SCENE (SECOND SCENE IN SHORTS)
+========================
+
+After the hook scene, the SECOND scene is the content scene:
+
+{
+  "id": "content",
+  "baseDuration": 10.0,   // 8-12 seconds
+  "holdDuration": 0.5,
+  "narration": "Full narration explaining the concept...",
+  "actions": [...]        // Supporting visuals
+}
+
+CONTENT SCENE RULES:
+- Narration starts here (NOT in hook scene)
+- Visual motion at t ≤ 0.5s
+- Text at t ≤ 0.8s
+- Strong hook in first sentence of narration
+- End with visual punchline (bold text, freeze, contrast)
+- Must be standalone and replayable
 
 ========================
 ALLOWED ACTION OPS

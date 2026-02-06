@@ -3,7 +3,6 @@ import { ActionIR } from "../../types";
 type SceneHtmlRendererInput = {
   duration: number;
   actions: ActionIR[];
-  hookText?: string;
 };
 
 type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut";
@@ -22,7 +21,7 @@ export class SceneHtmlRenderer {
     const withTextLifetimes = this.applyTextReplacement(withDurations, scene.duration);
     return {
       html: this.emitHtml(
-        { duration: scene.duration, actions: withTextLifetimes, hookText: scene.hookText },
+        { duration: scene.duration, actions: withTextLifetimes },
         height,
         width
       ), animationStopTime
@@ -251,69 +250,8 @@ ${actionsJS}
 ].sort((a,b)=>a.t-b.t);
 
 /* ========================================================== */
-/* HOOK PHASE (SHORTS ONLY)                                   */
+/* ACTIONS RENDERING                                          */
 /* ========================================================== */
-
-const HOOK_TEXT = ${scene.hookText ? JSON.stringify(scene.hookText) : 'null'};
-const HOOK_DURATION = 1.5;  // Hook phase: 0-1.5s
-const HOOK_PAUSE = 0.3;     // Pause after hook: 1.5-1.8s
-const HOOK_TOTAL = HOOK_DURATION + HOOK_PAUSE; // 1.8s total
-
-function drawHook(time) {
-  if (!HOOK_TEXT || !IS_SHORTS) return false;
-  if (time > HOOK_TOTAL) return false;
-  
-  if (time < HOOK_DURATION) {
-    // Phase 1: Hook display (0-1.5s)
-    const progress = time / HOOK_DURATION;
-    
-    // Immediate appearance with subtle motion
-    const scale = 1 + (Math.sin(progress * Math.PI * 2) * 0.02);
-    const yOffset = Math.sin(progress * Math.PI) * 5;
-    
-    ctx.save();
-    ctx.translate(W / 2, H / 2 + yOffset);
-    ctx.scale(scale, scale);
-    
-    // Draw hookText - large, bold, centered
-    ctx.globalAlpha = progress < 0.1 ? progress / 0.1 : 1; // Quick fade in
-    ctx.fillStyle = theme.textPrimary;
-    ctx.font = "bold " + Math.round(W * 0.08) + "px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    
-    // Word wrap for hookText
-    const words = HOOK_TEXT.split(' ');
-    const lines = [];
-    let currentLine = words[0];
-    
-    for (let i = 1; i < words.length; i++) {
-      const testLine = currentLine + ' ' + words[i];
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > W * 0.85) {
-        lines.push(currentLine);
-        currentLine = words[i];
-      } else {
-        currentLine = testLine;
-      }
-    }
-    lines.push(currentLine);
-    
-    // Draw lines
-    const lineHeight = Math.round(W * 0.09);
-    const startY = -(lines.length - 1) * lineHeight / 2;
-    
-    lines.forEach((line, i) => {
-      ctx.fillText(line, 0, startY + i * lineHeight);
-    });
-    
-    ctx.restore();
-    return true;
-  } else {
-    // Phase 2: Pause (1.5-1.8s) - blank
-    return true;
-  }
-}
 
 /* ========================================================== */
 /* EASING - Smooth, predictable curves only                   */
@@ -887,20 +825,13 @@ function draw(a, p) {
 window.renderFrame = function(time) {
   drawBackground();
   
-  // Hook phase for Shorts (first 1.8s)
-  if (drawHook(time)) {
-    return; // Skip actions during hook phase
-  }
-  
-  // Adjust time for actions to start after hook
-  const actionTime = HOOK_TEXT && IS_SHORTS ? Math.max(0, time - HOOK_TOTAL) : time;
-  
+  // Render all actions at their scheduled times
   for (const a of actions) {
-    if (actionTime < a.t) continue;
-    if (a.op === "text" && a.endT !== undefined && actionTime > a.endT) continue;
+    if (time < a.t) continue;
+    if (a.op === "text" && a.endT !== undefined && time > a.endT) continue;
     
     const duration = a.dur || scale.baseDuration;
-    const raw = Math.min(1, (actionTime - a.t) / duration);
+    const raw = Math.min(1, (time - a.t) / duration);
     const p = ease(raw, a.easing || "easeOut");
     
     draw(a, p);
