@@ -67,6 +67,13 @@ export class VideoAssemblyService {
     }
 
     private async downloadFile(url: string, outPath: string) {
+        // Handle file:// URLs
+        if (url.startsWith('file://')) {
+            const localPath = url.replace('file://', '');
+            await fsPromises.copyFile(localPath, outPath);
+            return;
+        }
+
         // Check if it's a local file path instead of URL
         if (!url.startsWith('http://') && !url.startsWith('https://')) {
             // It's a local file, just copy it
@@ -131,7 +138,7 @@ export class VideoAssemblyService {
             console.error(`  ⬇️  Processing scene ${i + 1} audio...`);
 
             // Check if we have a narration audio URL and if the scene has narration
-            const hasNarrationAudio = input.narrationAudios && input.narrationAudios[i];
+            const hasNarrationAudio = !!(input.narrationAudios && input.narrationAudios[i]);
             const sceneNarration = input.perSceneNarration[i];
             const isEmptyNarration = !sceneNarration || sceneNarration.trim() === '';
 
@@ -146,8 +153,11 @@ export class VideoAssemblyService {
                 sceneAudioDuration = clipDuration;
             }
 
-            const animationStop = input.animationStopTimes?.[i] ?? 0;
-            const targetDuration = Math.max(animationStop + 0.5, sceneAudioDuration);
+            const animationStop = input.animationStopTimes?.[i];
+
+            // Use animation stop time if valid, otherwise fallback to audio duration
+            const validAnimationStop = (typeof animationStop === 'number' && !isNaN(animationStop)) ? animationStop : sceneAudioDuration;
+            const targetDuration = Math.max(validAnimationStop + 0.5, sceneAudioDuration);
 
             // Store actual scene duration for timestamps
             sceneDurations.push(targetDuration);
@@ -659,23 +669,54 @@ export class VideoAssemblyService {
 
         console.error(`    Video: ${videoDuration.toFixed(2)}s, Audio: ${audioDuration.toFixed(2)}s, Output: ${maxDuration.toFixed(2)}s`);
 
-        await runFFmpeg({
-            inputs: [videoPath, audioPath],
-            output: outputPath,
-            args: [
-                "-threads", "1",
-                "-filter_complex",
-                `[0:v]tpad=stop_mode=clone:stop_duration=${Math.max(0, audioDuration - videoDuration)}[v];` +
-                `[1:a]apad[a]`,
-                "-map", "[v]",
-                "-map", "[a]",
-                "-c:v", "libx264",
-                "-preset", "veryfast",
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-t", maxDuration.toString(),
-            ],
-        });
+        // Extend video if needed, then add audio
+        if (audioDuration > videoDuration) {
+            // Need to extend video first
+            const extendedVideo = outputPath.replace('.mp4', '_extended.mp4');
+            await runFFmpeg({
+                inputs: [videoPath],
+                output: extendedVideo,
+                args: [
+                    "-threads", "1",
+                    "-filter:v", `tpad=stop_mode=clone:stop_duration=${audioDuration - videoDuration}`,
+                    "-c:v", "libx264",
+                    "-preset", "veryfast",
+                ],
+            });
+
+            // Now add audio to extended video
+            await runFFmpeg({
+                inputs: [extendedVideo, audioPath],
+                output: outputPath,
+                args: [
+                    "-threads", "1",
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-ar", "48000",  // Force 48kHz sample rate for consistent concat
+                    "-ac", "2",      // Force stereo for consistent concat
+                    "-shortest",
+                ],
+            });
+
+            // Cleanup extended video
+            await fsPromises.unlink(extendedVideo).catch(() => { });
+        } else {
+            // Video is longer or equal, just add audio
+            await runFFmpeg({
+                inputs: [videoPath, audioPath],
+                output: outputPath,
+                args: [
+                    "-threads", "1",
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-ar", "48000",  // Force 48kHz sample rate for consistent concat
+                    "-ac", "2",      // Force stereo for consistent concat
+                    "-t", videoDuration.toString(),
+                ],
+            });
+        }
     }
 
     async overlayLogo(
