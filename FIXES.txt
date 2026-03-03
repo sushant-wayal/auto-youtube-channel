@@ -1,0 +1,2 @@
+complete-workflow-with-assets.ts: - Long form video is not scheduled it is directly Published
+- shorts are not scheduled to proper timings the timings are 4:30, 6, 8 instead of 6:45, 7:45 and 8:45
