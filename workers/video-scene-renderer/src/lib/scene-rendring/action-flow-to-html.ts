@@ -622,7 +622,8 @@ function drawRect(a, p) {
   const y = a.y + slideY;
   const w = a.w;
   const h = a.h;
-  const r = Math.min(a.r || 12, w / 2, h / 2);
+  // Ensure radius is non-negative and does not exceed half of width/height
+  const r = Math.max(0, Math.min(a.r || 12, Math.abs(w) / 2, Math.abs(h) / 2));
   
   // Center transform for scale
   const cx = x + w / 2;

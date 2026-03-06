@@ -211,7 +211,7 @@ async function main() {
             console.log(`✅ Rendered ${renderResult.urls.length} scenes`);
 
             console.log('\n🧩 Assembling video...');
-            const assembled = await assembleVideo({
+            assembled = await assembleVideo({
                 jobId: videoId,
                 videoId,
                 narration: script.script.narration,
