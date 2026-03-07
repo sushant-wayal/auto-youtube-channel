@@ -19,12 +19,14 @@ config({ path: resolve(__dirname, '../.env.local') });
 import { YouTubeDataService } from './lib/youtube-data-service';
 import { GeminiIdeaGenerator, TopicIdea } from './lib/gemini-idea-generator';
 import { HybridValidator } from './lib/hybrid-validator';
+import { fetchTrendingSignals, TrendingSignals } from './lib/trend-detector';
 
 interface IdeaSelectorResult {
     success: boolean;
     selectedTopic?: TopicIdea;
     channelInsights?: string;
     generatedIdeas?: TopicIdea[];
+    trendingSignals?: TrendingSignals;
     error?: string;
 }
 
@@ -49,8 +51,17 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
             throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
         }
 
+        // Step 0: Fetch trending signals (concurrent, non-blocking on failure)
+        console.error('📡 STEP 0: Fetching trending signals...');
+        let trendingSignals: TrendingSignals | undefined;
+        try {
+            trendingSignals = await fetchTrendingSignals();
+        } catch (err: any) {
+            console.error(`⚠️  Trend detection failed (non-fatal), continuing without: ${err.message}`);
+        }
+
         // Step 1: Fetch channel videos from YouTube
-        console.error('📊 STEP 1: Fetching channel data from YouTube...');
+        console.error('\n📊 STEP 1: Fetching channel data from YouTube...');
         const youtubeService = new YouTubeDataService();
         const recentVideos = await youtubeService.fetchRecentVideos(50);
 
@@ -76,9 +87,9 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
         console.error(channelInsights);
         console.error('─'.repeat(80));
 
-        // Step 4: Generate topic ideas with Gemini AI
+        // Step 4: Generate topic ideas with Gemini AI (+ trending signals)
         console.error('\n💡 STEP 4: Generating video topic ideas with AI...');
-        const rawIdeas = await geminiGenerator.generateTopicIdeas(channelInsights, analytics, 15);
+        const rawIdeas = await geminiGenerator.generateTopicIdeas(channelInsights, analytics, 15, trendingSignals);
 
         console.error(`   Generated ${rawIdeas.length} raw AI ideas`);
 
@@ -133,6 +144,7 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
             selectedTopic,
             channelInsights,
             generatedIdeas: topIdeas, // Return only validated top 5
+            trendingSignals,
         };
 
         // Write to stdout for consumption by other systems

@@ -1,5 +1,6 @@
 import GeminiClient from './gemini-client';
 import { YouTubeAnalytics } from './youtube-data-service';
+import { TrendingSignals, formatTrendingSignalsForPrompt } from './trend-detector';
 
 export interface TopicIdea {
     topic: string;
@@ -135,11 +136,16 @@ Be specific and data-driven. Focus on actionable insights.`;
     async generateTopicIdeas(
         channelInsights: string,
         analytics: YouTubeAnalytics[],
-        count: number = 10
+        count: number = 10,
+        trendingSignals?: TrendingSignals
     ): Promise<TopicIdea[]> {
         console.error(`🎯 Generating ${count} topic ideas with Gemini AI...`);
 
         const recentTitles = analytics.slice(0, 20).map(a => a.title);
+
+        const trendingSection = trendingSignals
+            ? `\nEXTERNAL TRENDING SIGNALS (use these to make ideas timely and topical):\n${formatTrendingSignalsForPrompt(trendingSignals)}`
+            : '';
 
         const prompt = `You are an expert YouTube content strategist. Based on the channel analysis below, generate ${count} high-potential video topic ideas.
 
@@ -147,13 +153,14 @@ CHANNEL INSIGHTS:
 ${channelInsights}
 
 RECENT VIDEOS (to avoid repetition):
-${recentTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+${recentTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}${trendingSection}
 
 REQUIREMENTS:
 - Each topic should be GENERIC enough to produce 1 long-form video (8-15 min) AND 3-5 shorts (30-60 sec)
 - Topics should leverage identified successful patterns
 - Avoid topics too similar to recent videos
 - Balance evergreen content with trending opportunities
+- Where relevant, use the EXTERNAL TRENDING SIGNALS above to pick timely topics that are being discussed RIGHT NOW
 - Consider audience retention signals
 
 For each idea, provide:
