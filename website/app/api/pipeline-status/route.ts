@@ -19,6 +19,7 @@ function getRedisClient() {
 async function sendPushNotification(
     pushToken: string,
     overallStatus: 'success' | 'failure',
+    videoId: string,
     videoTitle: string,
     scheduledTime: string | null,
     youtubeId?: string
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
         if (pushToken) {
             try {
                 const scheduledTime = await redis.get(LONG_FORM_TIME_KEY); // e.g. "20:00"
-                await sendPushNotification(pushToken, overallStatus, videoTitle ?? videoId, scheduledTime, youtubeId);
+                await sendPushNotification(pushToken, overallStatus, videoId, videoTitle ?? videoId, scheduledTime, youtubeId);
             } catch (pushErr: any) {
                 // Non-fatal — log but don't fail the request
                 console.error('[pipeline-status] Push notification error:', pushErr.message);
