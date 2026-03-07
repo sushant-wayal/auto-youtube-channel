@@ -4,7 +4,7 @@ import { renderScenes } from './workers/video-scene-renderer/src/index';
 import { assembleVideo } from './workers/video-assembler/src/index';
 import { uploadToYouTube } from './workers/youtube-upload/src/index';
 import { validateConfig } from './shared/config';
-import { getShortsPublishTimeByRank } from './shared/services/shorts-publish-time-service';
+import { getShortsPublishTimeByRank, getLongFormPublishTime } from './shared/services/shorts-publish-time-service';
 import CloudinaryService from './shared/services/cloudinary-service';
 import fs from 'fs/promises';
 import path from 'path';
@@ -39,17 +39,22 @@ interface ScriptData {
 }
 
 function getPublishTimeFromISTTime(timeIST: string, dayOffset: number = 0): string {
-    const [hours, minutes] = timeIST.split(':').map(Number);
-    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
-
     const now = new Date();
-    const utcNow = new Date(now.getTime() - istOffset);
+    const [hours, minutes] = timeIST.split(':').map(Number);
 
-    const publishDate = new Date(utcNow);
-    publishDate.setUTCDate(publishDate.getUTCDate() + dayOffset);
-    publishDate.setUTCHours(hours - 5, minutes - 30, 0, 0);
+    // IST is UTC+5:30
+    const istOffset = 5.5 * 60 * 60 * 1000;
 
-    return publishDate.toISOString();
+    // Shift 'now' into IST context so date arithmetic is correct
+    const istNow = new Date(now.getTime() + istOffset);
+
+    // Set target time within IST context
+    const targetIST = new Date(istNow);
+    targetIST.setUTCHours(hours, minutes, 0, 0);
+    targetIST.setUTCDate(targetIST.getUTCDate() + dayOffset);
+
+    // Convert back to UTC for YouTube API
+    return new Date(targetIST.getTime() - istOffset).toISOString();
 }
 
 async function main() {
@@ -228,8 +233,11 @@ async function main() {
         }
 
         if (!shortsOnly) {
-            // Upload long-form to YouTube
+            // Upload long-form to YouTube (scheduled)
             console.log('\n📤 Uploading long-form to YouTube...');
+            const longFormTime = await getLongFormPublishTime();
+            const longFormScheduledTime = getPublishTimeFromISTTime(longFormTime, 0);
+            console.log(`📅 Scheduling long-form for ${longFormTime} IST (${longFormScheduledTime})`);
             const sceneTitles = script.script.scenes.map(s => s.sceneTitle || 'Scene');
             const youtube = await uploadToYouTube({
                 videoUrl: assembled!.outputUrl,
@@ -238,7 +246,8 @@ async function main() {
                 description,
                 tags,
                 thumbnailUrl,
-                privacyStatus: 'public',
+                privacyStatus: 'private', // Required for scheduled publishing
+                scheduledPublishTime: longFormScheduledTime,
                 sceneTitles,
                 sceneDurations: assembled!.sceneDurations,
                 hasIntro: true,

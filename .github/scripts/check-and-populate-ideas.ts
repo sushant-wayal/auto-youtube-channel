@@ -35,10 +35,10 @@ async function checkQueueAndPopulate(): Promise<void> {
             return;
         }
 
-        console.error(`⚠️  Queue is empty or below threshold, running idea-selector worker...`);
+        console.error(`⚠️  Queue is below threshold (${queueSize}/${MIN_QUEUE_SIZE}), running idea-selector worker...`);
 
         // Fetch existing queue ideas to avoid duplicates
-        const existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
+        let existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
         if (existingIdeas.length > 0) {
             console.error(`📋 Existing queue ideas (${existingIdeas.length}):`);
             existingIdeas.forEach((idea, i) => {
@@ -46,29 +46,33 @@ async function checkQueueAndPopulate(): Promise<void> {
             });
         }
 
-        // Run idea-selector worker
-        console.error(`🚀 Running idea-selector worker...`);
+        // Loop until the queue reaches MIN_QUEUE_SIZE
+        let currentSize = queueSize;
+        while (currentSize < MIN_QUEUE_SIZE) {
+            console.error(`\n🚀 Running idea-selector worker (${currentSize}/${MIN_QUEUE_SIZE} ideas)...`);
 
-        const result = await runIdeaSelector({
-            existingQueueIdeas: existingIdeas,
-        });
+            const result = await runIdeaSelector({
+                existingQueueIdeas: existingIdeas,
+            });
 
-        if (!result.success || !result.selectedTopic) {
-            throw new Error('Idea selector did not return a valid topic');
+            if (!result.success || !result.selectedTopic) {
+                throw new Error('Idea selector did not return a valid topic');
+            }
+
+            const topic = result.selectedTopic.topic;
+            console.error(`📝 Selected topic: "${topic}"`);
+            console.error(`📊 Performance score: ${result.selectedTopic.estimatedPerformance.score}/100`);
+
+            // Add the topic to Redis queue
+            await redis.rpush(QUEUE_KEY, topic);
+            console.error(`✅ Added topic to Redis queue (${QUEUE_KEY})`);
+
+            // Refresh existing ideas list so next iteration avoids duplicating this topic
+            existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
+            currentSize = existingIdeas.length;
         }
 
-        console.error(`✅ Idea selector worker completed`);
-
-        const topic = result.selectedTopic.topic;
-        console.error(`📝 Selected topic: "${topic}"`);
-
-        // Add the topic to Redis queue
-        await redis.rpush(QUEUE_KEY, topic);
-        console.error(`✅ Added topic to Redis queue (${QUEUE_KEY})`);
-
-        // Log additional context
-        console.error(`📊 Performance score: ${result.selectedTopic.estimatedPerformance.score}/100`);
-        console.error(`🎬 Target formats: ${result.selectedTopic.targetFormats.longForm ? '1 long-form' : ''}${result.selectedTopic.targetFormats.longForm && result.selectedTopic.targetFormats.shorts ? ' + ' : ''}${result.selectedTopic.targetFormats.shorts} shorts`);
+        console.error(`\n✅ Queue filled to ${currentSize} ideas`);
 
         await redis.quit();
         console.error(`✅ Ideas queue populated successfully`);

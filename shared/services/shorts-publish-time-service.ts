@@ -5,11 +5,11 @@ const redis = new Redis(process.env.REDIS_URL!);
 const SHORTS_TIMES_KEY = 'shorts:publish-times'; // Ranked times (5 slots)
 const LONG_FORM_TIME_KEY = 'longform:publish-time';
 
-// Default times ranked from best to worst performance
+// Default times ranked from best to worst performance (IST)
 const DEFAULT_SHORTS_TIMES = [
-    '16:30', // Rank 1 (Best)
-    '18:00', // Rank 2
-    '20:00', // Rank 3
+    '06:45', // Rank 1 (Best)
+    '07:45', // Rank 2
+    '08:45', // Rank 3
     '12:00', // Rank 4
     '14:00', // Rank 5 (Worst)
 ];

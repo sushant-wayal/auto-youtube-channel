@@ -13,9 +13,9 @@ const Redis = require('ioredis');
 
 // Default schedule times
 const DEFAULT_SHORTS_TIMES = [
-    '16:30', // Rank 1 (Best) - 4:30 PM IST
-    '18:00', // Rank 2 - 6:00 PM IST
-    '20:00', // Rank 3 - 8:00 PM IST
+    '06:45', // Rank 1 (Best) - 6:45 AM IST
+    '07:45', // Rank 2 - 7:45 AM IST
+    '08:45', // Rank 3 - 8:45 AM IST
     '12:00', // Rank 4 - 12:00 PM IST
     '14:00', // Rank 5 (Worst) - 2:00 PM IST
 ];
