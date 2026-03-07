@@ -6,12 +6,14 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View, Animated, Dimensions, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import IdeasScreen from './screens/IdeasScreen';
 import ScheduleTimesScreen from './screens/ScheduleTimesScreen';
 import PipelineStatusScreen from './screens/PipelineStatusScreen';
 import { colors } from './theme';
 import { pipelineApi } from './services/api';
+
+// Hardcoded — avoids any Constants resolution issues in standalone builds
+const EXPO_PROJECT_ID = '294f6e06-d643-47b7-92a6-8701a374abf0';
 
 // Show notifications as banners even when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -21,39 +23,6 @@ Notifications.setNotificationHandler({
         shouldSetBadge: true,
     }),
 });
-
-async function registerForPushNotificationsAsync(): Promise<string | null> {
-    if (!Device.isDevice) {
-        console.log('[Push] Push notifications only work on physical devices');
-        return null;
-    }
-
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-    }
-
-    if (finalStatus !== 'granted') {
-        console.log('[Push] Permission not granted for push notifications');
-        return null;
-    }
-
-    if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('pipeline', {
-            name: 'Pipeline Status',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#000000',
-        });
-    }
-
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
-    console.log('[Push] Expo push token:', token);
-    return token;
-}
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -73,11 +42,43 @@ export default function App() {
 
     // Register push token once on mount
     React.useEffect(() => {
-        registerForPushNotificationsAsync().then(async (token) => {
-            if (token) {
-                await pipelineApi.savePushToken(token);
+        (async () => {
+            try {
+                if (Platform.OS === 'android') {
+                    await Notifications.setNotificationChannelAsync('pipeline', {
+                        name: 'Pipeline Status',
+                        importance: Notifications.AndroidImportance.MAX,
+                        vibrationPattern: [0, 250, 250, 250],
+                        lightColor: '#000000',
+                    });
+                }
+
+                const { status: existingStatus } = await Notifications.getPermissionsAsync();
+                let finalStatus = existingStatus;
+
+                if (existingStatus !== 'granted') {
+                    const { status } = await Notifications.requestPermissionsAsync();
+                    finalStatus = status;
+                }
+
+                if (finalStatus !== 'granted') {
+                    console.log('[Push] Permission denied');
+                    return;
+                }
+
+                const token = (await Notifications.getExpoPushTokenAsync({ projectId: EXPO_PROJECT_ID })).data;
+                console.log('[Push] Token obtained:', token.substring(0, 30) + '...');
+
+                const result = await pipelineApi.savePushToken(token);
+                if (result.ok) {
+                    console.log('[Push] Token saved to backend');
+                } else {
+                    console.error('[Push] Backend save failed:', result.error);
+                }
+            } catch (err: any) {
+                console.error('[Push] Error:', err.message ?? String(err));
             }
-        });
+        })();
     }, []);
 
     const screenWidth = Dimensions.get('window').width;

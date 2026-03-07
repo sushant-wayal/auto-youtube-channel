@@ -17,6 +17,7 @@
     },
     "android": {
       "package": "com.dashboard.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -38,6 +39,7 @@
       "eas": {
         "projectId": "294f6e06-d643-47b7-92a6-8701a374abf0"
       }
-    }
+    },
+    "owner": "sushant_wayal"
   }
 }

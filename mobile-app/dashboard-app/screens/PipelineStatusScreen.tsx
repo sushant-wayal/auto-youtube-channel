@@ -129,14 +129,6 @@ export default function PipelineStatusScreen() {
         );
     }
 
-    if (error && !status) {
-        return (
-            <View style={styles.centered}>
-                <ErrorMessage message={error} onRetry={load} />
-            </View>
-        );
-    }
-
     const isSuccess = status?.overallStatus === 'success';
     const youtubeUrl = status?.youtubeId
         ? `https://youtube.com/watch?v=${status.youtubeId}`
@@ -150,40 +142,49 @@ export default function PipelineStatusScreen() {
             contentContainerStyle={styles.content}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         >
-            {/* Overall status card */}
-            <View style={[styles.card, styles.overallCard, { borderLeftColor: isSuccess ? '#10B981' : '#EF4444' }]}>
-                <View style={styles.overallRow}>
-                    <Ionicons
-                        name={isSuccess ? 'checkmark-circle' : 'close-circle'}
-                        size={32}
-                        color={isSuccess ? '#10B981' : '#EF4444'}
-                    />
-                    <View style={{ marginLeft: spacing.md, flex: 1 }}>
-                        <Text style={styles.overallTitle}>
-                            {isSuccess ? 'Pipeline Succeeded ✅' : 'Pipeline Failed ❌'}
-                        </Text>
-                        {status?.videoTitle ? (
-                            <Text style={styles.videoTitle} numberOfLines={2}>{status.videoTitle}</Text>
-                        ) : null}
-                        {status?.ranAt ? (
-                            <Text style={styles.overallSubtitle}>
-                                {formatRelativeTime(status.ranAt)} · {new Date(status.ranAt).toLocaleString()}
-                            </Text>
-                        ) : null}
-                    </View>
+            {/* Pipeline load error */}
+            {error && !status && (
+                <View style={styles.card}>
+                    <ErrorMessage message={error} onRetry={load} />
                 </View>
+            )}
 
-                {youtubeUrl && (
-                    <TouchableOpacity
-                        style={styles.youtubeButton}
-                        onPress={() => Linking.openURL(youtubeUrl)}
-                        activeOpacity={0.8}
-                    >
-                        <Ionicons name="logo-youtube" size={16} color="#FFFFFF" />
-                        <Text style={styles.youtubeButtonText}>Watch on YouTube</Text>
-                    </TouchableOpacity>
-                )}
-            </View>
+            {/* Overall status card */}
+            {status && (
+                <View style={[styles.card, styles.overallCard, { borderLeftColor: isSuccess ? '#10B981' : '#EF4444' }]}>
+                    <View style={styles.overallRow}>
+                        <Ionicons
+                            name={isSuccess ? 'checkmark-circle' : 'close-circle'}
+                            size={32}
+                            color={isSuccess ? '#10B981' : '#EF4444'}
+                        />
+                        <View style={{ marginLeft: spacing.md, flex: 1 }}>
+                            <Text style={styles.overallTitle}>
+                                {isSuccess ? 'Pipeline Succeeded ✅' : 'Pipeline Failed ❌'}
+                            </Text>
+                            {status?.videoTitle ? (
+                                <Text style={styles.videoTitle} numberOfLines={2}>{status.videoTitle}</Text>
+                            ) : null}
+                            {status?.ranAt ? (
+                                <Text style={styles.overallSubtitle}>
+                                    {formatRelativeTime(status.ranAt)} · {new Date(status.ranAt).toLocaleString()}
+                                </Text>
+                            ) : null}
+                        </View>
+                    </View>
+
+                    {youtubeUrl && (
+                        <TouchableOpacity
+                            style={styles.youtubeButton}
+                            onPress={() => Linking.openURL(youtubeUrl)}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="logo-youtube" size={16} color="#FFFFFF" />
+                            <Text style={styles.youtubeButtonText}>Watch on YouTube</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            )}
 
             {/* Per-job status */}
             {status && (
