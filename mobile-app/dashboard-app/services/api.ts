@@ -370,8 +370,11 @@ export const pipelineApi = {
     // Get latest pipeline run status
     getPipelineStatus: async (): Promise<PipelineStatusResponse> => {
         try {
-            console.log('[API] Fetching pipeline status from:', `${API_BASE_URL}/api/pipeline-status`);
-            const response = await fetchWithTimeout(`${API_BASE_URL}/api/pipeline-status`, {}, 15000);
+            const url = `${API_BASE_URL}/api/pipeline-status?t=${Date.now()}`;
+            console.log('[API] Fetching pipeline status from:', url);
+            const response = await fetchWithTimeout(url, {
+                headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' },
+            }, 15000);
             const data = await response.json();
             console.log('[API] Pipeline status fetched successfully');
             return data;

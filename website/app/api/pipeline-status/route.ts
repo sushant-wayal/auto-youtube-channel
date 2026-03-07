@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Redis from 'ioredis';
 
+// Never cache this route — mobile app needs fresh data on every poll
+export const dynamic = 'force-dynamic';
+
 const PIPELINE_STATUS_KEY = 'pipeline:latest-status';
 const PUSH_TOKEN_KEY = 'push:token';
 const LONG_FORM_TIME_KEY = 'longform:publish-time';

@@ -104,8 +104,8 @@ export default function PipelineStatusScreen() {
     const load = useCallback(async () => {
         setError(null);
         const resp = await pipelineApi.getPipelineStatus();
-        if (resp.ok && resp.status) {
-            setStatus(resp.status);
+        if (resp.ok) {
+            setStatus(resp.status ?? null);
         } else {
             setError(resp.error ?? 'Failed to load pipeline status');
         }
@@ -146,6 +146,17 @@ export default function PipelineStatusScreen() {
             {error && !status && (
                 <View style={styles.card}>
                     <ErrorMessage message={error} onRetry={load} />
+                </View>
+            )}
+
+            {/* Empty state — no pipeline runs yet */}
+            {!error && !status && (
+                <View style={[styles.card, styles.emptyState]}>
+                    <Ionicons name="hourglass-outline" size={48} color={colors.foregroundMuted} />
+                    <Text style={styles.emptyTitle}>No pipeline runs yet</Text>
+                    <Text style={styles.emptySubtitle}>
+                        Once a video pipeline completes, the results will appear here.
+                    </Text>
                 </View>
             )}
 
@@ -323,5 +334,22 @@ const styles = StyleSheet.create({
         color: colors.foregroundMuted,
         textAlign: 'center',
         marginTop: spacing.sm,
+    },
+    emptyState: {
+        alignItems: 'center',
+        paddingVertical: spacing.xxxl,
+        gap: spacing.sm,
+    },
+    emptyTitle: {
+        fontSize: typography.fontSizeMd,
+        fontWeight: typography.fontWeightSemibold,
+        color: colors.foreground,
+        marginTop: spacing.sm,
+    },
+    emptySubtitle: {
+        fontSize: typography.fontSizeSm,
+        color: colors.foregroundMuted,
+        textAlign: 'center',
+        lineHeight: 20,
     },
 });
