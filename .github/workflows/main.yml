@@ -265,13 +265,43 @@ jobs:
           RESULT=$(npx tsx .github/scripts/upload-youtube.ts)
           echo "$RESULT" >> $GITHUB_OUTPUT
 
-  # Process shorts sequentially after main video
-  process-shorts:
-    name: Process Shorts
-    needs: [generate-script, upload-youtube]
+  # Determine how many shorts to process and build the matrix indices array
+  shorts-matrix-setup:
+    name: Setup Shorts Matrix
+    needs: [generate-script]
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-    
+    timeout-minutes: 5
+    outputs:
+      short_indices: ${{ steps.matrix.outputs.short_indices }}
+
+    steps:
+      - name: Compute short indices from script data
+        id: matrix
+        env:
+          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
+        run: |
+          SHORT_INDICES=$(node -e "
+            const data = JSON.parse(process.env.SCRIPT_DATA);
+            const shorts = (data.script && data.script.shorts) || data.shorts || [];
+            console.log(JSON.stringify(Array.from({length: shorts.length}, (_, i) => i)));
+          ")
+          echo "short_indices=$SHORT_INDICES" >> $GITHUB_OUTPUT
+          echo "📱 Shorts to process: $SHORT_INDICES"
+
+  # Process each short in parallel — one runner per short
+  # Depends only on generate-script + shorts-matrix-setup so shorts start
+  # immediately after script generation, independently of the long-form pipeline.
+  process-short:
+    name: "Process Short #${{ matrix.short_index }}"
+    needs: [generate-script, shorts-matrix-setup]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: needs.shorts-matrix-setup.outputs.short_indices != '[]'
+    strategy:
+      fail-fast: false  # one short failing should not cancel siblings
+      matrix:
+        short_index: ${{ fromJson(needs.shorts-matrix-setup.outputs.short_indices) }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -293,8 +323,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Process all shorts
+      - name: Process short ${{ matrix.short_index }}
         env:
+          SHORT_INDEX: ${{ matrix.short_index }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
@@ -306,12 +337,12 @@ jobs:
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
-          npx tsx .github/scripts/process-shorts.ts "${{ needs.generate-script.outputs.video_id }}"
+          npx tsx .github/scripts/process-single-short.ts "${{ needs.generate-script.outputs.video_id }}"
 
   # Summary job
   pipeline-summary:
     name: Pipeline Summary
-    needs: [populate-ideas, generate-script, render-scenes, generate-voiceover, assemble-video, upload-youtube, process-shorts, generate-thumbnail]
+    needs: [populate-ideas, generate-script, render-scenes, generate-voiceover, assemble-video, upload-youtube, shorts-matrix-setup, process-short, generate-thumbnail]
     runs-on: ubuntu-latest
     if: always()
     
@@ -341,4 +372,5 @@ jobs:
           echo "- Video Assembly: ${{ needs['assemble-video'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Thumbnail Generation: ${{ needs['generate-thumbnail'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- YouTube Upload: ${{ needs['upload-youtube'].result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Shorts Processing: ${{ needs['process-shorts'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Shorts Matrix Setup: ${{ needs['shorts-matrix-setup'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Shorts Processing (parallel): ${{ needs['process-short'].result }}" >> $GITHUB_STEP_SUMMARY
