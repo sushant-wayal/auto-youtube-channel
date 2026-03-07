@@ -50,6 +50,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       video_id: ${{ steps.script.outputs.video_id }}
+      video_title: ${{ steps.script.outputs.video_title }}
       script_data: ${{ steps.script.outputs.script_data }}
     
     steps:
@@ -78,6 +79,8 @@ jobs:
           # If custom idea provided, use it; otherwise fetch from Redis queue
           RESPONSE=$(npx tsx .github/scripts/generate-script.ts "${{ github.event.inputs.video_idea }}")
           echo "script_data=$RESPONSE" >> $GITHUB_OUTPUT
+          VIDEO_TITLE=$(echo "$RESPONSE" | jq -r '.script.title // "Unknown"')
+          echo "video_title=$VIDEO_TITLE" >> $GITHUB_OUTPUT
 
   # Step 2: Render scenes (runs in parallel with voice-over and thumbnail)
   render-scenes:
@@ -374,3 +377,61 @@ jobs:
           echo "- YouTube Upload: ${{ needs['upload-youtube'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Shorts Matrix Setup: ${{ needs['shorts-matrix-setup'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Shorts Processing (parallel): ${{ needs['process-short'].result }}" >> $GITHUB_STEP_SUMMARY
+      - name: Send pipeline status to app
+        if: always()
+        env:
+          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          PIPELINE_WEBHOOK_SECRET: ${{ secrets.PIPELINE_WEBHOOK_SECRET }}
+        run: |
+          VIDEO_ID="${{ needs.generate-script.outputs.video_id }}"
+          VIDEO_TITLE="${{ needs.generate-script.outputs.video_title }}"
+          YOUTUBE_ID="${{ needs.upload-youtube.outputs.youtube_id }}"
+
+          # Determine overall status — fail if any critical job failed
+          CRITICAL_RESULTS=(
+            "${{ needs['generate-script'].result }}"
+            "${{ needs['render-scenes'].result }}"
+            "${{ needs['generate-voiceover'].result }}"
+            "${{ needs['assemble-video'].result }}"
+            "${{ needs['upload-youtube'].result }}"
+          )
+          OVERALL="success"
+          for r in "${CRITICAL_RESULTS[@]}"; do
+            if [[ "$r" == "failure" ]]; then
+              OVERALL="failure"
+              break
+            fi
+          done
+
+          # Build JSON payload
+          PAYLOAD=$(cat <<EOF
+          {
+            "overallStatus": "$OVERALL",
+            "videoId": "$VIDEO_ID",
+            "videoTitle": "$VIDEO_TITLE",
+            "youtubeId": "$YOUTUBE_ID",
+            "jobs": {
+              "populateIdeas":    "${{ needs['populate-ideas'].result }}",
+              "generateScript":   "${{ needs['generate-script'].result }}",
+              "renderScenes":     "${{ needs['render-scenes'].result }}",
+              "generateVoiceover":"${{ needs['generate-voiceover'].result }}",
+              "assembleLongForm": "${{ needs['assemble-video'].result }}",
+              "generateThumbnail":"${{ needs['generate-thumbnail'].result }}",
+              "uploadYoutube":    "${{ needs['upload-youtube'].result }}",
+              "shortsProcessing": "${{ needs['process-short'].result }}"
+            }
+          }
+          EOF
+          )
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $PIPELINE_WEBHOOK_SECRET" \
+            -d "$PAYLOAD" \
+            "$WEBSITE_DOMAIN/api/pipeline-status")
+
+          echo "Pipeline status webhook → HTTP $HTTP_STATUS"
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "⚠️  Webhook call failed (non-fatal)"
+          fi

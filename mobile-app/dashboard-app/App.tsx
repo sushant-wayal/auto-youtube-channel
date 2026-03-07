@@ -3,13 +3,61 @@ import { NavigationContainer, useNavigationContainerRef } from '@react-navigatio
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { Text, View, Animated, Dimensions, TouchableOpacity } from 'react-native';
+import { Text, View, Animated, Dimensions, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 import IdeasScreen from './screens/IdeasScreen';
 import ScheduleTimesScreen from './screens/ScheduleTimesScreen';
+import PipelineStatusScreen from './screens/PipelineStatusScreen';
 import { colors } from './theme';
+import { pipelineApi } from './services/api';
+
+// Show notifications as banners even when the app is in the foreground
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+    }),
+});
+
+async function registerForPushNotificationsAsync(): Promise<string | null> {
+    if (!Device.isDevice) {
+        console.log('[Push] Push notifications only work on physical devices');
+        return null;
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+        console.log('[Push] Permission not granted for push notifications');
+        return null;
+    }
+
+    if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('pipeline', {
+            name: 'Pipeline Status',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#000000',
+        });
+    }
+
+    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    console.log('[Push] Expo push token:', token);
+    return token;
+}
 
 const Tab = createMaterialTopTabNavigator();
+
+const NUM_TABS = 3;
 
 export default function App() {
     const navigationRef = useNavigationContainerRef();
@@ -23,8 +71,17 @@ export default function App() {
         }).start();
     }, [activeTab]);
 
+    // Register push token once on mount
+    React.useEffect(() => {
+        registerForPushNotificationsAsync().then(async (token) => {
+            if (token) {
+                await pipelineApi.savePushToken(token);
+            }
+        });
+    }, []);
+
     const screenWidth = Dimensions.get('window').width;
-    const tabWidth = screenWidth / 2;
+    const tabWidth = screenWidth / NUM_TABS;
 
     const handleTabPress = (index: number, routeName: string) => {
         setActiveTab(index);
@@ -61,7 +118,19 @@ export default function App() {
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                 <Ionicons name="time" size={20} color={activeTab === 1 ? '#000000' : '#71717A'} />
                                 <Text style={{ fontSize: 14, fontWeight: '600', color: activeTab === 1 ? '#000000' : '#71717A' }}>
-                                    Publish Schedule
+                                    Schedule
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+                            onPress={() => handleTabPress(2, 'Pipeline')}
+                            activeOpacity={0.7}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Ionicons name="git-branch" size={20} color={activeTab === 2 ? '#000000' : '#71717A'} />
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: activeTab === 2 ? '#000000' : '#71717A' }}>
+                                    Pipeline
                                 </Text>
                             </View>
                         </TouchableOpacity>
@@ -74,12 +143,12 @@ export default function App() {
                             bottom: 0,
                             left: 0,
                             height: 3,
-                            width: `${100 / 2}%`,
+                            width: `${100 / NUM_TABS}%`,
                             backgroundColor: '#000000',
                             transform: [{
                                 translateX: indicatorPosition.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [0, tabWidth],
+                                    inputRange: [0, 1, 2],
+                                    outputRange: [0, tabWidth, tabWidth * 2],
                                 })
                             }]
                         }}
@@ -125,6 +194,19 @@ export default function App() {
                                     <View style={{ width: 180, height: 40, backgroundColor: '#FF0000', justifyContent: 'center', alignItems: 'center' }}>
                                         <Text style={{ fontSize: 16, fontWeight: 'bold', color: focused ? '#FFFFFF' : '#000000' }}>
                                             SCHEDULE
+                                        </Text>
+                                    </View>
+                                ),
+                            }}
+                        />
+                        <Tab.Screen
+                            name="Pipeline"
+                            component={PipelineStatusScreen}
+                            options={{
+                                tabBarLabel: ({ focused }) => (
+                                    <View style={{ width: 180, height: 40, backgroundColor: '#FF0000', justifyContent: 'center', alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: focused ? '#FFFFFF' : '#000000' }}>
+                                            PIPELINE
                                         </Text>
                                     </View>
                                 ),

@@ -1,5 +1,37 @@
 import { API_BASE_URL } from '../config';
 
+// Pipeline Status API Types
+export type JobResult = 'success' | 'failure' | 'skipped' | 'cancelled' | null;
+
+export type PipelineStatus = {
+    overallStatus: 'success' | 'failure';
+    ranAt: string; // ISO timestamp
+    videoId: string;
+    videoTitle: string;
+    youtubeId?: string;
+    jobs: {
+        populateIdeas: JobResult;
+        generateScript: JobResult;
+        renderScenes: JobResult;
+        generateVoiceover: JobResult;
+        assembleLongForm: JobResult;
+        generateThumbnail: JobResult;
+        uploadYoutube: JobResult;
+        shortsProcessing: JobResult;
+    };
+};
+
+export type PipelineStatusResponse = {
+    ok: boolean;
+    status?: PipelineStatus;
+    error?: string;
+};
+
+export type SavePushTokenResponse = {
+    ok: boolean;
+    error?: string;
+};
+
 // Helper function for fetch with timeout and better error handling
 const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
     const controller = new AbortController();
@@ -311,6 +343,41 @@ export const scheduleTimesApi = {
                 ok: false,
                 error: error.message || String(error)
             };
+        }
+    },
+};
+
+// Pipeline Status API
+export const pipelineApi = {
+    // Save Expo push token so server can send notifications
+    savePushToken: async (token: string): Promise<SavePushTokenResponse> => {
+        try {
+            console.log('[API] Saving push token');
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/push-token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token }),
+            });
+            const data = await response.json();
+            console.log('[API] Push token saved successfully');
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error saving push token:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    // Get latest pipeline run status
+    getPipelineStatus: async (): Promise<PipelineStatusResponse> => {
+        try {
+            console.log('[API] Fetching pipeline status from:', `${API_BASE_URL}/api/pipeline-status`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/pipeline-status`, {}, 15000);
+            const data = await response.json();
+            console.log('[API] Pipeline status fetched successfully');
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error fetching pipeline status:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
         }
     },
 };

@@ -3,6 +3,7 @@ import Redis from 'ioredis';
 
 const PIPELINE_STATUS_KEY = 'pipeline:latest-status';
 const PUSH_TOKEN_KEY = 'push:token';
+const LONG_FORM_TIME_KEY = 'longform:publish-time';
 const EXPO_PUSH_API = 'https://exp.host/--/api/v2/push/send';
 
 // The secret token GitHub Actions must pass in the Authorization header
@@ -18,14 +19,21 @@ function getRedisClient() {
 async function sendPushNotification(
     pushToken: string,
     overallStatus: 'success' | 'failure',
-    videoId: string,
+    videoTitle: string,
+    scheduledTime: string | null,
     youtubeId?: string
 ) {
     const isSuccess = overallStatus === 'success';
-    const title = isSuccess ? '✅ Pipeline succeeded' : '❌ Pipeline failed';
-    const body = isSuccess
-        ? `"${videoId}" is live${youtubeId ? ' on YouTube' : ''}`
-        : `"${videoId}" — check job details in the app`;
+    const title = isSuccess ? '✅ Video scheduled' : '❌ Pipeline failed';
+
+    let body: string;
+    if (!isSuccess) {
+        body = `"${videoTitle}" — check job details in the app`;
+    } else if (scheduledTime) {
+        body = `"${videoTitle}" will go live at ${scheduledTime} IST`;
+    } else {
+        body = `"${videoTitle}" has been scheduled on YouTube`;
+    }
 
     const message = {
         to: pushToken,
@@ -69,11 +77,13 @@ export async function POST(req: NextRequest) {
         const {
             overallStatus,
             videoId,
+            videoTitle,
             youtubeId,
             jobs,
         }: {
             overallStatus: 'success' | 'failure';
             videoId: string;
+            videoTitle?: string;
             youtubeId?: string;
             jobs: Record<string, string | null>;
         } = body;
@@ -86,6 +96,7 @@ export async function POST(req: NextRequest) {
             overallStatus,
             ranAt: new Date().toISOString(),
             videoId,
+            videoTitle: videoTitle ?? videoId,
             youtubeId: youtubeId ?? null,
             jobs: {
                 populateIdeas: jobs.populateIdeas ?? null,
@@ -108,7 +119,8 @@ export async function POST(req: NextRequest) {
         const pushToken = await redis.get(PUSH_TOKEN_KEY);
         if (pushToken) {
             try {
-                await sendPushNotification(pushToken, overallStatus, videoId, youtubeId);
+                const scheduledTime = await redis.get(LONG_FORM_TIME_KEY); // e.g. "20:00"
+                await sendPushNotification(pushToken, overallStatus, videoTitle ?? videoId, scheduledTime, youtubeId);
             } catch (pushErr: any) {
                 // Non-fatal — log but don't fail the request
                 console.error('[pipeline-status] Push notification error:', pushErr.message);
