@@ -18,6 +18,8 @@ jobs:
     name: Populate Ideas Queue
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      added_ideas: ${{ steps.populate.outputs.ideas_added }}
     
     steps:
       - name: Checkout code
@@ -33,6 +35,7 @@ jobs:
         run: npm install
 
       - name: Check queue and run idea-selector if needed
+        id: populate
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
@@ -40,7 +43,7 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
         run: |
-          npx tsx .github/scripts/check-and-populate-ideas.ts
+          npx tsx .github/scripts/check-and-populate-ideas.ts >> $GITHUB_OUTPUT
 
   # Step 1: Generate video script
   generate-script:
@@ -387,6 +390,22 @@ jobs:
           VIDEO_TITLE="${{ needs.generate-script.outputs.video_title }}"
           YOUTUBE_ID="${{ needs.upload-youtube.outputs.youtube_id }}"
 
+          # Decode hex-encoded asset URLs
+          SCENE_URLS_JSON=$(echo "${{ needs.render-scenes.outputs.clips_urls }}" | xxd -r -p 2>/dev/null || echo "[]")
+          VOICEOVER_URLS_JSON=$(echo "${{ needs.generate-voiceover.outputs.voiceover_data }}" | xxd -r -p 2>/dev/null || echo "[]")
+          VIDEO_URL=$(echo "${{ needs.assemble-video.outputs.video_url }}" | xxd -r -p 2>/dev/null || echo "")
+          THUMBNAIL_URL=$(echo "${{ needs.generate-thumbnail.outputs.thumbnail_url }}" | xxd -r -p 2>/dev/null || echo "")
+
+          # Extract fields from script_data
+          SCRIPT_DATA='${{ needs.generate-script.outputs.script_data }}'
+          DESCRIPTION=$(echo "$SCRIPT_DATA" | jq -r '.script.description // ""' 2>/dev/null || echo "")
+          SCENE_NARRATIONS=$(echo "$SCRIPT_DATA" | jq -c '[.script.scenes[].narration] // []' 2>/dev/null || echo "[]")
+          SHORT_HOOKS=$(echo "$SCRIPT_DATA" | jq -c '[.script.shorts[].hook] // []' 2>/dev/null || echo "[]")
+          # Keep full raw script for app display/copy
+          RAW_SCRIPT=$(echo "$SCRIPT_DATA" | jq -c '.script // {}' 2>/dev/null || echo "{}")
+          IDEAS_ADDED='${{ needs.populate-ideas.outputs.added_ideas }}'
+          IDEAS_ADDED=${IDEAS_ADDED:-[]}
+
           # Determine overall status — fail if any critical job failed
           CRITICAL_RESULTS=(
             "${{ needs['generate-script'].result }}"
@@ -403,26 +422,54 @@ jobs:
             fi
           done
 
-          # Build JSON payload
-          PAYLOAD=$(cat <<EOF
-          {
-            "overallStatus": "$OVERALL",
-            "videoId": "$VIDEO_ID",
-            "videoTitle": "$VIDEO_TITLE",
-            "youtubeId": "$YOUTUBE_ID",
-            "jobs": {
-              "populateIdeas":    "${{ needs['populate-ideas'].result }}",
-              "generateScript":   "${{ needs['generate-script'].result }}",
-              "renderScenes":     "${{ needs['render-scenes'].result }}",
-              "generateVoiceover":"${{ needs['generate-voiceover'].result }}",
-              "assembleLongForm": "${{ needs['assemble-video'].result }}",
-              "generateThumbnail":"${{ needs['generate-thumbnail'].result }}",
-              "uploadYoutube":    "${{ needs['upload-youtube'].result }}",
-              "shortsProcessing": "${{ needs['process-short'].result }}"
-            }
-          }
-          EOF
-          )
+          # Build JSON payload using jq for proper escaping
+          PAYLOAD=$(jq -n \
+            --arg overallStatus "$OVERALL" \
+            --arg videoId "$VIDEO_ID" \
+            --arg videoTitle "$VIDEO_TITLE" \
+            --arg youtubeId "$YOUTUBE_ID" \
+            --arg videoUrl "$VIDEO_URL" \
+            --arg thumbnailUrl "$THUMBNAIL_URL" \
+            --arg description "$DESCRIPTION" \
+            --argjson sceneUrls "$SCENE_URLS_JSON" \
+            --argjson voiceoverUrls "$VOICEOVER_URLS_JSON" \
+            --argjson sceneNarrations "$SCENE_NARRATIONS" \
+            --argjson shortHooks "$SHORT_HOOKS" \
+            --argjson ideasAdded "$IDEAS_ADDED" \
+            --arg populateIdeas   "${{ needs['populate-ideas'].result }}" \
+            --arg generateScript  "${{ needs['generate-script'].result }}" \
+            --arg renderScenes    "${{ needs['render-scenes'].result }}" \
+            --arg generateVoiceover "${{ needs['generate-voiceover'].result }}" \
+            --arg assembleLongForm "${{ needs['assemble-video'].result }}" \
+            --arg generateThumbnail "${{ needs['generate-thumbnail'].result }}" \
+            --arg uploadYoutube   "${{ needs['upload-youtube'].result }}" \
+            --arg shortsProcessing "${{ needs['process-short'].result }}" \
+            --argjson scriptData "$RAW_SCRIPT" \
+            '{
+              overallStatus: $overallStatus,
+              videoId: $videoId,
+              videoTitle: $videoTitle,
+              youtubeId: $youtubeId,
+              videoUrl: $videoUrl,
+              thumbnailUrl: $thumbnailUrl,
+              description: $description,
+              sceneUrls: $sceneUrls,
+              voiceoverUrls: $voiceoverUrls,
+              sceneNarrations: $sceneNarrations,
+              shortHooks: $shortHooks,
+              ideasAdded: $ideasAdded,
+              scriptData: $scriptData,
+              jobs: {
+                populateIdeas:    $populateIdeas,
+                generateScript:   $generateScript,
+                renderScenes:     $renderScenes,
+                generateVoiceover: $generateVoiceover,
+                assembleLongForm: $assembleLongForm,
+                generateThumbnail: $generateThumbnail,
+                uploadYoutube:    $uploadYoutube,
+                shortsProcessing: $shortsProcessing
+              }
+            }')
 
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST \

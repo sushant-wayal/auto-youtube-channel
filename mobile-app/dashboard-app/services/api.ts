@@ -3,12 +3,31 @@ import { API_BASE_URL } from '../config';
 // Pipeline Status API Types
 export type JobResult = 'success' | 'failure' | 'skipped' | 'cancelled' | null;
 
+export type ShortResult = {
+    shortIndex: number;
+    shortId: string;
+    youtubeId: string;
+    videoUrl?: string;
+    scheduledPublishTime?: string;
+    rank?: number;
+};
+
 export type PipelineStatus = {
     overallStatus: 'success' | 'failure';
     ranAt: string; // ISO timestamp
     videoId: string;
     videoTitle: string;
-    youtubeId?: string;
+    description?: string;          // YouTube description from script
+    youtubeId?: string;            // main video YouTube ID
+    videoUrl?: string;             // assembled video Cloudinary URL
+    thumbnailUrl?: string;         // thumbnail Cloudinary URL
+    sceneUrls?: string[];          // per-scene rendered video URLs
+    voiceoverUrls?: string[];      // per-scene audio URLs
+    sceneNarrations?: string[];    // narration text per scene
+    ideasAdded?: string[];         // ideas added to queue this run
+    shortHooks?: string[];         // hook text per short
+    shorts?: ShortResult[];        // per-short YouTube + video URLs
+    scriptData?: unknown;          // full raw script object from generate-script
     jobs: {
         populateIdeas: JobResult;
         generateScript: JobResult;

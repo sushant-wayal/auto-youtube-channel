@@ -48,6 +48,7 @@ async function checkQueueAndPopulate(): Promise<void> {
 
         // Loop until the queue reaches MIN_QUEUE_SIZE
         let currentSize = queueSize;
+        const addedTopics: string[] = [];
         while (currentSize < MIN_QUEUE_SIZE) {
             console.error(`\n🚀 Running idea-selector worker (${currentSize}/${MIN_QUEUE_SIZE} ideas)...`);
 
@@ -65,6 +66,7 @@ async function checkQueueAndPopulate(): Promise<void> {
 
             // Add the topic to Redis queue
             await redis.rpush(QUEUE_KEY, topic);
+            addedTopics.push(topic);
             console.error(`✅ Added topic to Redis queue (${QUEUE_KEY})`);
 
             // Refresh existing ideas list so next iteration avoids duplicating this topic
@@ -73,6 +75,9 @@ async function checkQueueAndPopulate(): Promise<void> {
         }
 
         console.error(`\n✅ Queue filled to ${currentSize} ideas`);
+
+        // Output added topics for GitHub Actions pipeline-summary
+        console.log(`ideas_added=${JSON.stringify(addedTopics)}`);
 
         await redis.quit();
         console.error(`✅ Ideas queue populated successfully`);

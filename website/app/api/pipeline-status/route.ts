@@ -83,12 +83,30 @@ export async function POST(req: NextRequest) {
             videoId,
             videoTitle,
             youtubeId,
+            videoUrl,
+            thumbnailUrl,
+            description,
+            sceneUrls,
+            voiceoverUrls,
+            sceneNarrations,
+            shortHooks,
+            ideasAdded,
+            scriptData,
             jobs,
         }: {
             overallStatus: 'success' | 'failure';
             videoId: string;
             videoTitle?: string;
             youtubeId?: string;
+            videoUrl?: string;
+            thumbnailUrl?: string;
+            description?: string;
+            sceneUrls?: string[];
+            voiceoverUrls?: string[];
+            sceneNarrations?: string[];
+            shortHooks?: string[];
+            ideasAdded?: string[];
+            scriptData?: unknown;
             jobs: Record<string, string | null>;
         } = body;
 
@@ -96,12 +114,30 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
         }
 
+        redis = getRedisClient();
+
+        // Read per-short results stored by each matrix runner
+        const shortsRaw = await redis.lrange(`pipeline:shorts:${videoId}`, 0, -1);
+        const shorts = shortsRaw.map(s => {
+            try { return JSON.parse(s); } catch { return null; }
+        }).filter(Boolean);
+
         const status = {
             overallStatus,
             ranAt: new Date().toISOString(),
             videoId,
             videoTitle: videoTitle ?? videoId,
             youtubeId: youtubeId ?? null,
+            videoUrl: videoUrl ?? null,
+            thumbnailUrl: thumbnailUrl ?? null,
+            description: description ?? null,
+            sceneUrls: sceneUrls ?? [],
+            voiceoverUrls: voiceoverUrls ?? [],
+            sceneNarrations: sceneNarrations ?? [],
+            shortHooks: shortHooks ?? [],
+            ideasAdded: ideasAdded ?? [],
+            scriptData: scriptData ?? null,
+            shorts,
             jobs: {
                 populateIdeas: jobs.populateIdeas ?? null,
                 generateScript: jobs.generateScript ?? null,
@@ -113,8 +149,6 @@ export async function POST(req: NextRequest) {
                 shortsProcessing: jobs.shortsProcessing ?? null,
             },
         };
-
-        redis = getRedisClient();
 
         // Persist status (7-day TTL so stale data auto-clears)
         await redis.set(PIPELINE_STATUS_KEY, JSON.stringify(status), 'EX', 60 * 60 * 24 * 7);

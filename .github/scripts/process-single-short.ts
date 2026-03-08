@@ -15,6 +15,7 @@
  *   REDIS_URL
  */
 
+import Redis from 'ioredis';
 import { renderScenes } from '../../workers/video-scene-renderer/src/index';
 import { generateVoiceOvers } from '../../workers/voice-over-generation/src/index';
 import { assembleVideo } from '../../workers/video-assembler/src/index';
@@ -149,7 +150,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
 
     console.error(`✅ Short ${shortIndex + 1} done: https://youtube.com/watch?v=${youtubeId} (Rank ${shortsRank + 1} – ${shortsTime} IST)`);
 
-    return {
+    const result = {
         shortIndex,
         shortId,
         youtubeId,
@@ -157,6 +158,19 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         scheduledPublishTime,
         rank: shortsRank + 1,
     };
+
+    // Persist result to Redis so the pipeline-status API can return it
+    try {
+        const redis = new Redis(process.env.REDIS_URL!);
+        await redis.rpush(`pipeline:shorts:${videoId}`, JSON.stringify(result));
+        await redis.expire(`pipeline:shorts:${videoId}`, 60 * 60 * 24 * 7); // 7 days
+        await redis.quit();
+        console.error(`✅ Short ${shortIndex} result stored in Redis`);
+    } catch (redisErr) {
+        console.error(`⚠️  Could not store short result in Redis (non-fatal):`, redisErr);
+    }
+
+    return result;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
