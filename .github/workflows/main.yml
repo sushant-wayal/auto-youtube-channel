@@ -391,18 +391,26 @@ jobs:
           YOUTUBE_ID="${{ needs.upload-youtube.outputs.youtube_id }}"
 
           # Decode hex-encoded asset URLs
-          SCENE_URLS_JSON=$(echo "${{ needs.render-scenes.outputs.clips_urls }}" | xxd -r -p 2>/dev/null || echo "[]")
-          VOICEOVER_URLS_JSON=$(echo "${{ needs.generate-voiceover.outputs.voiceover_data }}" | xxd -r -p 2>/dev/null || echo "[]")
-          VIDEO_URL=$(echo "${{ needs.assemble-video.outputs.video_url }}" | xxd -r -p 2>/dev/null || echo "")
-          THUMBNAIL_URL=$(echo "${{ needs.generate-thumbnail.outputs.thumbnail_url }}" | xxd -r -p 2>/dev/null || echo "")
+          SCENE_URLS_JSON=$(echo "${{ needs.render-scenes.outputs.clips_urls }}" | xxd -r -p 2>/dev/null || true)
+          SCENE_URLS_JSON=${SCENE_URLS_JSON:-[]}
+          VOICEOVER_URLS_JSON=$(echo "${{ needs.generate-voiceover.outputs.voiceover_data }}" | xxd -r -p 2>/dev/null || true)
+          VOICEOVER_URLS_JSON=${VOICEOVER_URLS_JSON:-[]}
+          VIDEO_URL=$(echo "${{ needs.assemble-video.outputs.video_url }}" | xxd -r -p 2>/dev/null || true)
+          VIDEO_URL=${VIDEO_URL:-}
+          THUMBNAIL_URL=$(echo "${{ needs.generate-thumbnail.outputs.thumbnail_url }}" | xxd -r -p 2>/dev/null || true)
+          THUMBNAIL_URL=${THUMBNAIL_URL:-}
 
           # Extract fields from script_data
           SCRIPT_DATA='${{ needs.generate-script.outputs.script_data }}'
-          DESCRIPTION=$(echo "$SCRIPT_DATA" | jq -r '.script.description // ""' 2>/dev/null || echo "")
-          SCENE_NARRATIONS=$(echo "$SCRIPT_DATA" | jq -c '[.script.scenes[].narration] // []' 2>/dev/null || echo "[]")
-          SHORT_HOOKS=$(echo "$SCRIPT_DATA" | jq -c '[.script.shorts[].hook] // []' 2>/dev/null || echo "[]")
+          DESCRIPTION=$(echo "$SCRIPT_DATA" | jq -r '.script.description // ""' 2>/dev/null || true)
+          DESCRIPTION=${DESCRIPTION:-}
+          SCENE_NARRATIONS=$(echo "$SCRIPT_DATA" | jq -c '[.script.scenes[].narration] // []' 2>/dev/null || true)
+          SCENE_NARRATIONS=${SCENE_NARRATIONS:-[]}
+          SHORT_HOOKS=$(echo "$SCRIPT_DATA" | jq -c '[.script.shorts[].hook] // []' 2>/dev/null || true)
+          SHORT_HOOKS=${SHORT_HOOKS:-[]}
           # Keep full raw script for app display/copy
-          RAW_SCRIPT=$(echo "$SCRIPT_DATA" | jq -c '.script // {}' 2>/dev/null || echo "{}")
+          RAW_SCRIPT=$(echo "$SCRIPT_DATA" | jq -c '.script // {}' 2>/dev/null || true)
+          RAW_SCRIPT=${RAW_SCRIPT:-\{\}}
           IDEAS_ADDED='${{ needs.populate-ideas.outputs.added_ideas }}'
           IDEAS_ADDED=${IDEAS_ADDED:-[]}
 
