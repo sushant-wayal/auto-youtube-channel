@@ -369,8 +369,8 @@ class GeminiTTSService {
 
                 const upload = await this.cloudinaryService.uploadAudio(
                     audioPath,
-                    `narrations/part-${i + 1}`,
-                    'narration-audio'
+                    `narrations/${jobId}`,
+                    `part-${i + 1}`
                 );
 
                 console.error(`✅ Narration part ${i + 1} uploaded to Cloudinary: ${upload.secureUrl}`);
