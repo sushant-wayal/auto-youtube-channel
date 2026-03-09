@@ -147,8 +147,8 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
             trendingSignals,
         };
 
-        // Write to stdout for consumption by other systems
-        console.log(JSON.stringify(result, null, 2));
+        // Log result to stderr only (stdout is reserved for GITHUB_OUTPUT in CI)
+        console.error(JSON.stringify(result, null, 2));
 
         return result;
 
@@ -161,7 +161,7 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
             error: error.message,
         };
 
-        console.log(JSON.stringify(result, null, 2));
+        console.error(JSON.stringify(result, null, 2));
         return result;
     }
 }
