@@ -385,23 +385,27 @@ jobs:
         env:
           WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
           PIPELINE_WEBHOOK_SECRET: ${{ secrets.PIPELINE_WEBHOOK_SECRET }}
+          SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
+          VIDEO_ID: ${{ needs.generate-script.outputs.video_id }}
+          VIDEO_TITLE: ${{ needs.generate-script.outputs.video_title }}
+          YOUTUBE_ID: ${{ needs.upload-youtube.outputs.youtube_id }}
+          CLIPS_URLS_HEX: ${{ needs.render-scenes.outputs.clips_urls }}
+          VOICEOVER_HEX: ${{ needs.generate-voiceover.outputs.voiceover_data }}
+          VIDEO_URL_HEX: ${{ needs.assemble-video.outputs.video_url }}
+          THUMBNAIL_URL_HEX: ${{ needs.generate-thumbnail.outputs.thumbnail_url }}
+          IDEAS_ADDED: ${{ needs.populate-ideas.outputs.added_ideas }}
         run: |
-          VIDEO_ID="${{ needs.generate-script.outputs.video_id }}"
-          VIDEO_TITLE="${{ needs.generate-script.outputs.video_title }}"
-          YOUTUBE_ID="${{ needs.upload-youtube.outputs.youtube_id }}"
-
           # Decode hex-encoded asset URLs
-          SCENE_URLS_JSON=$(echo "${{ needs.render-scenes.outputs.clips_urls }}" | xxd -r -p 2>/dev/null || true)
+          SCENE_URLS_JSON=$(echo "$CLIPS_URLS_HEX" | xxd -r -p 2>/dev/null || true)
           SCENE_URLS_JSON=${SCENE_URLS_JSON:-[]}
-          VOICEOVER_URLS_JSON=$(echo "${{ needs.generate-voiceover.outputs.voiceover_data }}" | xxd -r -p 2>/dev/null || true)
+          VOICEOVER_URLS_JSON=$(echo "$VOICEOVER_HEX" | xxd -r -p 2>/dev/null || true)
           VOICEOVER_URLS_JSON=${VOICEOVER_URLS_JSON:-[]}
-          VIDEO_URL=$(echo "${{ needs.assemble-video.outputs.video_url }}" | xxd -r -p 2>/dev/null || true)
+          VIDEO_URL=$(echo "$VIDEO_URL_HEX" | xxd -r -p 2>/dev/null || true)
           VIDEO_URL=${VIDEO_URL:-}
-          THUMBNAIL_URL=$(echo "${{ needs.generate-thumbnail.outputs.thumbnail_url }}" | xxd -r -p 2>/dev/null || true)
+          THUMBNAIL_URL=$(echo "$THUMBNAIL_URL_HEX" | xxd -r -p 2>/dev/null || true)
           THUMBNAIL_URL=${THUMBNAIL_URL:-}
 
-          # Extract fields from script_data
-          SCRIPT_DATA='${{ needs.generate-script.outputs.script_data }}'
+          # Extract fields from script_data (env var — safe from quoting/apostrophe issues)
           DESCRIPTION=$(echo "$SCRIPT_DATA" | jq -r '.script.description // ""' 2>/dev/null || true)
           DESCRIPTION=${DESCRIPTION:-}
           SCENE_NARRATIONS=$(echo "$SCRIPT_DATA" | jq -c '[.script.scenes[].narration] // []' 2>/dev/null || true)
@@ -411,7 +415,6 @@ jobs:
           # Keep full raw script for app display/copy
           RAW_SCRIPT=$(echo "$SCRIPT_DATA" | jq -c '.script // {}' 2>/dev/null || true)
           RAW_SCRIPT=${RAW_SCRIPT:-\{\}}
-          IDEAS_ADDED='${{ needs.populate-ideas.outputs.added_ideas }}'
           IDEAS_ADDED=${IDEAS_ADDED:-[]}
 
           # Determine overall status — fail if any critical job failed
