@@ -63,7 +63,7 @@ export class ClipsRenderService {
       const result = await this.cloudinaryService.uploadVideo(
         outPath,
         "scenes",
-        `scene_${scene.id}`
+        `${this.jobId}_scene_${scene.id}`
       );
 
       fs.unlinkSync(outPath);
