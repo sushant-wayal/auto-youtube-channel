@@ -190,17 +190,47 @@ class HuggingFaceImageService {
 
         // Build a concise but effective prompt
         const prompt = `
-        Minimalist YouTube thumbnail for "${title}",
-        ${styleModifiers},
-        clean flat vector style,
-        high contrast black and white with 1 accent color,
-        simple geometric shapes,
-        diagram-like tech illustration,
-        bold readable typography,
-        no faces, no clutter,
-        modern motion-graphics aesthetic,
-        sharp edges, crisp lines,
-        ${tags.slice(0, 3).join(", ")}
+Create a high-quality YouTube thumbnail in a dark futuristic engineering style.
+
+TITLE: "${title}"
+
+Design style:
+• Dark tech background with glowing blue, purple and neon network lines
+• Modern data center / cloud infrastructure vibe
+• Cinematic lighting, high contrast, ultra sharp
+
+Layout:
+• The TITLE in huge bold white text at the top, thick black outline, dramatic YouTube style
+• Center: a glowing technical diagram explaining the concept in the title
+• Use arrows, icons, flow diagrams, server/database icons, gears, warning symbols
+• Visualize a performance issue, bottleneck, or technical concept dramatically
+
+Graphics style:
+• Neon glowing arrows showing data flow
+• Tech icons like servers, databases, cache icons, CPU symbols
+• Red warning elements for problems, green indicators for success
+• Labels explaining the diagram (short phrases like "Concurrent Requests", "Bottleneck", "Blocked", etc.)
+
+Composition:
+• Left → system inputs or requests
+• Middle → the bottleneck / core concept
+• Right → consequences (blocked, crash, slowdown, etc.)
+• Clean infographic style but cinematic
+
+Bottom banner:
+• Large bold yellow text with a dramatic phrase related to the title
+
+Quality:
+• Ultra detailed
+• Professional YouTube thumbnail
+• 16:9 aspect ratio
+• High contrast
+• Designed for maximum CTR
+• Tech YouTube channel style
+
+Important: Diagram should not be too complex, else it should be clean clear and scroll stopping
+
+Tag: ${tags.slice(0, 3).join(", ")}
         `;
 
 
