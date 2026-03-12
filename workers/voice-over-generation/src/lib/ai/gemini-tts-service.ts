@@ -127,16 +127,26 @@ class GeminiTTSService {
                 if (!statusCode) console.error(`Failed to get status code from error:`, error);
 
                 const message =
-                    error?.message?.toLowerCase?.() || "";
+                    (error?.message?.toLowerCase?.() || "") +
+                    " " +
+                    (error?.cause?.message?.toLowerCase?.() || "");
 
-                if (!message) console.error(`Failed to get message from error:`, error);
+                if (!message.trim()) console.error(`Failed to get message from error:`, error);
 
                 const isRetryable =
+                    statusCode === 429 ||
                     statusCode === 500 ||
                     statusCode === 503 ||
                     message.includes("internal") ||
                     message.includes("overloaded") ||
-                    message.includes("unavailable");
+                    message.includes("unavailable") ||
+                    message.includes("fetch failed") ||
+                    message.includes("network") ||
+                    message.includes("econnreset") ||
+                    message.includes("econnrefused") ||
+                    message.includes("etimedout") ||
+                    message.includes("socket hang up") ||
+                    message.includes("typeerror");
 
                 if (!isRetryable || attempt >= MAX_RETRIES) {
                     console.error(`❌ Gemini TTS failed permanently:`, error);
