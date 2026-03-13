@@ -38,10 +38,14 @@ export class ClipsRenderService {
       console.error(`🎬 Rendering scene ${i + 1} of ${this.scenes.length}...`);
 
       const scene = this.scenes[i];
+      const resolvedTheme = scene.sceneTheme && scene.sceneTheme !== "auto"
+        ? scene.sceneTheme
+        : (i % 2 === 0 ? "light" : "dark");
 
       const { html, animationStopTime } = this.htmlRenderer.render({
         duration: scene.baseDuration,
-        actions: scene.actions
+        actions: scene.actions,
+        sceneTheme: resolvedTheme,
       }, height, width);
 
       const outPath = path.join(

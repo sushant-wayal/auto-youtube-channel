@@ -4,39 +4,39 @@ import { promises as fs } from "fs";
 import path from "path";
 
 class ScriptGenerationService {
-    private gemini: GeminiService;
+  private gemini: GeminiService;
 
-    constructor() {
-        this.gemini = new GeminiService();
+  constructor() {
+    this.gemini = new GeminiService();
+  }
+
+  /**
+   * Generate a complete YouTube video script from a video idea
+   * @param videoIdea - The main concept/title for the video
+   * @param duration - Target duration in minutes (5-10)
+   */
+  async generateScript(
+    videoIdea: string,
+    duration: number = 7
+  ): Promise<VideoScript> {
+    const prompt = this.buildScriptPrompt(videoIdea, duration);
+
+    try {
+      const response = await this.gemini.generateText(prompt, {
+        temperature: 0.8,
+        topP: 0.95,
+      });
+
+      const script = this.parseScriptResponse(response, videoIdea);
+      return script;
+    } catch (error) {
+      console.error("Error generating script:", error);
+      throw new Error(`Failed to generate script: ${error}`);
     }
+  }
 
-    /**
-     * Generate a complete YouTube video script from a video idea
-     * @param videoIdea - The main concept/title for the video
-     * @param duration - Target duration in minutes (5-10)
-     */
-    async generateScript(
-        videoIdea: string,
-        duration: number = 7
-    ): Promise<VideoScript> {
-        const prompt = this.buildScriptPrompt(videoIdea, duration);
-
-        try {
-            const response = await this.gemini.generateText(prompt, {
-                temperature: 0.8,
-                topP: 0.95,
-            });
-
-            const script = this.parseScriptResponse(response, videoIdea);
-            return script;
-        } catch (error) {
-            console.error("Error generating script:", error);
-            throw new Error(`Failed to generate script: ${error}`);
-        }
-    }
-
-    private buildScriptPrompt(videoIdea: string, duration: number): string {
-        return `You are a technical explainer AI creating professional, calm, educational video content.
+  private buildScriptPrompt(videoIdea: string, duration: number): string {
+    return `You are a technical explainer AI creating professional, calm, educational video content.
 
 Create content for a ${duration}-minute YouTube video about:
 "${videoIdea}"
@@ -89,6 +89,7 @@ REQUIRED OUTPUT FORMAT
     {
       "id": "scene-1",
       "sceneTitle": "Brief descriptive title for this section (3-7 words)",
+      "sceneTheme": "light",
       "baseDuration": 20.0,
       "holdDuration": 2.0,
       "narration": "Full narration text for this scene, matching the duration.",
@@ -109,6 +110,7 @@ REQUIRED OUTPUT FORMAT
       "scenes": [
         {
           "id": "hook",
+          "sceneTheme": "dark",
           "baseDuration": 1.2,
           "holdDuration": 0.0,
           "narration": "",
@@ -125,6 +127,7 @@ REQUIRED OUTPUT FORMAT
         },
         {
           "id": "content",
+          "sceneTheme": "dark",
           "baseDuration": 10.0,
           "holdDuration": 0.5,
           "narration": "Cache misses force expensive database round-trips. Every miss adds latency and load. That's why cache hit rates matter so much.",
@@ -144,8 +147,8 @@ REQUIRED OUTPUT FORMAT
 ========================
 CANVAS SIZE
 ========================
-- Long-form: 1280x720 (center content around x=640)
-- Shorts: 720x1280 (center content around x=360, more vertical space)
+- Long-form: 1920x1080 (center content around x=960)
+- Shorts: 1080x1920 (center content around x=540, more vertical space)
 
 ========================
 TEXT SIZE SYSTEM
@@ -165,6 +168,10 @@ SCENE RULES (MAIN VIDEO)
 ========================
 
 - max 10 scenes, min 15 seconds baseDuration per scene
+- each scene MUST contain at least 4 actions and at most 35 actions
+- each scene MUST include at least 1 non-text shape (rect/ellipse/path/line)
+- each scene MUST include at least 1 connector or spatial relationship cue (line/path)
+- avoid text-only scenes except intro/outro emphasis moments
 - each scene MUST have a "sceneTitle" field: short descriptive title (3-7 words)
 - sceneTitle should capture the key concept/topic of that scene section
 - sceneTitle will be used for YouTube chapter timestamps
@@ -174,6 +181,12 @@ SCENE RULES (MAIN VIDEO)
 - actions should be evenly distributed across the duration
 - leave visual breathing room (margins of ~100px from edges)
 - position text INSIDE or BELOW boxes, not overlapping edges
+
+VISUAL DENSITY DISTRIBUTION (MANDATORY):
+- At least 1 sparse scene: 4-8 actions, high whitespace, one key message
+- At least 1 medium scene: 9-16 actions, standard explainer layout
+- At least 1 dense scene: 17-30 actions, comparison or multi-step system view
+- Do not keep all scenes at the same complexity level
 
 ========================
 LAYOUT PRINCIPLES
@@ -185,6 +198,34 @@ LAYOUT PRINCIPLES
 - Boxes should be 200-300px wide, 100-160px tall
 - Keep text centered within boxes (text x = box x + box w/2)
 - Use r: 12-20 for rounded corners (modern look)
+
+SCENE THEME VARIATION (OPTIONAL BUT RECOMMENDED):
+- sceneTheme can be "light", "dark", or omitted (auto)
+- Use "dark" for deep-dive technical scenes (code internals, low-level architecture, debugging)
+- Use "light" for overview, summary, or conceptual framing scenes
+- Avoid setting the same theme for every scene
+
+LAYOUT VARIETY REQUIREMENTS (MANDATORY):
+- Across the full video, include at least one scene for each pattern:
+  1) Left-to-right process flow (3+ connected nodes)
+  2) Two-column comparison (before/after or good/bad)
+  3) Single focal callout card with supporting annotation
+- Use clear alignment grids; avoid random floating placement
+- Keep safe area: 8% inset from all edges for primary text and key nodes
+- Accent usage rule: highlight exactly one primary concept per scene with accent color
+
+TEXT HIERARCHY RULES (MANDATORY):
+- Every scene should start with a visible heading or anchor label by t <= 1.2s
+- Use title/subtitle/body/label tiers intentionally; avoid using only one text size
+- No paragraph blocks longer than 10 words per text action; split into chunks
+- If two text actions overlap in time, keep at least 28px vertical separation
+
+ANIMATION STAGING RULES (MANDATORY):
+- Do not drop all elements at t=0; stagger entries by 0.25-0.60s
+- Reveal order should be: structure first, labels second, emphasis third
+- At least one scene must include a 3-step causal chain with distinct timings
+- Keep animation semantic: movement must explain relationships, not decorate
+- Reserve typewriter-style reveals for key takeaway lines only
 
 ========================
 CONNECTOR RULES
@@ -394,6 +435,37 @@ ALLOWED ACTION OPS
   - For emphasis: fill: "#6366F1" (accent)
   - For secondary: fill: "#52525B" (textSecondary)
 
+"codeBlock": { t, op: "codeBlock", x, y, w, h, lines }
+  - lines is an array of code lines, e.g. ["const cache = new Map()", "return cache.get(key)"]
+  - Optional: language, theme ("light"|"dark"), fontSize, showLineNumbers, highlightLine, cursor
+  - Use for technical/code explanation scenes, not decorative filler
+
+"progressBar": { t, op: "progressBar", x, y, w, h, value }
+  - Optional: max (default 100), label, fill, trackFill, stroke, strokeWidth, r
+  - Use to show percentages, utilization, completion, queue growth
+
+"badge": { t, op: "badge", x, y, value }
+  - Optional: style ("neutral"|"accent"|"warning"|"success"|"danger"), icon, fontSize
+  - Use for labels/tags/status chips like "CACHE HIT", "P95", "CRITICAL"
+
+"icon": { t, op: "icon", x, y, name }
+  - Optional: size, stroke, strokeWidth, fill
+  - Supported names: check, cross, warning, info, arrowRight, arrowLeft, arrowUp, arrowDown, plus, minus, clock, database, server, cpu, lock, unlock, cloud, bug, chartUp, chartDown
+
+"table": { t, op: "table", x, y, w, h, headers, rows }
+  - headers: ["Metric", "Before", "After"]
+  - rows: [["Latency", "180ms", "42ms"], ["Error Rate", "2.1%", "0.2%"]]
+  - Optional: striped, headerFill, gridStroke, textColor, fontSize, align
+  - Use for explicit comparisons and benchmark scenes
+
+"numberCounter": { t, op: "numberCounter", x, y, from, to }
+  - Optional: prefix, suffix, decimals, size/fontSize, fontWeight, fill, align
+  - Use for KPI or cost counters, e.g. from 0 to 99 with suffix "%"
+
+"highlight": { t, op: "highlight", x, y, w, h }
+  - Optional: style ("underline"|"box"), fill, opacity, r
+  - Use to emphasize critical terms or key result regions
+
 "group": { t, op: "group", children: [...] }
   - Groups multiple actions
 
@@ -405,182 +477,184 @@ STRICT RULES
 ========================
 
 - NO HTML, JavaScript, or CSS
-- Primitives ONLY (rect, ellipse, line, text, path, group, transform)
+- Primitives ONLY (rect, ellipse, line, text, path, codeBlock, progressBar, badge, icon, table, numberCounter, highlight, group, transform)
 - Max 50 actions per scene/short
+- Do not reuse identical layouts across consecutive scenes
+- At least 70% of scenes must include both text and non-text primitives
 - Return ONLY raw JSON - no markdown, no comments
 - Escape quotes properly
-- Coordinates must fit canvas (1280x720 or 720x1280)
+- Coordinates must fit canvas (1920x1080 or 1080x1920)
 
 If the format is violated, the output will be rejected.
 `;
-    }
+  }
 
-    private parseScriptResponse(response: string, videoIdea: string): VideoScript {
-        try {
-            let cleanResponse = response.trim();
+  private parseScriptResponse(response: string, videoIdea: string): VideoScript {
+    try {
+      let cleanResponse = response.trim();
 
-            // Remove markdown code blocks
-            cleanResponse = cleanResponse.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
+      // Remove markdown code blocks
+      cleanResponse = cleanResponse.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "").trim();
 
-            // Log for debugging
-            console.log("📝 Attempting to parse JSON, length:", cleanResponse.length);
+      // Log for debugging
+      console.log("📝 Attempting to parse JSON, length:", cleanResponse.length);
 
-            // Try to fix common JSON issues
-            cleanResponse = this.fixCommonJsonIssues(cleanResponse);
+      // Try to fix common JSON issues
+      cleanResponse = this.fixCommonJsonIssues(cleanResponse);
 
-            let parsed;
-            try {
-                parsed = JSON.parse(cleanResponse);
-            } catch (parseError: any) {
-                console.error("❌ Initial JSON parse failed:", parseError.message);
+      let parsed;
+      try {
+        parsed = JSON.parse(cleanResponse);
+      } catch (parseError: any) {
+        console.error("❌ Initial JSON parse failed:", parseError.message);
 
-                // Try to extract position of error and fix
-                const errorMatch = parseError.message.match(/position (\d+)/);
-                if (errorMatch) {
-                    const errorPos = parseInt(errorMatch[1]);
-                    console.log(`🔍 Error at position ${errorPos}`);
-                    console.log(`📝 Context: ...${cleanResponse.substring(Math.max(0, errorPos - 50), errorPos + 50)}...`);
+        // Try to extract position of error and fix
+        const errorMatch = parseError.message.match(/position (\d+)/);
+        if (errorMatch) {
+          const errorPos = parseInt(errorMatch[1]);
+          console.log(`🔍 Error at position ${errorPos}`);
+          console.log(`📝 Context: ...${cleanResponse.substring(Math.max(0, errorPos - 50), errorPos + 50)}...`);
 
-                    // Try to fix by truncating at last valid closing brace before error
-                    const beforeError = cleanResponse.substring(0, errorPos);
-                    const lastValidClosing = Math.max(
-                        beforeError.lastIndexOf('"}'),
-                        beforeError.lastIndexOf('"]')
-                    );
+          // Try to fix by truncating at last valid closing brace before error
+          const beforeError = cleanResponse.substring(0, errorPos);
+          const lastValidClosing = Math.max(
+            beforeError.lastIndexOf('"}'),
+            beforeError.lastIndexOf('"]')
+          );
 
-                    if (lastValidClosing > 0) {
-                        console.log("🔧 Attempting to salvage JSON by truncating...");
-                        // Try to properly close the JSON
-                        let salvaged = cleanResponse.substring(0, lastValidClosing + 2);
+          if (lastValidClosing > 0) {
+            console.log("🔧 Attempting to salvage JSON by truncating...");
+            // Try to properly close the JSON
+            let salvaged = cleanResponse.substring(0, lastValidClosing + 2);
 
-                        // Check if we're inside an array or object
-                        const openBraces = (salvaged.match(/{/g) || []).length;
-                        const closeBraces = (salvaged.match(/}/g) || []).length;
-                        const openBrackets = (salvaged.match(/\[/g) || []).length;
-                        const closeBrackets = (salvaged.match(/\]/g) || []).length;
+            // Check if we're inside an array or object
+            const openBraces = (salvaged.match(/{/g) || []).length;
+            const closeBraces = (salvaged.match(/}/g) || []).length;
+            const openBrackets = (salvaged.match(/\[/g) || []).length;
+            const closeBrackets = (salvaged.match(/\]/g) || []).length;
 
-                        // Close any open arrays
-                        for (let i = 0; i < openBrackets - closeBrackets; i++) {
-                            salvaged += ']';
-                        }
-
-                        // Close any open objects
-                        for (let i = 0; i < openBraces - closeBraces; i++) {
-                            salvaged += '}';
-                        }
-
-                        console.log("🔧 Salvaged JSON length:", salvaged.length);
-                        parsed = JSON.parse(salvaged);
-                    } else {
-                        throw parseError; // Can't salvage, re-throw
-                    }
-                } else {
-                    throw parseError;
-                }
+            // Close any open arrays
+            for (let i = 0; i < openBrackets - closeBrackets; i++) {
+              salvaged += ']';
             }
 
-            const narration = parsed.scenes.map((scene: any) => scene.narration).join(" [PAUSE=8s] ");
+            // Close any open objects
+            for (let i = 0; i < openBraces - closeBraces; i++) {
+              salvaged += '}';
+            }
 
-            return {
-                title: parsed.title || videoIdea,
-                description: parsed.description || "",
-                tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-                narration: this.preprocessNarration(narration),
-                scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [],
-                shorts: Array.isArray(parsed.shorts) ? parsed.shorts.slice(0, 5) : [], // Max 5 shorts
-            };
-        } catch (error) {
-            console.error("❌ Error parsing script response:", error);
-            console.error("📝 Response length:", response.length);
-            console.error("📝 First 200 chars:", response.substring(0, 200));
-            console.error("📝 Last 200 chars:", response.substring(Math.max(0, response.length - 200)));
-
-            throw new Error(`Failed to parse generated script: ${error instanceof Error ? error.message : 'Invalid format'}`);
+            console.log("🔧 Salvaged JSON length:", salvaged.length);
+            parsed = JSON.parse(salvaged);
+          } else {
+            throw parseError; // Can't salvage, re-throw
+          }
+        } else {
+          throw parseError;
         }
+      }
+
+      const narration = parsed.scenes.map((scene: any) => scene.narration).join(" [PAUSE=8s] ");
+
+      return {
+        title: parsed.title || videoIdea,
+        description: parsed.description || "",
+        tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+        narration: this.preprocessNarration(narration),
+        scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [],
+        shorts: Array.isArray(parsed.shorts) ? parsed.shorts.slice(0, 5) : [], // Max 5 shorts
+      };
+    } catch (error) {
+      console.error("❌ Error parsing script response:", error);
+      console.error("📝 Response length:", response.length);
+      console.error("📝 First 200 chars:", response.substring(0, 200));
+      console.error("📝 Last 200 chars:", response.substring(Math.max(0, response.length - 200)));
+
+      throw new Error(`Failed to parse generated script: ${error instanceof Error ? error.message : 'Invalid format'}`);
+    }
+  }
+
+  /**
+   * Preprocess narration to clean up [PAUSE] markers and sanitize text
+   * Replaces [PAUSE] with natural pauses and removes unwanted characters
+   */
+  private preprocessNarration(narration: string): string {
+    // Step 1: Remove markdown formatting
+    let processed = narration;
+    processed = processed.replace(/\*\*([^*]+)\*\*/g, '$1'); // Bold
+    processed = processed.replace(/\*([^*]+)\*/g, '$1'); // Italic
+    processed = processed.replace(/__([^_]+)__/g, '$1'); // Underline
+    processed = processed.replace(/_([^_]+)_/g, '$1'); // Underline alt
+
+    // Step 2: Remove hashtags
+    processed = processed.replace(/#\w+/g, '');
+
+    // Step 3: Clean up multiple punctuation marks
+    processed = processed.replace(/[!?]{2,}/g, '!'); // Multiple exclamation/question marks
+    processed = processed.replace(/\.{2,}/g, '.'); // Multiple periods (except ellipsis)
+    processed = processed.replace(/,\s*,+/g, ','); // Multiple commas
+
+    // Step 4: Fix spacing around punctuation
+    processed = processed.replace(/\s+([,.!?;:])/g, '$1'); // Remove space before punctuation
+    processed = processed.replace(/([,.!?;:])\s*([,.!?;:])/g, '$1 '); // Fix multiple punctuation
+    processed = processed.replace(/,\s*\./g, '.'); // Comma before period
+
+    // Step 5: Clean up quotes
+    processed = processed.replace(/[""](?=\s|$)/g, ''); // Remove standalone quotes
+    processed = processed.replace(/[""]/g, '"'); // Normalize curly quotes
+
+    // Step 6: Remove URLs
+    processed = processed.replace(/https?:\/\/[^\s]+/g, '');
+
+    // Step 7: Remove special characters that TTS might struggle with
+    processed = processed.replace(/[<>{}|\\^~`]/g, '');
+
+    // Step 8: Normalize whitespace
+    processed = processed.replace(/\s+/g, ' '); // Multiple spaces to single
+    processed = processed.replace(/\n\s*\n\s*\n+/g, '\n\n'); // Max 2 newlines
+    processed = processed.trim();
+
+    // Step 9: Ensure sentences end with proper punctuation
+    processed = processed.replace(/([a-zA-Z0-9])\s*\n/g, '$1.\n');
+
+    // Step 10: Remove any remaining control characters
+    processed = processed.replace(/[\x00-\x1F\x7F]/g, '');
+
+    return processed;
+  }
+
+  /**
+   * Fix common JSON formatting issues from LLM output
+   */
+  private fixCommonJsonIssues(json: string): string {
+    let fixed = json;
+
+    // Remove any text before the first {
+    const firstBrace = fixed.indexOf('{');
+    if (firstBrace > 0) {
+      fixed = fixed.substring(firstBrace);
     }
 
-    /**
-     * Preprocess narration to clean up [PAUSE] markers and sanitize text
-     * Replaces [PAUSE] with natural pauses and removes unwanted characters
-     */
-    private preprocessNarration(narration: string): string {
-        // Step 1: Remove markdown formatting
-        let processed = narration;
-        processed = processed.replace(/\*\*([^*]+)\*\*/g, '$1'); // Bold
-        processed = processed.replace(/\*([^*]+)\*/g, '$1'); // Italic
-        processed = processed.replace(/__([^_]+)__/g, '$1'); // Underline
-        processed = processed.replace(/_([^_]+)_/g, '$1'); // Underline alt
-
-        // Step 2: Remove hashtags
-        processed = processed.replace(/#\w+/g, '');
-
-        // Step 3: Clean up multiple punctuation marks
-        processed = processed.replace(/[!?]{2,}/g, '!'); // Multiple exclamation/question marks
-        processed = processed.replace(/\.{2,}/g, '.'); // Multiple periods (except ellipsis)
-        processed = processed.replace(/,\s*,+/g, ','); // Multiple commas
-
-        // Step 4: Fix spacing around punctuation
-        processed = processed.replace(/\s+([,.!?;:])/g, '$1'); // Remove space before punctuation
-        processed = processed.replace(/([,.!?;:])\s*([,.!?;:])/g, '$1 '); // Fix multiple punctuation
-        processed = processed.replace(/,\s*\./g, '.'); // Comma before period
-
-        // Step 5: Clean up quotes
-        processed = processed.replace(/[""](?=\s|$)/g, ''); // Remove standalone quotes
-        processed = processed.replace(/[""]/g, '"'); // Normalize curly quotes
-
-        // Step 6: Remove URLs
-        processed = processed.replace(/https?:\/\/[^\s]+/g, '');
-
-        // Step 7: Remove special characters that TTS might struggle with
-        processed = processed.replace(/[<>{}|\\^~`]/g, '');
-
-        // Step 8: Normalize whitespace
-        processed = processed.replace(/\s+/g, ' '); // Multiple spaces to single
-        processed = processed.replace(/\n\s*\n\s*\n+/g, '\n\n'); // Max 2 newlines
-        processed = processed.trim();
-
-        // Step 9: Ensure sentences end with proper punctuation
-        processed = processed.replace(/([a-zA-Z0-9])\s*\n/g, '$1.\n');
-
-        // Step 10: Remove any remaining control characters
-        processed = processed.replace(/[\x00-\x1F\x7F]/g, '');
-
-        return processed;
+    // Remove any text after the last }
+    const lastBrace = fixed.lastIndexOf('}');
+    if (lastBrace > 0 && lastBrace < fixed.length - 1) {
+      fixed = fixed.substring(0, lastBrace + 1);
     }
 
-    /**
-     * Fix common JSON formatting issues from LLM output
-     */
-    private fixCommonJsonIssues(json: string): string {
-        let fixed = json;
+    // Fix common escape issues in narration
+    // Replace unescaped newlines in strings with spaces
+    fixed = fixed.replace(/("\w+"\s*:\s*"[^"]*)\n([^"]*")/g, '$1 $2');
 
-        // Remove any text before the first {
-        const firstBrace = fixed.indexOf('{');
-        if (firstBrace > 0) {
-            fixed = fixed.substring(firstBrace);
-        }
+    // Fix trailing commas before closing braces/brackets
+    fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
 
-        // Remove any text after the last }
-        const lastBrace = fixed.lastIndexOf('}');
-        if (lastBrace > 0 && lastBrace < fixed.length - 1) {
-            fixed = fixed.substring(0, lastBrace + 1);
-        }
+    return fixed;
+  }
 
-        // Fix common escape issues in narration
-        // Replace unescaped newlines in strings with spaces
-        fixed = fixed.replace(/("\w+"\s*:\s*"[^"]*)\n([^"]*")/g, '$1 $2');
-
-        // Fix trailing commas before closing braces/brackets
-        fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
-
-        return fixed;
-    }
-
-    async refineNarration(
-        script: VideoScript,
-        feedback: string
-    ): Promise<string> {
-        const prompt = `You are refining a YouTube video narration.
+  async refineNarration(
+    script: VideoScript,
+    feedback: string
+  ): Promise<string> {
+    const prompt = `You are refining a YouTube video narration.
 
 CURRENT SCRIPT:
 Title: ${script.title}
@@ -592,18 +666,18 @@ Generate an improved version of the narration that addresses the feedback while 
 
 Return only the improved narration text, no additional formatting.`;
 
-        try {
-            const response = await this.gemini.generateText(prompt, {
-                temperature: 0.7,
-                maxOutputTokens: 2048,
-            });
+    try {
+      const response = await this.gemini.generateText(prompt, {
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+      });
 
-            return response.trim();
-        } catch (error) {
-            console.error("Error refining narration:", error);
-            throw new Error("Failed to refine narration");
-        }
+      return response.trim();
+    } catch (error) {
+      console.error("Error refining narration:", error);
+      throw new Error("Failed to refine narration");
     }
+  }
 }
 
 export default ScriptGenerationService;

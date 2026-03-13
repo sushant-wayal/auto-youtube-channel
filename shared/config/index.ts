@@ -34,13 +34,13 @@ export const config = {
     },
     video: {
         long: {
-            width: 1280,
-            height: 720,
+            width: 1920,
+            height: 1080,
             fps: 30,
         },
         short: {
-            width: 720,
-            height: 1280,
+            width: 1080,
+            height: 1920,
             fps: 30,
         },
     },

@@ -109,10 +109,10 @@ export class VideoAssemblyService {
         if (!input.narrationAudios || input.narrationAudios.length === 0) throw new Error("Narration audios required");
 
         /* -----------------------------------------
-            2. Process each clip and concat on-the-fly
+            2. Process each clip, then concat once
         ------------------------------------------ */
         const combinedPath = path.join(outputDir, "combined_video.mp4");
-        let combinedExists = false;
+        const preparedSceneClips: string[] = [];
         const sceneDurations: number[] = []; // Track actual scene durations
 
         for (let i = 0; i < input.clips.length; i++) {
@@ -176,25 +176,24 @@ export class VideoAssemblyService {
             const sceneWithAudio = path.join(outputDir, `scene_with_audio_${i}.mp4`);
             await this.addAudioToVideo(sceneVideo, sceneAudio, sceneWithAudio);
 
-            // Concat immediately
-            console.error(`  🔗 Concatenating scene ${i + 1} to combined video...`);
-            if (!combinedExists) {
-                await fsPromises.copyFile(sceneWithAudio, combinedPath);
-                combinedExists = true;
-            } else {
-                const temp = path.join(outputDir, `temp_concat_${i}.mp4`);
-                await this.concatClips([combinedPath, sceneWithAudio], temp);
-                await fsPromises.rename(temp, combinedPath);
-            }
+            preparedSceneClips.push(sceneWithAudio);
 
             // Cleanup aggressively
             await Promise.allSettled([
                 fsPromises.unlink(clipPath),
                 fsPromises.unlink(sceneAudio),
                 fsPromises.unlink(sceneVideo),
-                fsPromises.unlink(sceneWithAudio),
             ]);
         }
+
+        if (preparedSceneClips.length === 0) {
+            throw new Error('No prepared scene clips available for concatenation');
+        }
+
+        console.error(`🔗 Concatenating ${preparedSceneClips.length} prepared scenes in a single pass...`);
+        await this.concatClips(preparedSceneClips, combinedPath);
+
+        await Promise.allSettled(preparedSceneClips.map(scenePath => fsPromises.unlink(scenePath)));
 
         /* -------------------------
             3. Add background music
@@ -202,35 +201,32 @@ export class VideoAssemblyService {
 
         console.error(`🎵 Adding background music to video...`);
         const combinedDuration = await getVideoDuration(combinedPath);
-        let finalAudio: string;
+        let mixedAudioPath: string;
 
         if (input.music) {
-            console.error(`  📥 Preparing background music...`);
-            finalAudio = await this.prepareBackgroundMusic(
+            console.error(`  🎚️  Mixing narration with ducked background music...`);
+            mixedAudioPath = await this.mixNarrationWithMusic(
+                combinedPath,
                 input.music,
                 combinedDuration,
                 outputDir
             );
         } else {
             console.error(`  🔇 No music provided, generating silence...`);
-            finalAudio = path.join(outputDir, "silence.mp3");
-            await this.generatePlaceholderNarration(combinedDuration, finalAudio);
+            mixedAudioPath = path.join(outputDir, "silence.mp3");
+            await this.generatePlaceholderNarration(combinedDuration, mixedAudioPath);
         }
 
         const combinedWithMusic = path.join(outputDir, "combined_with_music.mp4");
 
-        console.error(`  🎼 Mixing audio tracks...`);
+        console.error(`  🎼 Muxing mixed audio with combined video...`);
         await runFFmpeg({
-            inputs: [combinedPath, finalAudio],
+            inputs: [combinedPath, mixedAudioPath],
             output: combinedWithMusic,
             args: [
                 "-threads", "1",
-                "-filter_complex",
-                "[0:a]aresample=48000,pan=stereo|c0=c0|c1=c0[a0];" +
-                "[1:a]aresample=48000,pan=stereo|c0=c0|c1=c1[a1];" +
-                "[a0][a1]amix=inputs=2:weights=1 0.1:duration=first[a]",
-                "-map", "0:v",
-                "-map", "[a]",
+                "-map", "0:v:0",
+                "-map", "1:a:0",
                 "-c:v", "copy",
                 "-c:a", "aac",
                 "-ar", "48000",
@@ -312,6 +308,8 @@ export class VideoAssemblyService {
 
         const combinedVideoPath = path.join(outputDir, 'combined_clips.mp4');
 
+        const normalizedClipPaths: string[] = [];
+
         for (let i = 0; i < clips.length; i++) {
             const clipUrl = clips[i];
             const clipPath = path.join(downloadDir, `clip_${i + 1}.mp4`);
@@ -325,17 +323,11 @@ export class VideoAssemblyService {
             await this.normalizeClipWithDuration(clipPath, outputPath, targetDuration, isShort);
             await fsPromises.unlink(clipPath); // Delete downloaded clip after normalization
 
-            // Concatenate to combined video
-            if (i > 0) {
-                const tempCombinedPath = path.join(outputDir, `temp_combined_${i + 1}.mp4`);
-                await this.concatClips([combinedVideoPath, outputPath], tempCombinedPath);
-                await fsPromises.copyFile(tempCombinedPath, combinedVideoPath);
-                await fsPromises.unlink(tempCombinedPath);
-            }
-            else await fsPromises.copyFile(outputPath, combinedVideoPath);
-
-            await fsPromises.unlink(outputPath); // Delete normalized clip after concatenation
+            normalizedClipPaths.push(outputPath);
         }
+
+        await this.concatClips(normalizedClipPaths, combinedVideoPath);
+        await Promise.allSettled(normalizedClipPaths.map(p => fsPromises.unlink(p))); // Delete normalized clips after concatenation
 
         return combinedVideoPath;
     }
@@ -371,8 +363,8 @@ export class VideoAssemblyService {
                 '-vf', vf,
                 '-c:v', 'libx264',
                 '-x264-params', 'threads=1',
-                '-preset', 'veryfast',
-                '-crf', '23',
+                '-preset', 'medium',
+                '-crf', '18',
                 '-an', // no audio for stock clips
                 '-movflags', '+faststart',
             ],
@@ -388,8 +380,8 @@ export class VideoAssemblyService {
                 '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30',
                 '-c:v', 'libx264',
                 '-x264-params', 'threads=1',
-                '-preset', 'veryfast',
-                '-crf', '23',
+                '-preset', 'medium',
+                '-crf', '18',
                 '-c:a', 'aac',
                 '-b:a', '128k',
                 '-movflags', '+faststart',
@@ -481,7 +473,7 @@ export class VideoAssemblyService {
                 '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30',
                 '-c:v', 'libx264',
                 '-preset', 'medium',
-                '-crf', '23',
+                '-crf', '18',
                 '-c:a', 'aac',
                 '-b:a', '192k',
                 '-ar', '48000',
@@ -590,27 +582,47 @@ export class VideoAssemblyService {
             return;
         }
 
-        const concatListPath = path.join(path.dirname(outputPath), 'concat_list.txt');
-        const concatList = clips.map(c => `file '${c}'`).join('\n');
+        const concatListPath = path.join(path.dirname(outputPath), `concat_list_${path.basename(outputPath, path.extname(outputPath))}.txt`);
+        const concatList = clips
+            .map(c => `file '${c.replace(/'/g, `'\\''`)}'`)
+            .join('\n');
         await fsPromises.writeFile(concatListPath, concatList);
 
-        await runFFmpeg({
-            inputs: [],
-            output: outputPath,
-            args: [
-                '-threads', '1',
-                '-f', 'concat',
-                '-safe', '0',
-                '-i', concatListPath,
-                '-c:v', 'libx264',
-                '-x264-params', 'threads=1',
-                '-preset', 'veryfast',
-                '-crf', '23',
-                '-c:a', 'aac',
-                '-b:a', '128k',
-                '-movflags', '+faststart',
-            ],
-        });
+        try {
+            await runFFmpeg({
+                inputs: [],
+                output: outputPath,
+                args: [
+                    '-threads', '1',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', concatListPath,
+                    '-c', 'copy',
+                    '-movflags', '+faststart',
+                ],
+            });
+        } catch (copyErr) {
+            console.error('⚠️ Stream-copy concat failed, retrying with re-encode for compatibility...');
+            await runFFmpeg({
+                inputs: [],
+                output: outputPath,
+                args: [
+                    '-threads', '1',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', concatListPath,
+                    '-c:v', 'libx264',
+                    '-x264-params', 'threads=1',
+                    '-preset', 'medium',
+                    '-crf', '18',
+                    '-c:a', 'aac',
+                    '-b:a', '192k',
+                    '-movflags', '+faststart',
+                ],
+            });
+        } finally {
+            await fsPromises.unlink(concatListPath).catch(() => { });
+        }
     }
 
     /**
@@ -680,7 +692,8 @@ export class VideoAssemblyService {
                     "-threads", "1",
                     "-filter:v", `tpad=stop_mode=clone:stop_duration=${audioDuration - videoDuration}`,
                     "-c:v", "libx264",
-                    "-preset", "veryfast",
+                    "-preset", "medium",
+                    "-crf", "18",
                 ],
             });
 
@@ -745,8 +758,8 @@ export class VideoAssemblyService {
                 '[1:v]scale=120:-1[logo];[0:v][logo]overlay=W-w-20:20',
                 '-c:v', 'libx264',
                 '-x264-params', 'threads=1',
-                '-preset', 'veryfast',
-                '-crf', '23',
+                '-preset', 'medium',
+                '-crf', '18',
                 '-c:a', 'copy',
                 '-movflags', '+faststart',
             ],

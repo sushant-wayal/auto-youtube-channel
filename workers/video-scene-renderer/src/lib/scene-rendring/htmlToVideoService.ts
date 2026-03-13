@@ -32,6 +32,9 @@ export class HtmlToVideoService {
     await page.setViewport({ width, height });
 
     await page.setContent(html, { waitUntil: "load" });
+    await page.waitForFunction(
+      "typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded'"
+    );
 
     // crash early if renderer JS errors
     page.on("pageerror", err => {
@@ -83,7 +86,8 @@ export class HtmlToVideoService {
 
         // Encoding (safe for Railway free tier)
         "-c:v", "libx264",
-        "-preset", "veryfast",   // good balance: low CPU, acceptable qualityfix
+        "-preset", "medium",
+        "-crf", "16",
         "-pix_fmt", "yuv420p",
 
         // Resource control
