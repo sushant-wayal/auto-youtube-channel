@@ -1,4 +1,5 @@
 import { ActionIR } from "../../types";
+import { tokenizeLine, getTokenColor, TokenType } from "./syntax-highlighter";
 
 type SceneHtmlRendererInput = {
   duration: number;
@@ -885,9 +886,14 @@ function drawCodeBlock(a, p) {
   const lineHeight = Math.max(fontSize + 6, fontSize * 1.35);
   const lines = Array.isArray(a.lines) ? a.lines : [];
   const maxVisible = Math.max(1, a.maxVisibleLines || lines.length || 1);
-  const visibleLines = Math.min(maxVisible, Math.max(1, Math.floor(lines.length * reveal)));
   const baseFill = darkTheme ? "#0F172A" : "#F8FAFC";
   const baseStroke = darkTheme ? "#1E293B" : "#CBD5E1";
+  const language = a.language || "javascript";
+
+  // Calculate total characters for typewriter effect
+  const linesToShow = lines.slice(0, maxVisible);
+  const totalChars = linesToShow.reduce((sum, line) => sum + String(line || "").length, 0);
+  const visibleChars = Math.floor(totalChars * reveal);
 
   ctx.globalAlpha = fadeIn;
   roundedRectPath(x, y, w, h, 14);
@@ -910,29 +916,45 @@ function drawCodeBlock(a, p) {
     ctx.fill();
   });
 
-  if (a.language) {
+  if (language) {
     ctx.fillStyle = darkTheme ? "#93C5FD" : "#1D4ED8";
     ctx.font = "600 " + (IS_SHORTS ? 16 : 12) + "px 'Inter', sans-serif";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(a.language).toUpperCase(), x + w - 12, dotY);
+    ctx.fillText(String(language).toUpperCase(), x + w - 12, dotY);
   }
 
   const codeX = x + padding;
   const codeY = y + headerH + padding;
-  const keyword = /\b(const|let|var|return|if|else|for|while|await|async|function|class|import|from|try|catch|throw|new)\b/g;
 
-  for (let i = 0; i < visibleLines; i++) {
-    const rawLine = String(lines[i] || "");
+  // Character-by-character typewriter rendering with syntax highlighting
+  let charCount = 0;
+  let currentLineNumber = 0;
+  let lastVisibleLine = -1;
+  let lastVisibleLineText = "";
+  let lastVisibleLineX = 0;
+
+  for (let i = 0; i < linesToShow.length; i++) {
+    const rawLine = String(linesToShow[i] || "");
     const lineY = codeY + i * lineHeight;
     if (lineY > y + h - padding) break;
 
+    // Highlight specific line if configured
     if (a.highlightLine !== undefined && i === a.highlightLine) {
       ctx.fillStyle = darkTheme ? "rgba(59,130,246,0.22)" : "rgba(191,219,254,0.7)";
       roundedRectPath(x + 8, lineY - lineHeight * 0.72, w - 16, lineHeight, 8);
       ctx.fill();
     }
 
+    // Calculate how many characters to show on this line
+    const charsRemainingToShow = visibleChars - charCount;
+    if (charsRemainingToShow <= 0) break;
+
+    const lineLength = rawLine.length;
+    const charsToShowOnThisLine = Math.min(charsRemainingToShow, lineLength);
+    const visibleLineText = rawLine.substring(0, charsToShowOnThisLine);
+
+    // Line numbers
     let offsetX = codeX;
     if (a.showLineNumbers !== false) {
       ctx.font = "500 " + fontSize + "px 'JetBrains Mono', monospace";
@@ -943,38 +965,53 @@ function drawCodeBlock(a, p) {
       offsetX += 36;
     }
 
-    const tokens = rawLine.split(keyword);
+    // Tokenize and render with syntax highlighting
+    const tokens = tokenizeLine(rawLine, language);
     let cursorX = offsetX;
-    tokens.forEach(part => {
-      if (!part) return;
-      const isKeyword = keyword.test(part);
-      keyword.lastIndex = 0;
-      const isString = /^['\"].*['\"]$/.test(part.trim());
-      ctx.font = "500 " + fontSize + "px 'JetBrains Mono', monospace";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
-      if (isKeyword) ctx.fillStyle = darkTheme ? "#C084FC" : "#6D28D9";
-      else if (isString) ctx.fillStyle = darkTheme ? "#86EFAC" : "#166534";
-      else ctx.fillStyle = darkTheme ? "#E2E8F0" : "#0F172A";
-      ctx.fillText(part, cursorX, lineY);
-      cursorX += ctx.measureText(part).width;
-    });
+    let renderedChars = 0;
+
+    for (const token of tokens) {
+      if (renderedChars >= charsToShowOnThisLine) break;
+
+      const charsToRenderFromToken = Math.min(
+        token.value.length,
+        charsToShowOnThisLine - renderedChars
+      );
+      const partialTokenValue = token.value.substring(0, charsToRenderFromToken);
+
+      if (partialTokenValue) {
+        ctx.font = "500 " + fontSize + "px 'JetBrains Mono', monospace";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = getTokenColor(token.type, darkTheme);
+        ctx.fillText(partialTokenValue, cursorX, lineY);
+        cursorX += ctx.measureText(partialTokenValue).width;
+      }
+
+      renderedChars += charsToRenderFromToken;
+    }
+
+    // Track last visible line for cursor positioning
+    if (charsToShowOnThisLine > 0) {
+      lastVisibleLine = i;
+      lastVisibleLineText = visibleLineText;
+      lastVisibleLineX = cursorX;
+      currentLineNumber = i;
+    }
+
+    charCount += lineLength;
   }
 
-  if (a.cursor !== false && lines.length > 0) {
-    const blinkOn = Math.floor(CURRENT_TIME * 2) % 2 === 0;
+  // Blinking cursor at the end of the typewriter text
+  if (a.cursor !== false && lastVisibleLine >= 0 && visibleChars < totalChars) {
+    const blinkOn = Math.floor(CURRENT_TIME * 2.5) % 2 === 0; // Slightly faster blink
     if (blinkOn) {
-      const cursorLine = Math.max(0, visibleLines - 1);
-      const text = String(lines[cursorLine] || "");
-      const prefix = a.showLineNumbers === false ? codeX : codeX + 36;
-      ctx.font = "500 " + fontSize + "px 'JetBrains Mono', monospace";
-      const cursorX = prefix + ctx.measureText(text).width + 2;
-      const cursorY = codeY + cursorLine * lineHeight;
+      const cursorY = codeY + lastVisibleLine * lineHeight;
       ctx.strokeStyle = darkTheme ? "#93C5FD" : "#1D4ED8";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(cursorX, cursorY - fontSize);
-      ctx.lineTo(cursorX, cursorY + 2);
+      ctx.moveTo(lastVisibleLineX, cursorY - fontSize);
+      ctx.lineTo(lastVisibleLineX, cursorY + 2);
       ctx.stroke();
     }
   }

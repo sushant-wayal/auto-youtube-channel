@@ -435,9 +435,10 @@ ALLOWED ACTION OPS
   - For emphasis: fill: "#6366F1" (accent)
   - For secondary: fill: "#52525B" (textSecondary)
 
-"codeBlock": { t, op: "codeBlock", x, y, w, h, lines }
+"codeBlock": { t, op: "codeBlock", x, y, w, h, lines, language }
   - lines is an array of code lines, e.g. ["const cache = new Map()", "return cache.get(key)"]
-  - Optional: language, theme ("light"|"dark"), fontSize, showLineNumbers, highlightLine, cursor
+  - language is REQUIRED - use "javascript", "typescript", "python", "java", "go", "rust", "cpp", "c", "php", "ruby", or "sql"
+  - Optional: theme ("light"|"dark"), fontSize, showLineNumbers, highlightLine, cursor
   - Use for technical/code explanation scenes, not decorative filler
 
 "progressBar": { t, op: "progressBar", x, y, w, h, value }
