@@ -77,7 +77,7 @@ class GeminiTTSService {
                     model: this.MODEL_NAME,
                     contents: processedText,
                     config: {
-                        temperature: 1,
+                        temperature: 0,
                         maxOutputTokens: 32000,
                         responseModalities: ["AUDIO"],
                         speechConfig:
