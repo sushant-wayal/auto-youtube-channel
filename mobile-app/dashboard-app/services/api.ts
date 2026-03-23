@@ -10,6 +10,10 @@ export type ShortResult = {
     videoUrl?: string;
     scheduledPublishTime?: string;
     rank?: number;
+    instagramId?: string;
+    instagramPermalink?: string;
+    instagramUploadedAt?: string;
+    reelCaption?: string;
 };
 
 export type PipelineStatus = {

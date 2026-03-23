@@ -185,7 +185,47 @@ export async function GET() {
         if (!raw) {
             return NextResponse.json({ ok: true, status: null });
         }
-        return NextResponse.json({ ok: true, status: JSON.parse(raw) });
+
+        const status = JSON.parse(raw);
+        const videoId = status.videoId;
+        const shorts = status.shorts || [];
+
+        // Fetch Instagram upload results
+        const instagramRaw = await redis.lrange(`pipeline:instagram:${videoId}`, 0, -1);
+        const instagramResults = instagramRaw.map(s => {
+            try { return JSON.parse(s); } catch { return null; }
+        }).filter(Boolean);
+
+        // Fetch reel captions for all shorts
+        const reelCaptions: Record<number, string> = {};
+        for (const short of shorts) {
+            try {
+                const reelDataRaw = await redis.get(`reel:${videoId}:${short.shortIndex}`);
+                if (reelDataRaw) {
+                    const reelData = JSON.parse(reelDataRaw);
+                    reelCaptions[short.shortIndex] = reelData.caption;
+                }
+            } catch {
+                // Skip if not found
+            }
+        }
+
+        // Merge Instagram data and captions into shorts array
+        for (const short of shorts) {
+            const igResult = instagramResults.find((r: any) => r.shortIndex === short.shortIndex);
+            if (igResult) {
+                (short as any).instagramId = igResult.instagramId;
+                (short as any).instagramPermalink = igResult.permalink;
+                (short as any).instagramUploadedAt = igResult.uploadedAt;
+            }
+            if (reelCaptions[short.shortIndex]) {
+                (short as any).reelCaption = reelCaptions[short.shortIndex];
+            }
+        }
+
+        status.shorts = shorts;
+
+        return NextResponse.json({ ok: true, status });
     } catch (err: any) {
         console.error('[pipeline-status] Error:', err);
         return NextResponse.json({ ok: false, error: err.message }, { status: 500 });

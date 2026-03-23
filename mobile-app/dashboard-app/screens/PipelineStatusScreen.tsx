@@ -406,9 +406,22 @@ function ShortsOutput({ shorts, shortHooks }: { shorts?: ShortResult[]; shortHoo
                                     {shortHooks[s.shortIndex]}
                                 </Text>
                             ) : null}
+                            {s.reelCaption ? (
+                                <Text style={styles.reelCaption} numberOfLines={3}>
+                                    {s.reelCaption}
+                                </Text>
+                            ) : null}
                         </View>
                         <View style={styles.shortActions}>
                             <YouTubeButton youtubeId={s.youtubeId} label="YouTube" />
+                            {s.instagramPermalink ? (
+                                <TouchableOpacity
+                                    style={styles.instagramButton}
+                                    onPress={() => Linking.openURL(s.instagramPermalink!)}
+                                >
+                                    <Text style={styles.instagramButtonText}>Instagram</Text>
+                                </TouchableOpacity>
+                            ) : null}
                             {s.videoUrl ? <CopyButton url={s.videoUrl} /> : null}
                         </View>
                     </View>
@@ -906,6 +919,24 @@ const styles = StyleSheet.create({
         fontSize: typography.fontSizeXs,
         color: colors.foregroundMuted,
         lineHeight: 16,
+    },
+    reelCaption: {
+        fontSize: typography.fontSizeXs,
+        color: colors.foregroundMuted,
+        marginTop: spacing.xs,
+        fontStyle: 'italic',
+        lineHeight: 14,
+    },
+    instagramButton: {
+        paddingVertical: spacing.xs,
+        paddingHorizontal: spacing.sm,
+        backgroundColor: '#E1306C',
+        borderRadius: borderRadius.sm,
+    },
+    instagramButtonText: {
+        color: '#fff',
+        fontSize: typography.fontSizeXs,
+        fontWeight: typography.fontWeightSemibold,
     },
     shortActions: { gap: spacing.xs, alignItems: 'flex-end' },
     outputNote: {

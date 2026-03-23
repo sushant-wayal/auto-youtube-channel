@@ -1,0 +1,48 @@
+name: Instagram Reel Upload
+
+# 5 scheduled times for 5 shorts (IST converted to UTC)
+# These cron schedules are updated dynamically via GitHub API when user changes times
+on:
+  schedule:
+    # SHORT_0: 19:45 IST = 14:15 UTC
+    - cron: '15 14 * * *'
+    # SHORT_1: 20:45 IST = 15:15 UTC
+    - cron: '15 15 * * *'
+    # SHORT_2: 18:45 IST = 13:15 UTC
+    - cron: '15 13 * * *'
+    # SHORT_3: 0130 IST = 20:00 UTC(Next day)
+    - cron: '0 20 * * *'
+    # SHORT_4: 21:45 IST = 16:15 UTC
+    - cron: '15 16 * * *'
+  workflow_dispatch:
+    inputs:
+      short_index:
+        description: 'Short index to upload (0-4). Leave empty to auto-detect from current time.'
+        required: false
+        type: string
+
+jobs:
+  upload-reel:
+    name: Upload Instagram Reel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install ioredis node-fetch@2
+
+      - name: Upload to Instagram
+        run: node .github/scripts/upload-instagram-reel.js
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          SHORT_INDEX_INPUT: ${{ inputs.short_index }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_PAGE_ID: ${{ secrets.INSTAGRAM_PAGE_ID }}

@@ -60,6 +60,7 @@ interface ScriptData {
         shorts: Array<{
             id: string;
             hook: string;
+            caption: string;
             scenes: ShortScene[];
         }>;
     };
@@ -132,7 +133,29 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         isShort: true,
     });
 
-    // ── 4. Upload to YouTube with ranked schedule time ────────────────────────
+    // ── 4. Store Reel Data in Redis for Instagram Upload ──────────────────────
+    console.error(`💾 Storing reel data in Redis for Instagram upload...`);
+    const reelCaption = short.caption || `${short.hook}\n\n#shorts #tech #programming #coding #developers`;
+    const reelKey = `reel:${videoId}:${shortIndex}`;
+    const reelData = {
+        cloudinaryUrl: assembled.outputUrl,
+        caption: reelCaption,
+        shortIndex,
+        shortId,
+        hook: short.hook,
+        createdAt: new Date().toISOString(),
+    };
+
+    try {
+        const redis = new Redis(process.env.REDIS_URL!);
+        await redis.set(reelKey, JSON.stringify(reelData), 'EX', 60 * 60 * 24 * 7); // 7-day TTL
+        await redis.quit();
+        console.error(`✅ Reel data stored: ${reelKey}`);
+    } catch (err) {
+        console.error(`⚠️  Redis storage failed (non-fatal):`, err);
+    }
+
+    // ── 5. Upload to YouTube with ranked schedule time ────────────────────────
     const shortsRank = Math.min(shortIndex, 4); // cap at rank 4 (5 slots total)
     const shortsTime = await getShortsPublishTimeByRank(shortsRank);
     const scheduledPublishTime = getPublishTimeFromISTTime(shortsTime, 0);

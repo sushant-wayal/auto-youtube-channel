@@ -408,6 +408,47 @@ CONTENT SCENE RULES:
 - Must be standalone and replayable
 
 ========================
+INSTAGRAM REEL CAPTIONS (MANDATORY)
+========================
+
+Each short in the "shorts" array MUST include an Instagram-optimized "caption" field:
+
+{
+  "id": "short-1",
+  "hook": "YOUR CACHE STALE",
+  "caption": "Cache invalidation is one of the hardest problems in CS! 💸\\n\\nEvery cache miss costs latency and money. Smart invalidation strategies = better performance.\\n\\n#coding #tech #database #cache #developers",
+  "scenes": [...]
+}
+
+**CAPTION REQUIREMENTS (MANDATORY):**
+- 1-3 sentences maximum (brief and engaging)
+- First sentence should expand on the hook concept
+- Include EXACTLY 5 hashtags at the end (no more, no less)
+- Hashtags should be relevant to: programming, tech, the specific topic
+- Use 1-2 emojis maximum (place naturally in text, not overuse)
+- 100-150 characters excluding hashtags
+- Natural, conversational tone (not corporate/salesy)
+- Focus on the "why this matters" insight
+- End with newline + hashtags on separate lines
+
+**HASHTAG GUIDELINES:**
+- Maximum 5 hashtags total
+- Mix of broad (#coding, #tech, #programming) and specific (#database, #performance, #API)
+- Use camelCase or lowercase (no spaces)
+- Common hashtags: #coding #tech #developers #programming #software #webdev #computerscience
+
+**CAPTION EXAMPLES:**
+
+Example 1 (for cache topic):
+"Cache invalidation is genuinely hard! 💡\\n\\nIt's not just theory - real systems struggle with this daily. The key is understanding your invalidation patterns.\\n\\n#coding #tech #cache #database #developers"
+
+Example 2 (for API topic):
+"Rate limiting saves your API from meltdown 🔥\\n\\nOne viral post can take down your entire service. Smart throttling = happy servers.\\n\\n#tech #api #webdev #programming #devops"
+
+Example 3 (for concurrency topic):
+"Locks are slow, but lock-free is hard ⚡\\n\\nEvery concurrent system makes this tradeoff. Pick based on your workload, not hype.\\n\\n#coding #concurrent #programming #systems #developers"
+
+========================
 ALLOWED ACTION OPS
 ========================
 

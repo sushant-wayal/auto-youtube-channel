@@ -43,6 +43,10 @@ type ShortResult = {
     videoUrl?: string;
     scheduledPublishTime?: string;
     rank?: number;
+    instagramId?: string;
+    instagramPermalink?: string;
+    instagramUploadedAt?: string;
+    reelCaption?: string;
 };
 
 type PipelineStatus = {
@@ -361,12 +365,26 @@ function ShortsOutput({ shorts, shortHooks }: { shorts?: ShortResult[]; shortHoo
                             {shortHooks?.[s.shortIndex] && (
                                 <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{shortHooks[s.shortIndex]}</p>
                             )}
+                            {s.reelCaption && (
+                                <p className="text-xs text-gray-500 mt-1 italic line-clamp-3">{s.reelCaption}</p>
+                            )}
                             {s.scheduledPublishTime && (
                                 <p className="text-xs text-gray-400 mt-0.5">Scheduled: {s.scheduledPublishTime}</p>
                             )}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                             <YouTubeButton youtubeId={s.youtubeId} label="YouTube" />
+                            {s.instagramPermalink && (
+                                <a
+                                    href={s.instagramPermalink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transition-colors"
+                                >
+                                    Instagram
+                                    <ExternalLink className="w-3 h-3" />
+                                </a>
+                            )}
                             {s.videoUrl && <CopyButton text={s.videoUrl} />}
                         </div>
                     </div>
