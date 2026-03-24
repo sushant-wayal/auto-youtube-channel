@@ -9,6 +9,29 @@ import CloudinaryService from './shared/services/cloudinary-service';
 import fs from 'fs/promises';
 import path from 'path';
 
+// Helper function to parse voiceover URLs from either a JSON file or comma-separated string
+// Returns string[] for long-form, or string[] | string[][] for shorts (array of arrays)
+async function parseVoiceoverUrls(urlsParam: string | undefined): Promise<string[] | string[][]> {
+    if (!urlsParam) return [];
+
+    try {
+        // Try to load as JSON file first
+        if (urlsParam.endsWith('.json')) {
+            const content = await fs.readFile(urlsParam, 'utf-8');
+            const urls = JSON.parse(content);
+            if (!Array.isArray(urls)) {
+                throw new Error('Expected JSON array of URLs');
+            }
+            return urls;
+        } else {
+            // Parse as comma-separated URLs
+            return urlsParam.split(',').map(url => url.trim()).filter(url => url);
+        }
+    } catch (error) {
+        throw new Error(`Failed to parse voiceover URLs from "${urlsParam}": ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+
 
 interface ScriptData {
     script: {
@@ -79,7 +102,9 @@ async function main() {
     const videoId = params['video-id'];
     const scriptFile = params['script-file'];
     const voiceoverDir = params['voiceover-dir'];
+    const voiceoverUrlsParam = params['voiceover-urls']; // JSON file or comma-separated URLs
     const shortVoiceoverDir = params['short-voiceover-dir']; // optional
+    const shortVoiceoverUrlsParam = params['short-voiceover-urls']; // JSON file or comma-separated URLs per short
     const thumbnailUrl = params['thumbnail-url'];
 
     // support both `--shorts-only` and `--short-only` for backward compatibility
@@ -91,21 +116,29 @@ async function main() {
         Object.prototype.hasOwnProperty.call(params, 'shorts-only') ||
         Object.prototype.hasOwnProperty.call(params, 'short-only');
 
+    // support --long-form-only to skip shorts generation
+    const longFormOnly =
+        Object.prototype.hasOwnProperty.call(params, 'long-form-only') ||
+        Object.prototype.hasOwnProperty.call(params, 'longform-only');
+
 
     if (
         !videoId ||
         !scriptFile ||
-        (!shortsOnly && !voiceoverDir) ||
+        (!shortsOnly && !voiceoverDir && !voiceoverUrlsParam) ||
         (!shortsOnly && !thumbnailUrl)
     ) {
         console.error('❌ Missing required parameters:');
-        console.error('  --video-id          (unique identifier)');
-        console.error('  --script-file       (path to script.json)');
-        console.error('  --voiceover-dir     (directory containing voiceover .wav/.mp3 files for long-form)');
-        console.error('  --thumbnail-url     (Cloudinary URL of thumbnail image)');
-        console.error('  --short-voiceover-dir (optional; root dir containing subfolders for each short)');
+        console.error('  --video-id              (unique identifier)');
+        console.error('  --script-file           (path to script.json)');
+        console.error('  --voiceover-dir OR      (directory containing voiceover .wav/.mp3 files for long-form)');
+        console.error('  --voiceover-urls        (JSON file with voiceover URLs OR comma-separated URLs)');
+        console.error('  --thumbnail-url         (Cloudinary URL of thumbnail image)');
+        console.error('  --short-voiceover-dir OR (optional; root dir containing subfolders for each short)');
+        console.error('  --short-voiceover-urls   (optional; JSON file with voiceover URLs per short)');
         console.error('      if omitted, first scene (hook) will be silent and subsequent scenes reuse long-form audio when IDs match');
-        console.error('  --shorts-only        (optional flag; skip long form generation)');
+        console.error('  --shorts-only            (optional flag; skip long form generation)');
+        console.error('  --long-form-only         (optional flag; skip shorts generation)');
         console.error('');
         console.error('💡 Tip: do not append shell comments (#) on the same line as a flag.');
         console.error('       a stray comment may be interpreted as the flag value, e.g.');
@@ -113,24 +146,38 @@ async function main() {
         console.error('       which converts to params["short-only"]="#" and disables');
         console.error('       shorts-only mode. put comments on separate lines or remove them.');
         console.error('');
-        console.error('📌 Voiceovers are never generated; you must supply them ahead of time.');
-        console.error('Example:');
+        console.error('📌 Voiceovers can be supplied as either local files (--voiceover-dir) or URLs (--voiceover-urls).');
+        console.error('Example 1 (with local files):');
         console.error('  npx tsx complete-workflow-with-assets.ts \\');
         console.error('    --video-id "my-video" \\');
         console.error('    --script-file "./script.json" \\');
         console.error('    --voiceover-dir "./voiceovers" \\');
         console.error('    --thumbnail-url "https://res.cloudinary.com/..." \\');
-        console.error('    --short-voiceover-dir "./short-voiceovers"  # optional; hook auto-silent, content may reuse long-form');
-        console.error('    --shorts-only                    # run only shorts');
+        console.error('    --short-voiceover-dir "./short-voiceovers"  # optional');
+        console.error('');
+        console.error('Example 2 (with voiceover URLs):');
+        console.error('  npx tsx complete-workflow-with-assets.ts \\');
+        console.error('    --video-id "my-video" \\');
+        console.error('    --script-file "./script.json" \\');
+        console.error('    --voiceover-urls "./voiceover-urls.json" \\');
+        console.error('    --thumbnail-url "https://res.cloudinary.com/..."');
+        console.error('');
+        console.error('Voiceover URLs JSON format:');
+        console.error('  [');
+        console.error('    "https://example.com/voiceover-1.mp3",');
+        console.error('    "https://example.com/voiceover-2.mp3"');
+        console.error('  ]');
         process.exit(1);
     }
 
     try {
         validateConfig(['cloudinary', 'youtube']);
 
-        // Load script
+        // Load script - handle both { script: {...} } and direct format
         const scriptContent = await fs.readFile(scriptFile, 'utf-8');
-        const script: ScriptData = JSON.parse(scriptContent);
+        const rawScript = JSON.parse(scriptContent);
+        // Normalize: if script has a "script" wrapper, use it; otherwise wrap it
+        const script: ScriptData = rawScript.script ? rawScript : { script: rawScript };
 
         const title = script.script.title;
         const description = script.script.description;
@@ -146,8 +193,10 @@ async function main() {
         console.log('\n🎬 Starting workflow...');
         console.log(`📝 Video: ${title}`);
         console.log(`📂 Script: ${scriptFile}`);
-        console.log(`🎤 Voiceovers: ${voiceoverDir}`);
+        if (voiceoverDir) console.log(`🎤 Voiceovers (files): ${voiceoverDir}`);
+        if (voiceoverUrlsParam) console.log(`🎤 Voiceovers (URLs): ${voiceoverUrlsParam}`);
         if (shortVoiceoverDir) console.log(`🎤 Shorts voiceovers dir: ${shortVoiceoverDir}`);
+        if (shortVoiceoverUrlsParam) console.log(`🎤 Shorts voiceovers URLs: ${shortVoiceoverUrlsParam}`);
         console.log(`🎨 Thumbnail: ${thumbnailUrl}`);
         console.log(`✅ Loaded script with ${script.script.scenes.length} scenes and ${shorts.length} shorts`);
 
@@ -166,7 +215,23 @@ async function main() {
         console.log('════════════════════════════════════════');
 
         let voiceoverUrls: string[] = [];
-        if (voiceoverDir) {
+        if (voiceoverUrlsParam) {
+            // Load voiceover URLs (expect flat array for long-form)
+            voiceoverUrls = await parseVoiceoverUrls(voiceoverUrlsParam) as string[];
+
+            if (voiceoverUrls.length !== script.script.scenes.length) {
+                throw new Error(
+                    `Mismatch: ${voiceoverUrls.length} voiceover URLs but ${script.script.scenes.length} scenes`
+                );
+            }
+            console.log(`✅ Loaded ${voiceoverUrls.length} voiceover URLs`);
+
+            // Build voiceover map from URLs
+            for (let i = 0; i < voiceoverUrls.length; i++) {
+                const sceneId = script.script.scenes[i]?.id || `scene_${i}`;
+                voiceoverMap[sceneId] = voiceoverUrls[i];
+            }
+        } else if (voiceoverDir) {
             // Load voiceover files
             const voiceoverFiles = await fs.readdir(voiceoverDir);
             const voiceoverPaths = voiceoverFiles
@@ -195,7 +260,7 @@ async function main() {
             }
             console.log(`✅ Uploaded ${voiceoverUrls.length} voiceovers`);
         } else {
-            console.log('⚠️  no long-form voiceover directory specified; shorts will not reuse any audio');
+            console.log('⚠️  no long-form voiceover directory or URLs specified; shorts will not reuse any audio');
         }
 
         // Use provided Cloudinary thumbnail URL
@@ -265,7 +330,7 @@ async function main() {
         }
 
         // ===== SHORTS GENERATION =====
-        if (shorts.length > 0) {
+        if (shorts.length > 0 && !longFormOnly) {
             console.log('\n════════════════════════════════════════');
             console.log(`📱 SHORTS GENERATION (${shorts.length} shorts)`);
             console.log('════════════════════════════════════════');
@@ -292,11 +357,36 @@ async function main() {
                     videoId: shortId,
                 });
 
-                // 2. Voice-overs for short must be provided via --short-voiceover-dir
+                // 2. Voice-overs for short can be provided via --short-voiceover-urls, --short-voiceover-dir, or long-form reuse
                 console.log(`  🎤 Preparing voice-overs for short ${i + 1}...`);
                 let shortVoiceoverUrls: string[];
 
-                if (shortVoiceoverDir) {
+                if (shortVoiceoverUrlsParam) {
+                    // Load voiceover URLs from JSON file with per-short URLs
+                    const shortUrlsArray = await parseVoiceoverUrls(shortVoiceoverUrlsParam);
+                    // Expect an array of arrays: [[urls for short 0], [urls for short 1], ...]
+                    if (!Array.isArray(shortUrlsArray[0])) {
+                        // If it's a single array, treat it as URLs for the first short only
+                        const flatUrls = shortUrlsArray as string[];
+                        shortVoiceoverUrls = new Array(short.scenes.length).fill('');
+                        if (i === 0) {
+                            for (let j = 0; j < flatUrls.length && j < short.scenes.length - 1; j++) {
+                                shortVoiceoverUrls[j + 1] = flatUrls[j];
+                            }
+                        }
+                    } else {
+                        // It's an array of arrays
+                        const shortsUrls = shortUrlsArray as string[][];
+                        shortVoiceoverUrls = new Array(short.scenes.length).fill('');
+                        if (shortsUrls[i]) {
+                            const urls = shortsUrls[i];
+                            for (let j = 0; j < urls.length && j < short.scenes.length - 1; j++) {
+                                shortVoiceoverUrls[j + 1] = urls[j];
+                            }
+                        }
+                    }
+                    console.log(`  ✅ Using ${shortVoiceoverUrls.filter(u => u).length} voiceover URLs`);
+                } else if (shortVoiceoverDir) {
                     // Try a set of likely folder names so users can provide either
                     // `short-0`, `short-1`, or the short's `id` (e.g. `short-1`)
                     const candidates = [
@@ -346,7 +436,7 @@ async function main() {
                     }
                     console.log(`  ✅ Uploaded ${filtered.length} provided voiceovers (hook omitted)`);
                 } else {
-                    // no directory supplied: reuse long-form audio for content scenes
+                    // no directory or URLs supplied: reuse long-form audio for content scenes
                     // Behavior:
                     //  - index-first: try to reuse the long-form voiceover at the
                     //    same position (skip hook), i.e. voiceoverUrls[j-1]
@@ -365,7 +455,7 @@ async function main() {
                             shortVoiceoverUrls[j] = '';
                         }
                     }
-                    console.log(`  ⚠️  No short-voiceover-dir; reused long-form audio by index or scene id where available`);
+                    console.log(`  ⚠️  No short-voiceover URLs or directory; reused long-form audio by index or scene id where available`);
                 }
 
                 // 3. Assemble short
@@ -418,13 +508,15 @@ async function main() {
             shortResults.forEach((sr, idx) => {
                 console.log(`  Short ${idx + 1}: ${sr.url}`);
             });
+        } else if (longFormOnly && shorts.length > 0) {
+            console.log(`\n⚠️  long-form-only mode: skipping ${shorts.length} shorts`);
         }
 
         console.log('\n✨ Workflow complete!');
         console.log(JSON.stringify({
             videoId,
             longFormUrl: longFormUrl || undefined,
-            shortsCount: shorts.length,
+            shortsCount: longFormOnly ? 0 : shorts.length,
             duration: assembled ? assembled.duration : undefined,
         }, null, 2));
 

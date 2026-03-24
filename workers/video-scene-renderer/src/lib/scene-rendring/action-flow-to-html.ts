@@ -1,5 +1,4 @@
 import { ActionIR } from "../../types";
-import { tokenizeLine, getTokenColor, TokenType } from "./syntax-highlighter";
 
 type SceneHtmlRendererInput = {
   duration: number;
@@ -308,6 +307,222 @@ const ICON_PATHS = {
   chartUp: "M4 19h16M6 15l3-3 3 2 5-6",
   chartDown: "M4 19h16M6 9l3 3 3-2 5 6"
 };
+
+/* ========================================================== */
+/* SYNTAX HIGHLIGHTING FOR CODE BLOCKS                        */
+/* ========================================================== */
+
+const TokenType = {
+  Keyword: "keyword",
+  String: "string",
+  Number: "number",
+  Comment: "comment",
+  Function: "function",
+  Operator: "operator",
+  Punctuation: "punctuation",
+  Variable: "variable",
+  Type: "type",
+  BuiltIn: "builtin",
+  Plain: "plain"
+};
+
+const KEYWORDS = {
+  javascript: new Set(["async", "await", "break", "case", "catch", "class", "const", "continue",
+    "debugger", "default", "delete", "do", "else", "export", "extends", "finally", "for",
+    "function", "if", "import", "in", "instanceof", "let", "new", "return", "static",
+    "super", "switch", "this", "throw", "try", "typeof", "var", "void", "while", "with", "yield"]),
+  typescript: new Set(["async", "await", "break", "case", "catch", "class", "const", "continue",
+    "debugger", "default", "delete", "do", "else", "enum", "export", "extends", "finally",
+    "for", "function", "if", "import", "in", "instanceof", "interface", "let", "new", "return",
+    "static", "super", "switch", "this", "throw", "try", "type", "typeof", "var", "void",
+    "while", "with", "yield", "public", "private", "protected", "readonly", "abstract", "as",
+    "namespace", "declare"]),
+  python: new Set(["and", "as", "assert", "async", "await", "break", "class", "continue", "def",
+    "del", "elif", "else", "except", "False", "finally", "for", "from", "global", "if",
+    "import", "in", "is", "lambda", "None", "nonlocal", "not", "or", "pass", "raise",
+    "return", "True", "try", "while", "with", "yield"]),
+  go: new Set(["break", "case", "chan", "const", "continue", "default", "defer", "else",
+    "fallthrough", "for", "func", "go", "goto", "if", "import", "interface", "map",
+    "package", "range", "return", "select", "struct", "switch", "type", "var"]),
+  rust: new Set(["as", "async", "await", "break", "const", "continue", "crate", "dyn", "else",
+    "enum", "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match",
+    "mod", "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct",
+    "super", "trait", "true", "type", "unsafe", "use", "where", "while"]),
+  sql: new Set(["SELECT", "FROM", "WHERE", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP",
+    "ALTER", "TABLE", "JOIN", "INNER", "LEFT", "RIGHT", "ON", "AS", "ORDER", "BY", "GROUP",
+    "HAVING", "UNION", "DISTINCT", "LIMIT", "AND", "OR", "NOT", "IN", "BETWEEN", "LIKE",
+    "IS", "NULL", "PRIMARY", "KEY", "FOREIGN", "SET", "VALUES", "INTO", "CASE", "WHEN",
+    "THEN", "ELSE", "END", "select", "from", "where", "insert", "update", "delete", "create",
+    "drop", "alter", "table", "join", "inner", "left", "right", "on", "as", "order", "by",
+    "group", "having", "union", "distinct", "limit", "and", "or", "not", "in", "between",
+    "like", "is", "null", "primary", "key", "foreign", "set", "values", "into", "case",
+    "when", "then", "else", "end"])
+};
+
+const BUILTINS = {
+  javascript: new Set(["Array", "Boolean", "Date", "Error", "Function", "Map", "Math", "Number",
+    "Object", "Promise", "RegExp", "Set", "String", "Symbol", "console", "window", "document",
+    "setTimeout", "setInterval", "parseInt", "parseFloat", "isNaN", "JSON", "undefined", "null"]),
+  typescript: new Set(["Array", "Boolean", "Date", "Error", "Function", "Map", "Math", "Number",
+    "Object", "Promise", "RegExp", "Set", "String", "Symbol", "console", "window", "document",
+    "setTimeout", "setInterval", "parseInt", "parseFloat", "isNaN", "JSON", "undefined", "null",
+    "any", "unknown", "never", "string", "number", "boolean", "void"]),
+  python: new Set(["print", "len", "range", "str", "int", "float", "list", "dict", "tuple",
+    "set", "bool", "sum", "min", "max", "abs", "input", "open", "zip", "map", "filter",
+    "enumerate", "sorted", "Exception", "ValueError", "TypeError"]),
+  go: new Set(["make", "len", "cap", "append", "copy", "delete", "panic", "recover", "print",
+    "println", "error", "string", "int", "float32", "float64", "bool", "byte", "rune"]),
+  rust: new Set(["Some", "None", "Ok", "Err", "Vec", "String", "Box", "Option", "Result",
+    "i32", "i64", "u32", "u64", "f32", "f64", "bool", "char", "str", "println", "print"]),
+  sql: new Set(["INT", "INTEGER", "VARCHAR", "CHAR", "TEXT", "DATE", "DATETIME", "BOOLEAN",
+    "COUNT", "SUM", "AVG", "MIN", "MAX", "CONCAT", "UPPER", "LOWER", "NOW", "int", "integer",
+    "varchar", "char", "text", "date", "datetime", "boolean", "count", "sum", "avg", "min",
+    "max", "concat", "upper", "lower", "now"])
+};
+
+function normalizeLanguage(lang) {
+  const normalized = lang.toLowerCase().trim();
+  const aliases = { js: "javascript", ts: "typescript", py: "python", golang: "go", rs: "rust" };
+  return aliases[normalized] || normalized;
+}
+
+function tokenizeLine(line, language) {
+  const lang = normalizeLanguage(language);
+  const keywords = KEYWORDS[lang] || KEYWORDS.javascript;
+  const builtins = BUILTINS[lang] || BUILTINS.javascript;
+  const tokens = [];
+
+  if (!line || line.trim() === "") {
+    return [{ type: TokenType.Plain, value: line }];
+  }
+
+  let i = 0;
+  while (i < line.length) {
+    const char = line[i];
+    const rest = line.slice(i);
+
+    // Comments
+    if ((lang === "javascript" || lang === "typescript" || lang === "java" || lang === "go" || lang === "rust") && rest.startsWith("//")) {
+      tokens.push({ type: TokenType.Comment, value: line.slice(i) });
+      break;
+    }
+    if (lang === "sql" && rest.startsWith("--")) {
+      tokens.push({ type: TokenType.Comment, value: line.slice(i) });
+      break;
+    }
+    if ((lang === "python" || lang === "ruby") && char === "#") {
+      tokens.push({ type: TokenType.Comment, value: line.slice(i) });
+      break;
+    }
+
+    // Strings
+    if (char === '"' || char === "'" || char === "\`") {
+      const quote = char;
+      let j = i + 1;
+      let escaped = false;
+      while (j < line.length) {
+        if (escaped) { escaped = false; j++; continue; }
+        if (line[j] === "\\\\") { escaped = true; j++; continue; }
+        if (line[j] === quote) { j++; break; }
+        j++;
+      }
+      tokens.push({ type: TokenType.String, value: line.slice(i, j) });
+      i = j;
+      continue;
+    }
+
+    // Numbers
+    if (/\\d/.test(char)) {
+      let j = i;
+      while (j < line.length && /[\\d._xXoObB]/.test(line[j])) j++;
+      tokens.push({ type: TokenType.Number, value: line.slice(i, j) });
+      i = j;
+      continue;
+    }
+
+    // Identifiers and keywords
+    if (/[a-zA-Z_$]/.test(char)) {
+      let j = i;
+      while (j < line.length && /[a-zA-Z0-9_$]/.test(line[j])) j++;
+      const word = line.slice(i, j);
+      const nextNonSpace = line.slice(j).match(/^\\s*\\(/);
+      if (nextNonSpace) {
+        tokens.push({ type: TokenType.Function, value: word });
+      } else if (keywords.has(word)) {
+        tokens.push({ type: TokenType.Keyword, value: word });
+      } else if (builtins.has(word)) {
+        tokens.push({ type: TokenType.BuiltIn, value: word });
+      } else if (/^[A-Z]/.test(word)) {
+        tokens.push({ type: TokenType.Type, value: word });
+      } else {
+        tokens.push({ type: TokenType.Variable, value: word });
+      }
+      i = j;
+      continue;
+    }
+
+    // Operators
+    if (/[+\\-*/%=<>!&|^~?:]/.test(char)) {
+      let j = i;
+      while (j < line.length && /[+\\-*/%=<>!&|^~?:]/.test(line[j])) j++;
+      tokens.push({ type: TokenType.Operator, value: line.slice(i, j) });
+      i = j;
+      continue;
+    }
+
+    // Punctuation
+    if (/[(){}\\[\\];,.]/.test(char)) {
+      tokens.push({ type: TokenType.Punctuation, value: char });
+      i++;
+      continue;
+    }
+
+    // Whitespace
+    let j = i;
+    while (j < line.length && /\\s/.test(line[j])) j++;
+    if (j > i) {
+      tokens.push({ type: TokenType.Plain, value: line.slice(i, j) });
+      i = j;
+      continue;
+    }
+
+    tokens.push({ type: TokenType.Plain, value: char });
+    i++;
+  }
+  return tokens;
+}
+
+function getTokenColor(tokenType, darkTheme) {
+  if (darkTheme) {
+    switch (tokenType) {
+      case TokenType.Keyword: return "#C084FC";
+      case TokenType.String: return "#86EFAC";
+      case TokenType.Number: return "#FDBA74";
+      case TokenType.Comment: return "#64748B";
+      case TokenType.Function: return "#60A5FA";
+      case TokenType.Operator: return "#FB923C";
+      case TokenType.Punctuation: return "#94A3B8";
+      case TokenType.Type: return "#34D399";
+      case TokenType.BuiltIn: return "#FCD34D";
+      case TokenType.Variable: return "#E2E8F0";
+      default: return "#E2E8F0";
+    }
+  } else {
+    switch (tokenType) {
+      case TokenType.Keyword: return "#7C3AED";
+      case TokenType.String: return "#15803D";
+      case TokenType.Number: return "#EA580C";
+      case TokenType.Comment: return "#64748B";
+      case TokenType.Function: return "#2563EB";
+      case TokenType.Operator: return "#C2410C";
+      case TokenType.Punctuation: return "#475569";
+      case TokenType.Type: return "#059669";
+      case TokenType.BuiltIn: return "#CA8A04";
+      case TokenType.Variable: return "#0F172A";
+      default: return "#0F172A";
+    }
+  }
+}
 
 /* ========================================================== */
 /* ACTIONS RENDERING                                          */
