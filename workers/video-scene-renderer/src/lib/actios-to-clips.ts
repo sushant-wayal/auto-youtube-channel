@@ -53,7 +53,7 @@ export class ClipsRenderService {
         `scene_${String(i).padStart(3, "0")}.mp4`
       );
 
-      const duration = scene.baseDuration + scene.holdDuration;
+      const duration = scene.baseDuration + (scene.holdDuration ?? 0);
 
       await this.videoRenderer.render({
         html,
