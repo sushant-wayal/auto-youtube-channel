@@ -15,20 +15,62 @@ async function parseVoiceoverUrls(urlsParam: string | undefined): Promise<string
     if (!urlsParam) return [];
 
     try {
-        // Try to load as JSON file first
-        if (urlsParam.endsWith('.json')) {
-            const content = await fs.readFile(urlsParam, 'utf-8');
+        const input = urlsParam.trim();
+
+        // 1) Inline JSON array string, e.g. '["u1","u2"]' or '[[...],[...]]'
+        if (input.startsWith('[')) {
+            const parsed = JSON.parse(input);
+            if (!Array.isArray(parsed)) {
+                throw new Error('Expected JSON array of URLs');
+            }
+            return parsed;
+        }
+
+        // 2) Comma-separated URLs
+        if (input.includes(',')) {
+            return input.split(',').map(url => url.trim()).filter(url => url);
+        }
+
+        // 3) Single direct URL
+        if (input.startsWith('http://') || input.startsWith('https://') || input.startsWith('file://')) {
+            return [input];
+        }
+
+        // 4) Backward compatibility: local JSON file path
+        try {
+            await fs.access(input);
+            const content = await fs.readFile(input, 'utf-8');
             const urls = JSON.parse(content);
             if (!Array.isArray(urls)) {
                 throw new Error('Expected JSON array of URLs');
             }
             return urls;
-        } else {
-            // Parse as comma-separated URLs
-            return urlsParam.split(',').map(url => url.trim()).filter(url => url);
+        } catch {
+            // 5) Fallback: treat as a single URL/value
+            return [input];
         }
     } catch (error) {
         throw new Error(`Failed to parse voiceover URLs from "${urlsParam}": ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+
+// Helper function to parse rendered scene URLs from either a JSON file or comma-separated string
+async function parseRenderedSceneUrls(urlsParam: string | undefined): Promise<string[]> {
+    if (!urlsParam) return [];
+
+    try {
+        if (urlsParam.endsWith('.json')) {
+            const content = await fs.readFile(urlsParam, 'utf-8');
+            const urls = JSON.parse(content);
+            if (!Array.isArray(urls)) {
+                throw new Error('Expected JSON array of rendered scene URLs');
+            }
+            return urls;
+        }
+
+        return urlsParam.split(',').map(url => url.trim()).filter(url => url);
+    } catch (error) {
+        throw new Error(`Failed to parse rendered scene URLs from "${urlsParam}": ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -106,6 +148,7 @@ async function main() {
     const shortVoiceoverDir = params['short-voiceover-dir']; // optional
     const shortVoiceoverUrlsParam = params['short-voiceover-urls']; // JSON file or comma-separated URLs per short
     const thumbnailUrl = params['thumbnail-url'];
+    const renderedSceneUrlsParam = params['rendered-scene-urls']; // JSON file or comma-separated rendered scene URLs for long-form
 
     // support both `--shorts-only` and `--short-only` for backward compatibility
     // treat the *presence* of the flag as enabling shortsOnly, regardless of
@@ -132,8 +175,9 @@ async function main() {
         console.error('  --video-id              (unique identifier)');
         console.error('  --script-file           (path to script.json)');
         console.error('  --voiceover-dir OR      (directory containing voiceover .wav/.mp3 files for long-form)');
-        console.error('  --voiceover-urls        (JSON file with voiceover URLs OR comma-separated URLs)');
+        console.error('  --voiceover-urls        (direct URL input: single URL, comma-separated URLs, or JSON array string; local JSON file also supported)');
         console.error('  --thumbnail-url         (Cloudinary URL of thumbnail image)');
+        console.error('  --rendered-scene-urls   (optional; JSON file OR comma-separated pre-rendered scene URLs for long-form)');
         console.error('  --short-voiceover-dir OR (optional; root dir containing subfolders for each short)');
         console.error('  --short-voiceover-urls   (optional; JSON file with voiceover URLs per short)');
         console.error('      if omitted, first scene (hook) will be silent and subsequent scenes reuse long-form audio when IDs match');
@@ -146,7 +190,8 @@ async function main() {
         console.error('       which converts to params["short-only"]="#" and disables');
         console.error('       shorts-only mode. put comments on separate lines or remove them.');
         console.error('');
-        console.error('📌 Voiceovers can be supplied as either local files (--voiceover-dir) or URLs (--voiceover-urls).');
+        console.error('📌 Voiceovers can be supplied as either local files (--voiceover-dir) or direct URLs (--voiceover-urls).');
+        console.error('📌 If --rendered-scene-urls is provided, long-form scene rendering is skipped and assembly starts directly from those scene URLs.');
         console.error('Example 1 (with local files):');
         console.error('  npx tsx complete-workflow-with-assets.ts \\');
         console.error('    --video-id "my-video" \\');
@@ -155,14 +200,22 @@ async function main() {
         console.error('    --thumbnail-url "https://res.cloudinary.com/..." \\');
         console.error('    --short-voiceover-dir "./short-voiceovers"  # optional');
         console.error('');
-        console.error('Example 2 (with voiceover URLs):');
+        console.error('Example 1b (skip render, assemble from pre-rendered scene URLs):');
         console.error('  npx tsx complete-workflow-with-assets.ts \\');
         console.error('    --video-id "my-video" \\');
         console.error('    --script-file "./script.json" \\');
         console.error('    --voiceover-urls "./voiceover-urls.json" \\');
+        console.error('    --rendered-scene-urls "./rendered-scene-urls.json" \\');
         console.error('    --thumbnail-url "https://res.cloudinary.com/..."');
         console.error('');
-        console.error('Voiceover URLs JSON format:');
+        console.error('Example 2 (with voiceover URLs directly):');
+        console.error('  npx tsx complete-workflow-with-assets.ts \\');
+        console.error('    --video-id "my-video" \\');
+        console.error('    --script-file "./script.json" \\');
+        console.error('    --voiceover-urls "https://example.com/voiceover-1.mp3,https://example.com/voiceover-2.mp3" \\');
+        console.error('    --thumbnail-url "https://res.cloudinary.com/..."');
+        console.error('');
+        console.error('Voiceover URLs JSON array format (also accepted inline):');
         console.error('  [');
         console.error('    "https://example.com/voiceover-1.mp3",');
         console.error('    "https://example.com/voiceover-2.mp3"');
@@ -195,6 +248,7 @@ async function main() {
         console.log(`📂 Script: ${scriptFile}`);
         if (voiceoverDir) console.log(`🎤 Voiceovers (files): ${voiceoverDir}`);
         if (voiceoverUrlsParam) console.log(`🎤 Voiceovers (URLs): ${voiceoverUrlsParam}`);
+        if (renderedSceneUrlsParam) console.log(`🎞️  Pre-rendered long-form scenes: ${renderedSceneUrlsParam}`);
         if (shortVoiceoverDir) console.log(`🎤 Shorts voiceovers dir: ${shortVoiceoverDir}`);
         if (shortVoiceoverUrlsParam) console.log(`🎤 Shorts voiceovers URLs: ${shortVoiceoverUrlsParam}`);
         console.log(`🎨 Thumbnail: ${thumbnailUrl}`);
@@ -271,14 +325,29 @@ async function main() {
         let renderResult: any;
         if (!shortsOnly) {
             console.log('\n📺 LONG-FORM VIDEO GENERATION');
-            // Render long-form scenes
-            console.log('\n🎬 Rendering scenes...');
-            renderResult = await renderScenes({
-                scenes: script.script.scenes,
-                videoId,
-                isShort: false,
-            });
-            console.log(`✅ Rendered ${renderResult.urls.length} scenes`);
+            if (renderedSceneUrlsParam) {
+                const renderedSceneUrls = await parseRenderedSceneUrls(renderedSceneUrlsParam);
+                if (renderedSceneUrls.length !== script.script.scenes.length) {
+                    throw new Error(
+                        `Mismatch: ${renderedSceneUrls.length} rendered scene URLs but ${script.script.scenes.length} scenes`
+                    );
+                }
+                renderResult = {
+                    urls: renderedSceneUrls,
+                    timings: undefined,
+                    animationStopTimes: undefined,
+                };
+                console.log(`\n⏩ Skipping rendering; using ${renderedSceneUrls.length} pre-rendered scenes`);
+            } else {
+                // Render long-form scenes
+                console.log('\n🎬 Rendering scenes...');
+                renderResult = await renderScenes({
+                    scenes: script.script.scenes,
+                    videoId,
+                    isShort: false,
+                });
+                console.log(`✅ Rendered ${renderResult.urls.length} scenes`);
+            }
 
             console.log('\n🧩 Assembling video...');
             assembled = await assembleVideo({
