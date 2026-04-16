@@ -234,10 +234,12 @@ jobs:
           RESULT=$(npx tsx .github/scripts/assemble-video.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
 
-  # Step 6: Upload to YouTube (waits for both assembly and thumbnail)
+  # Step 6: Upload to YouTube
+  # Continue even if thumbnail generation fails; upload without thumbnail.
   upload-youtube:
     name: Upload to YouTube
     needs: [generate-script, assemble-video, generate-thumbnail]
+    if: always() && needs.generate-script.result == 'success' && needs.assemble-video.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
