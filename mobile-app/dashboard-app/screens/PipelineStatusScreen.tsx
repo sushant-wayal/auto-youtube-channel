@@ -39,15 +39,15 @@ function formatRelativeTime(isoString: string): string {
 
 function StatusBadge({ result }: { result: JobResult }) {
     const config = {
-        success: { bg: '#D1FAE5', text: '#065F46', label: 'success', icon: 'checkmark-circle' as const },
-        failure: { bg: '#FEE2E2', text: '#991B1B', label: 'failed', icon: 'close-circle' as const },
-        skipped: { bg: '#F3F4F6', text: '#6B7280', label: 'skipped', icon: 'remove-circle' as const },
-        cancelled: { bg: '#FEF3C7', text: '#92400E', label: 'cancelled', icon: 'ban' as const },
+        success: { bg: '#0D2A22', text: '#34D399', label: 'success', icon: 'checkmark-circle' as const },
+        failure: { bg: '#33131A', text: '#FCA5A5', label: 'failed', icon: 'close-circle' as const },
+        skipped: { bg: '#1A1F2B', text: '#9CA3AF', label: 'skipped', icon: 'remove-circle' as const },
+        cancelled: { bg: '#33270F', text: '#FACC15', label: 'cancelled', icon: 'ban' as const },
     };
     if (!result) {
         return (
-            <View style={[styles.badge, { backgroundColor: '#F3F4F6' }]}>
-                <Text style={[styles.badgeText, { color: '#6B7280' }]}>–</Text>
+            <View style={[styles.badge, { backgroundColor: '#1A1F2B' }]}>
+                <Text style={[styles.badgeText, { color: '#9CA3AF' }]}>-</Text>
             </View>
         );
     }
@@ -99,7 +99,7 @@ function YouTubeButton({ youtubeId, label = 'Watch on YouTube' }: { youtubeId: s
             onPress={() => Linking.openURL(`https://youtube.com/watch?v=${youtubeId}`)}
             activeOpacity={0.8}
         >
-            <Ionicons name="logo-youtube" size={15} color="#fff" />
+            <Ionicons name="logo-youtube" size={15} color={colors.primaryForeground} />
             <Text style={styles.youtubeBtnText}>{label}</Text>
         </TouchableOpacity>
     );
@@ -485,12 +485,12 @@ export default function PipelineStatusScreen() {
 
             {/* ── Overall status card ── */}
             {status && (
-                <View style={[styles.card, styles.overallCard, { borderLeftColor: isSuccess ? '#10B981' : '#EF4444' }]}>
+                <View style={[styles.card, styles.overallCard, { borderLeftColor: isSuccess ? colors.success : colors.destructive }]}>
                     <View style={styles.overallRow}>
                         <Ionicons
                             name={isSuccess ? 'checkmark-circle' : 'close-circle'}
                             size={32}
-                            color={isSuccess ? '#10B981' : '#EF4444'}
+                            color={isSuccess ? colors.success : colors.destructive}
                         />
                         <View style={{ marginLeft: spacing.md, flex: 1 }}>
                             <Text style={styles.overallTitle}>
@@ -617,6 +617,8 @@ const styles = StyleSheet.create({
         backgroundColor: colors.card,
         borderRadius: borderRadius.lg,
         padding: spacing.lg,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
         ...shadows.md,
     },
     overallCard: { borderLeftWidth: 4 },
@@ -707,6 +709,8 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.xs,
         backgroundColor: colors.secondary,
         borderRadius: borderRadius.sm,
+        borderWidth: 1,
+        borderColor: colors.border,
     },
     actionBtnText: {
         fontSize: typography.fontSizeXs,
@@ -725,14 +729,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.sm,
-        backgroundColor: '#EF4444',
+        backgroundColor: '#5B21B6',
         borderRadius: borderRadius.md,
         paddingVertical: spacing.sm,
         paddingHorizontal: spacing.lg,
         alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderColor: '#7C3AED',
     },
     youtubeBtnText: {
-        color: '#fff',
+        color: colors.primaryForeground,
         fontWeight: typography.fontWeightSemibold,
         fontSize: typography.fontSizeSm,
     },
@@ -761,13 +767,13 @@ const styles = StyleSheet.create({
     videoPlayer: {
         width: '100%',
         height: 200,
-        backgroundColor: '#000',
+        backgroundColor: '#020305',
         borderRadius: borderRadius.sm,
     },
     assembledVideo: {
         width: '100%',
         height: 220,
-        backgroundColor: '#000',
+        backgroundColor: '#020305',
         borderRadius: borderRadius.md,
     },
     thumbnailImage: {

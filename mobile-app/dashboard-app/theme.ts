@@ -1,43 +1,49 @@
 // shadcn New York theme colors and styling constants
 export const colors = {
     // Background
-    background: '#FFFFFF',
-    backgroundSecondary: '#F8F9FA',
+    background: '#05070A',
+    backgroundSecondary: '#0A0E14',
 
     // Foreground
-    foreground: '#09090B',
-    foregroundMuted: '#71717A',
+    foreground: '#F5F7FF',
+    foregroundMuted: '#A3AEC5',
 
-    // Primary (slate)
-    primary: '#18181B',
-    primaryForeground: '#FAFAFA',
+    // Primary (purple)
+    primary: '#7C3AED',
+    primaryForeground: '#F8F5FF',
 
     // Secondary
-    secondary: '#F4F4F5',
-    secondaryForeground: '#18181B',
+    secondary: '#151A23',
+    secondaryForeground: '#E4E9F8',
 
     // Accent
-    accent: '#F4F4F5',
-    accentForeground: '#18181B',
+    accent: '#1A1330',
+    accentForeground: '#EDE9FE',
 
     // Muted
-    muted: '#F4F4F5',
-    mutedForeground: '#71717A',
+    muted: '#111723',
+    mutedForeground: '#8B97B0',
 
     // Border
-    border: '#E4E4E7',
-    borderLight: '#F4F4F5',
+    border: '#252D3F',
+    borderLight: '#1C2434',
 
     // Destructive
-    destructive: '#EF4444',
-    destructiveForeground: '#FAFAFA',
+    destructive: '#F87171',
+    destructiveForeground: '#FDF4F4',
 
     // Success
-    success: '#10B981',
+    success: '#22D3A5',
 
     // Card
-    card: '#FFFFFF',
-    cardBorder: '#E4E4E7',
+    card: '#0D111B',
+    cardBorder: '#262E42',
+
+    glow: '#A78BFA',
+    glowStrong: '#7C3AED',
+    gradientFrom: '#A78BFA',
+    gradientMid: '#7C3AED',
+    gradientTo: '#5B21B6',
 };
 
 export const spacing = {
@@ -51,10 +57,10 @@ export const spacing = {
 };
 
 export const borderRadius = {
-    sm: 6,
-    md: 8,
-    lg: 12,
-    xl: 16,
+    sm: 16,
+    md: 18,
+    lg: 22,
+    xl: 28,
 };
 
 export const typography = {
@@ -73,24 +79,33 @@ export const typography = {
 
 export const shadows = {
     sm: {
-        shadowColor: '#000',
+        shadowColor: '#7C3AED',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
         elevation: 2,
     },
     md: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowColor: '#7C3AED',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.24,
+        shadowRadius: 12,
+        elevation: 6,
     },
     lg: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 5,
+        shadowColor: '#A78BFA',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10,
     },
+};
+
+export const gradients = {
+    primary: [colors.gradientFrom, colors.gradientMid, colors.gradientTo] as const,
+    subtle: ['#0B0F18', '#140F2A', '#0B0F18'] as const,
+};
+
+export const motion = {
+    fast: 200,
 };

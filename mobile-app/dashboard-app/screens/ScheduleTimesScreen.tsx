@@ -297,7 +297,7 @@ export default function ScheduleTimesScreen() {
                     onPress={handleSave}
                     disabled={loading || !hasChanges}
                 >
-                    <Ionicons name="save-outline" size={20} color="#fff" />
+                    <Ionicons name="save-outline" size={20} color={colors.primaryForeground} />
                     <Text style={styles.primaryButtonText}>
                         {loading ? 'Saving...' : 'Save Changes'}
                     </Text>
@@ -320,12 +320,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
-        backgroundColor: '#f0fdf4',
+        backgroundColor: '#0C241E',
         padding: spacing.md,
         borderRadius: borderRadius.md,
         marginBottom: spacing.lg,
         borderWidth: 1,
-        borderColor: colors.success,
+        borderColor: '#1D7F68',
     },
     successText: {
         flex: 1,
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     primaryButtonText: {
         fontSize: typography.fontSizeMd,
         fontWeight: '600',
-        color: '#fff',
+        color: colors.primaryForeground,
     },
     secondaryButtonText: {
         fontSize: typography.fontSizeMd,

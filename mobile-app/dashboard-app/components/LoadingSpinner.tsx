@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { colors } from '../theme';
 
 type LoadingSpinnerProps = {
     size?: 'small' | 'large';
@@ -8,7 +9,7 @@ type LoadingSpinnerProps = {
 export default function LoadingSpinner({ size = 'large' }: LoadingSpinnerProps) {
     return (
         <View style={styles.container}>
-            <ActivityIndicator size={size} color="#007AFF" />
+            <ActivityIndicator size={size} color={colors.gradientMid} />
         </View>
     );
 }
@@ -19,5 +20,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         padding: 32,
+        backgroundColor: colors.background,
     },
 });

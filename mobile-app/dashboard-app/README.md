@@ -1,6 +1,6 @@
-# Dashboard Mobile App
+# Serenity Mobile App
 
-A React Native mobile dashboard for managing video ideas and shorts scheduling.
+A React Native mobile app for managing video ideas and shorts scheduling.
 
 ## Features
 

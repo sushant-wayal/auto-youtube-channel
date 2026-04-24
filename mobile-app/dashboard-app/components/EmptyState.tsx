@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { borderRadius, colors, spacing, typography } from '../theme';
 
 type EmptyStateProps = {
     title: string;
@@ -17,17 +18,23 @@ export default function EmptyState({ title, subtitle }: EmptyStateProps) {
 
 const styles = StyleSheet.create({
     container: {
-        padding: 32,
+        padding: spacing.xxxl,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.card,
+        borderRadius: borderRadius.lg,
     },
     title: {
-        fontSize: 16,
-        color: '#666',
-        marginBottom: 4,
+        fontSize: typography.fontSizeMd,
+        color: colors.foreground,
+        marginBottom: spacing.xs,
+        fontWeight: typography.fontWeightSemibold,
     },
     subtitle: {
-        fontSize: 12,
-        color: '#999',
+        fontSize: typography.fontSizeSm,
+        color: colors.foregroundMuted,
+        textAlign: 'center',
     },
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { borderRadius, colors, spacing, typography } from '../theme';
 
 type ErrorMessageProps = {
     message: string;
@@ -15,13 +16,15 @@ export default function ErrorMessage({ message }: ErrorMessageProps) {
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#fee',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 12,
+        backgroundColor: '#2A1117',
+        padding: spacing.md,
+        borderRadius: borderRadius.md,
+        marginBottom: spacing.md,
+        borderWidth: 1,
+        borderColor: '#7F1D1D',
     },
     text: {
-        color: '#c00',
-        fontSize: 14,
+        color: '#FCA5A5',
+        fontSize: typography.fontSizeSm,
     },
 });

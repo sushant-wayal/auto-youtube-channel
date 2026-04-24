@@ -236,7 +236,7 @@ export default function IdeasScreen() {
                             onPress={() => handleEditIdea(index)}
                             disabled={!editingText.trim() || loading}
                         >
-                            <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                            <Ionicons name="checkmark" size={18} color={colors.primaryForeground} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.actionButtonMinimal, styles.cancelButtonMinimal]}
