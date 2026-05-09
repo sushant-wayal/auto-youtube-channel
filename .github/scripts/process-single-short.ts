@@ -66,7 +66,7 @@ interface ScriptData {
 }
 
 async function processSingleShort(videoId: string, shortIndex: number, scriptData: string) {
-    validateConfig(['cloudinary', 'gemini', 'youtube']);
+    validateConfig(['cloudinary', 'voiceover', 'youtube']);
 
     const data: ScriptData = JSON.parse(scriptData);
     const shorts = data.script.shorts;

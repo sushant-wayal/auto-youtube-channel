@@ -15,7 +15,7 @@ interface ScriptData {
 }
 
 async function generateNarration(videoId: string, scriptData: string) {
-    validateConfig(['cloudinary', 'gemini']);
+    validateConfig(['cloudinary', 'voiceover']);
 
     const data: ScriptData = JSON.parse(scriptData);
     const narrations = data.script.scenes.map(s => s.narration);

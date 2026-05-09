@@ -21,6 +21,14 @@ export const config = {
         // Fallback for single key setup
         apiKey: process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY_1 || '',
     },
+    voiceover: {
+        provider: (process.env.VOICEOVER_PROVIDER || 'gemini').toLowerCase(),
+        f5: {
+            referenceAudioPath: process.env.F5_REFERENCE_AUDIO_PATH || '',
+            referenceText: process.env.F5_REFERENCE_TEXT || '',
+            pythonBin: process.env.F5_PYTHON_BIN || process.env.PYTHON_BIN || '',
+        },
+    },
     redis: {
         url: process.env.REDIS_URL || 'redis://localhost:6379',
     },
@@ -68,6 +76,25 @@ export function validateConfig(required: string[] = []): void {
         }
         if (config.gemini.apiKey1 && !config.gemini.apiKey2) {
             console.warn('⚠️ GEMINI_API_KEY_2 not set - key rotation disabled');
+        }
+    }
+
+    if (required.includes('voiceover')) {
+        const provider = config.voiceover.provider;
+        if (provider !== 'gemini' && provider !== 'f5') {
+            errors.push('VOICEOVER_PROVIDER must be either "gemini" or "f5"');
+        }
+
+        if (provider === 'gemini') {
+            if (!config.gemini.apiKey1 && !config.gemini.apiKey) {
+                errors.push('GEMINI_API_KEY_1 or GEMINI_API_KEY is required for Gemini voiceover');
+            }
+        }
+
+        if (provider === 'f5') {
+            if (!config.gemini.apiKey1 && !config.gemini.apiKey) {
+                console.warn('⚠️ GEMINI_API_KEY_1 or GEMINI_API_KEY not set - Gemini fallback disabled');
+            }
         }
     }
 

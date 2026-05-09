@@ -146,6 +146,16 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies (F5 TTS)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -q git+https://github.com/SWivid/F5-TTS.git soundfile librosa torchaudio
+
       - name: Install dependencies
         run: npm install
 
@@ -157,6 +167,7 @@ jobs:
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
           npx tsx .github/scripts/generate-voiceover.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
@@ -328,6 +339,17 @@ jobs:
             libxkbcommon0 libxcomposite1 libxrandr2 libgbm1 \
             libpangocairo-1.0-0 libasound2t64
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies (F5 TTS)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -q git+https://github.com/SWivid/F5-TTS.git soundfile librosa torchaudio
+
+
       - name: Install dependencies
         run: npm install
 
@@ -340,6 +362,7 @@ jobs:
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
