@@ -167,7 +167,7 @@ jobs:
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
+          VOICEOVER_PROVIDER: ${{ secrets.VOICEOVER_PROVIDER }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
           npx tsx .github/scripts/generate-voiceover.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
@@ -362,7 +362,7 @@ jobs:
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
+          VOICEOVER_PROVIDER: ${{ secrets.VOICEOVER_PROVIDER }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
