@@ -83,6 +83,62 @@ class F5TTSService {
         }
     }
 
+    private async runPythonBatch(
+        tasks: Array<{ text: string; outputPath: string }>,
+        outputDir: string
+    ): Promise<void> {
+        if (tasks.length === 0) {
+            return;
+        }
+
+        await fs.promises.mkdir(outputDir, { recursive: true });
+
+        const scriptPath = path.join(
+            outputDir,
+            `f5_tts_batch_${Date.now()}_${Math.random().toString(36).slice(2)}.py`
+        );
+        const tasksPath = path.join(
+            outputDir,
+            `f5_tts_tasks_${Date.now()}_${Math.random().toString(36).slice(2)}.json`
+        );
+
+        const pythonCode = `import json\n` +
+            `import soundfile as sf\n` +
+            `from f5_tts.api import F5TTS\n\n` +
+            `REFERENCE_AUDIO = ${JSON.stringify(this.referenceAudioPath)}\n` +
+            `REFERENCE_TEXT = ${JSON.stringify(this.referenceText)}\n` +
+            `TASKS_PATH = ${JSON.stringify(tasksPath)}\n\n` +
+            `with open(TASKS_PATH, 'r', encoding='utf-8') as f:\n` +
+            `    tasks = json.load(f)\n\n` +
+            `tts = F5TTS()\n\n` +
+            `for idx, task in enumerate(tasks, start=1):\n` +
+            `    text = task['text']\n` +
+            `    output_path = task['outputPath']\n` +
+            `    wav, sr, _ = tts.infer(\n` +
+            `        ref_file=REFERENCE_AUDIO,\n` +
+            `        ref_text=REFERENCE_TEXT,\n` +
+            `        gen_text=text,\n` +
+            `    )\n` +
+            `    sf.write(output_path, wav, sr)\n` +
+            `    print(f"[F5] Wrote {idx}/{len(tasks)}: {output_path}")\n`;
+
+        await fs.promises.writeFile(scriptPath, pythonCode, 'utf8');
+        await fs.promises.writeFile(tasksPath, JSON.stringify(tasks), 'utf8');
+
+        try {
+            await this.runPythonScript(scriptPath);
+        } finally {
+            await fs.promises.rm(scriptPath, { force: true });
+            await fs.promises.rm(tasksPath, { force: true });
+        }
+
+        for (const task of tasks) {
+            if (!fs.existsSync(task.outputPath)) {
+                throw new Error(`F5 TTS did not produce output file: ${task.outputPath}`);
+            }
+        }
+    }
+
     private runPythonScript(scriptPath: string): Promise<void> {
         return new Promise((resolve, reject) => {
             const proc = spawn(this.pythonBin, [scriptPath], {
@@ -172,36 +228,45 @@ class F5TTSService {
     ): Promise<string[]> {
         const audioUrls: string[] = [];
 
+        const batchTasks: Array<{ text: string; outputPath: string; index: number }> = [];
+
         for (let i = 0; i < narrations.length; i++) {
-            console.error(`Generating narration part ${i + 1} of ${narrations.length} (F5)...`);
             const narration = narrations[i];
             const outputPath = path.join(outputDir, `narration-part-${i + 1}.wav`);
 
+            if (!narration || narration.trim() === '') {
+                console.error(`🔇 Empty narration detected - creating 1 second silence`);
+                const silentPath = await this.createSilenceAudio(outputPath, 1.0);
+                batchTasks.push({ text: '', outputPath: silentPath, index: i });
+            } else {
+                batchTasks.push({ text: narration, outputPath, index: i });
+            }
+        }
+
+        const nonEmptyTasks = batchTasks.filter((task) => task.text.trim() !== '');
+        if (nonEmptyTasks.length > 0) {
+            console.error(`Generating ${nonEmptyTasks.length} narration parts in a single F5 batch...`);
+            await this.runPythonBatch(
+                nonEmptyTasks.map(({ text, outputPath }) => ({ text, outputPath })),
+                outputDir
+            );
+        }
+
+        for (let i = 0; i < batchTasks.length; i++) {
+            const task = batchTasks[i];
+            const audioPath = task.outputPath;
             try {
-                let audioPath: string;
-
-                if (!narration || narration.trim() === '') {
-                    console.error(`🔇 Empty narration detected - creating 1 second silence`);
-                    audioPath = await this.createSilenceAudio(outputPath, 1.0);
-                } else {
-                    await this.runPythonTts(narration, outputPath);
-                    audioPath = outputPath;
-                }
-
-                console.error(`Uploading narration part ${i + 1} to Cloudinary...`);
-
+                console.error(`Uploading narration part ${task.index + 1} to Cloudinary...`);
                 const upload = await this.cloudinaryService.uploadAudio(
                     audioPath,
                     `narrations/${jobId}`,
-                    `part-${i + 1}`
+                    `part-${task.index + 1}`
                 );
-
-                console.error(`✅ Narration part ${i + 1} uploaded: ${upload.secureUrl}`);
-                audioUrls.push(upload.secureUrl);
-
+                console.error(`✅ Narration part ${task.index + 1} uploaded: ${upload.secureUrl}`);
+                audioUrls[task.index] = upload.secureUrl;
                 await fs.promises.rm(audioPath, { force: true });
             } catch (error) {
-                console.error(`❌ Failed to generate narration part ${i + 1} (F5):`, error);
+                console.error(`❌ Failed to upload narration part ${task.index + 1} (F5):`, error);
                 throw error;
             }
         }
