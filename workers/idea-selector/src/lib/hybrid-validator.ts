@@ -120,9 +120,9 @@ export class HybridValidator {
 
         if (result.length === 0) {
             console.error('   ⚠️  All ideas eliminated! Relaxing constraints...');
-            // Fallback: return top 3 AI ideas by score
+            // Fallback: return top 3 AI ideas by composite score
             return aiIdeas
-                .sort((a, b) => b.estimatedPerformance.score - a.estimatedPerformance.score)
+                .sort((a, b) => this.getCompositeScore(b) - this.getCompositeScore(a))
                 .slice(0, 3);
         }
 
@@ -152,13 +152,16 @@ export class HybridValidator {
             );
 
             // Normalize scores 0-100
-            const aiScore = aiIdea.estimatedPerformance.score;
+            const aiScore = this.clampScore(aiIdea.performanceScore ?? aiIdea.estimatedPerformance.score);
             const formulaScore = formulaRank >= 0
                 ? 100 - (formulaRank / rankedIdeas.length * 100)
                 : 50;
+            const breadthScore = this.clampScore(aiIdea.audienceBreadthScore);
+            const titleScore = this.clampScore(aiIdea.titlePotentialScore);
+            const breadthAdjusted = breadthScore < 50 ? breadthScore * 0.35 : breadthScore;
 
-            // Hybrid: 60% AI + 40% formula (AI has slight edge but formula constrains)
-            const hybrid = (aiScore * 0.6) + (formulaScore * 0.4);
+            // Hybrid: performance + formula + audience breadth + title potential
+            const hybrid = (aiScore * 0.34) + (formulaScore * 0.18) + (breadthAdjusted * 0.28) + (titleScore * 0.20);
 
             return { idea: aiIdea, aiScore, formulaScore, hybrid };
         });
@@ -169,7 +172,7 @@ export class HybridValidator {
         console.error('   Top 3 Hybrid Scores:');
         results.slice(0, 3).forEach((r, i) => {
             console.error(`   ${i + 1}. ${r.idea.topic}`);
-            console.error(`      AI: ${r.aiScore}, Formula: ${r.formulaScore.toFixed(1)}, Hybrid: ${r.hybrid.toFixed(1)}`);
+            console.error(`      AI: ${r.aiScore}, Breadth: ${r.idea.audienceBreadthScore}, Title: ${r.idea.titlePotentialScore}, Formula: ${r.formulaScore.toFixed(1)}, Hybrid: ${r.hybrid.toFixed(1)}`);
         });
 
         return results;
@@ -258,5 +261,19 @@ export class HybridValidator {
             .split(/\s+/)
             .filter(w => w.length > 3)
             .filter(w => !['the', 'and', 'for', 'with', 'this', 'that', 'from'].includes(w));
+    }
+
+    private clampScore(score: number): number {
+        if (!Number.isFinite(score)) return 0;
+        return Math.max(0, Math.min(100, Math.round(score)));
+    }
+
+    private getCompositeScore(idea: TopicIdea): number {
+        const breadth = this.clampScore(idea.audienceBreadthScore);
+        const title = this.clampScore(idea.titlePotentialScore);
+        const performance = this.clampScore(idea.performanceScore ?? idea.estimatedPerformance.score);
+        const breadthAdjusted = breadth < 50 ? breadth * 0.35 : breadth;
+
+        return (performance * 0.34) + (breadthAdjusted * 0.28) + (title * 0.20);
     }
 }

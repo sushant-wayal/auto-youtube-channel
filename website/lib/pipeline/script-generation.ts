@@ -36,7 +36,7 @@ class ScriptGenerationService {
   }
 
   private buildScriptPrompt(videoIdea: string, duration: number): string {
-    return `You are a technical explainer AI creating professional, calm, educational video content.
+    return `You are a technical storyteller AI creating curiosity-driven, tension-led, technically accurate video content for developers and engineers.
 
 Create content for a ${duration}-minute YouTube video about:
 "${videoIdea}"
@@ -48,8 +48,8 @@ This output feeds an automated video rendering pipeline.
 DESIGN PHILOSOPHY
 ========================
 
-The visual style is PROFESSIONAL EXPLAINER - think Stripe, Linear, Notion docs.
-- Calm, clean, intentional
+The visual style is PROFESSIONAL STORYTELLING - think Stripe, Linear, Notion docs, but structured around discovery.
+- Curious, clean, intentional
 - Layout-first thinking (margins, hierarchy, breathing room)
 - Minimal color palette (warm neutrals with indigo accent)
 - Slow, predictable animations (fade in, subtle scale, gentle slide)
@@ -177,6 +177,16 @@ SCENE RULES (MAIN VIDEO)
 - sceneTitle will be used for YouTube chapter timestamps
 - narration ~130-150 words per scene for ${duration} min video
 - narration length should match baseDuration + holdDuration
+- The long-form video MUST follow this story-first structure:
+  1. Unexpected Problem
+  2. Why Common Intuition Fails
+  3. Hidden Mechanism
+  4. Real-World Consequence
+  5. Resolution / Takeaway
+- Start with tension, not definitions, historical background, or textbook explanations
+- The intro must create an unanswered question that is not resolved immediately
+- Delay key reveals so the viewer feels discovery unfolding over time
+- Every 30-45 seconds, introduce at least one surprise, contradiction, question, consequence, or reveal
 - all action.t < baseDuration
 - actions should be evenly distributed across the duration
 - leave visual breathing room (margins of ~100px from edges)
@@ -243,7 +253,10 @@ Connectors default to zinc-400 color - usually no need to specify stroke.
 NARRATION RULES
 ========================
 
-- Conversational YouTube explainer tone
+- Conversational YouTube storyteller tone for engineers
+- Keep technical accuracy, but favor curiosity, tension, and narrative progression over calm explanation
+- Never open with a definition, historical background, or textbook-style summary
+- Use open loops in the intro and delay the answer until the script has established the problem
 - [PAUSE=1.5s] - timed silence (max 2 seconds)
 - ... - natural thinking hesitation
 - [excited] - prosody/tone shift

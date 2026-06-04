@@ -5,6 +5,10 @@ import { TrendingSignals, formatTrendingSignalsForPrompt } from './trend-detecto
 export interface TopicIdea {
     topic: string;
     reasoning: string;
+    curiosityAngle: string;
+    audienceBreadthScore: number;
+    titlePotentialScore: number;
+    performanceScore: number;
     targetFormats: {
         longForm: boolean;
         shorts: number; // 3-5
@@ -147,7 +151,7 @@ Be specific and data-driven. Focus on actionable insights.`;
             ? `\nEXTERNAL TRENDING SIGNALS (use these to make ideas timely and topical):\n${formatTrendingSignalsForPrompt(trendingSignals)}`
             : '';
 
-        const prompt = `You are an expert YouTube content strategist. Based on the channel analysis below, generate ${count} high-potential video topic ideas.
+        const prompt = `You are an expert YouTube content strategist. Based on the channel analysis below, generate ${count} curiosity-driven video topic ideas for developers and engineers.
 
 CHANNEL INSIGHTS:
 ${channelInsights}
@@ -157,23 +161,35 @@ ${recentTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}${trendingSection}
 
 REQUIREMENTS:
 - Each topic should be GENERIC enough to produce 1 long-form video (8-15 min) AND 3-5 shorts (30-60 sec)
-- Topics should leverage identified successful patterns
+- Topics should leverage identified successful patterns while favoring broad developer relevance over niche implementation detail
 - Avoid topics too similar to recent videos
 - Balance evergreen content with trending opportunities
 - Where relevant, use the EXTERNAL TRENDING SIGNALS above to pick timely topics that are being discussed RIGHT NOW
-- Consider audience retention signals
+- Optimize for curiosity, tension, and discovery rather than calm explanation or documentation style
+- Every selected topic MUST be framed through at least one of: Myth, Hidden Cost, Surprising Truth, Counterintuitive Behavior, Tradeoff, Failure Mode, Common Mistake
+- Reject purely descriptive topics that do not naturally create a curiosity angle
+- Heavily favor topics with Audience Breadth Score 60+ and strongly penalize topics below 50
+- Prioritize topics in these areas when they are relevant: databases, caching, APIs, performance, memory, networking, scaling, developer productivity, cloud architecture
 
 For each idea, provide:
 1. Topic (clear, specific)
-2. Reasoning (why it will perform well, backed by data insights)
-3. Target formats (1 long + how many shorts, 3-5)
-4. Suggested angles (specific angles for the long-form and shorts)
-5. Performance score (0-100) and confidence (low/medium/high)
+2. Curiosity angle (one of: Myth, Hidden Cost, Surprising Truth, Counterintuitive Behavior, Tradeoff, Failure Mode, Common Mistake)
+3. Audience breadth score (0-100)
+4. Title potential score (0-100)
+5. Performance score (0-100)
+6. Reasoning (why it will perform well, backed by data insights)
+7. Target formats (1 long + how many shorts, 3-5)
+8. Suggested angles (specific angles for the long-form and shorts)
+9. Performance confidence (low/medium/high)
 
 Format your response as a JSON array of objects with this structure:
 [
   {
     "topic": "string",
+        "curiosityAngle": "Hidden Cost",
+        "audienceBreadthScore": 80,
+        "titlePotentialScore": 85,
+        "performanceScore": 88,
     "reasoning": "string",
     "targetFormats": {
       "longForm": true,
@@ -215,9 +231,15 @@ RESPOND ONLY WITH VALID JSON ARRAY. NO MARKDOWN, NO EXPLANATIONS.`;
                     .filter(idea =>
                         idea.topic &&
                         idea.reasoning &&
+                        idea.curiosityAngle &&
+                        Number.isFinite(idea.audienceBreadthScore) &&
+                        Number.isFinite(idea.titlePotentialScore) &&
+                        Number.isFinite(idea.performanceScore) &&
                         idea.targetFormats?.shorts >= 3 &&
                         idea.targetFormats?.shorts <= 5
                     )
+                    .map(idea => this.sanitizeTopicIdea(idea))
+                    .filter((idea): idea is TopicIdea => idea !== null)
                     .slice(0, count);
 
                 console.error(`✅ Generated ${validIdeas.length} topic ideas`);
@@ -284,11 +306,15 @@ TOPIC IDEAS:
 ${JSON.stringify(ideas, null, 2)}
 
 SELECTION CRITERIA:
-1. Balance between performance potential and feasibility
-2. Alignment with demonstrated channel strengths
-3. Ability to generate engaging long-form + shorts content
-4. Uniqueness and freshness compared to recent content
-5. Audience retention and engagement potential
+1. Curiosity first: the idea must naturally support a myth, hidden cost, surprising truth, counterintuitive behavior, tradeoff, failure mode, or common mistake
+2. Audience breadth: strongly favor 60+ and heavily penalize sub-50 scores
+3. Title potential: prefer ideas that can naturally create a surprising title, contradiction, hidden cost, strong claim, or myth-busting angle
+4. Performance potential: keep the strongest overall performance score, but do not let it override weak breadth or title potential
+5. Balance between feasibility, channel fit, and the ability to generate engaging long-form + shorts content
+6. Uniqueness and freshness compared to recent content
+7. Audience retention and engagement potential
+
+Reject any purely descriptive topic that does not create immediate curiosity.
 
 Respond with the INDEX (0-based) of the best topic and a brief justification.
 
@@ -319,6 +345,11 @@ RESPOND ONLY WITH VALID JSON. NO MARKDOWN.`;
 
                 const selectedTopic = ideas[selection.selectedIndex];
 
+                if (!selectedTopic) {
+                    console.warn('⚠️ Invalid selected index from AI, falling back to ranked idea');
+                    return this.rankIdeasForSelection(ideas)[0];
+                }
+
                 console.error(`✅ Selected: "${selectedTopic.topic}"`);
                 console.error(`   Reason: ${selection.justification}`);
 
@@ -332,10 +363,7 @@ RESPOND ONLY WITH VALID JSON. NO MARKDOWN.`;
                 // For non-retryable errors, fall back to highest scored idea
                 if (isJsonError || isIndexError) {
                     console.error('⚠️ Error in AI selection, falling back to highest scored idea:', error.message);
-                    const sorted = [...ideas].sort((a, b) =>
-                        b.estimatedPerformance.score - a.estimatedPerformance.score
-                    );
-                    return sorted[0];
+                    return this.rankIdeasForSelection(ideas)[0];
                 }
 
                 const apiError = error?.error || error?.response?.error || error?.cause?.error;
@@ -351,10 +379,7 @@ RESPOND ONLY WITH VALID JSON. NO MARKDOWN.`;
 
                 if (!isRetryable || attempt >= this.MAX_RETRIES) {
                     console.error('⚠️ Gemini selection failed, falling back to highest scored idea');
-                    const sorted = [...ideas].sort((a, b) =>
-                        b.estimatedPerformance.score - a.estimatedPerformance.score
-                    );
-                    return sorted[0];
+                    return this.rankIdeasForSelection(ideas)[0];
                 }
 
                 const delay = Math.min(
@@ -369,10 +394,7 @@ RESPOND ONLY WITH VALID JSON. NO MARKDOWN.`;
 
         // Final fallback
         console.error('⚠️ Maximum retries reached, falling back to highest scored idea');
-        const sorted = [...ideas].sort((a, b) =>
-            b.estimatedPerformance.score - a.estimatedPerformance.score
-        );
-        return sorted[0];
+        return this.rankIdeasForSelection(ideas)[0];
     }
 
     /**
@@ -381,5 +403,59 @@ RESPOND ONLY WITH VALID JSON. NO MARKDOWN.`;
     private avg(numbers: number[]): number {
         if (numbers.length === 0) return 0;
         return Math.round(numbers.reduce((a, b) => a + b, 0) / numbers.length);
+    }
+
+    private sanitizeTopicIdea(idea: TopicIdea): TopicIdea | null {
+        const audienceBreadthScore = this.clampScore(idea.audienceBreadthScore);
+        const titlePotentialScore = this.clampScore(idea.titlePotentialScore);
+        const performanceScore = this.clampScore(idea.performanceScore ?? idea.estimatedPerformance?.score ?? 0);
+        const estimatedScore = this.clampScore(idea.estimatedPerformance?.score ?? performanceScore);
+
+        return {
+            ...idea,
+            audienceBreadthScore,
+            titlePotentialScore,
+            performanceScore,
+            estimatedPerformance: {
+                score: estimatedScore,
+                confidence: idea.estimatedPerformance?.confidence ?? 'medium',
+            },
+        };
+    }
+
+    private rankIdeasForSelection(ideas: TopicIdea[]): TopicIdea[] {
+        return [...ideas].sort((a, b) => this.getSelectionRankScore(b) - this.getSelectionRankScore(a));
+    }
+
+    private getSelectionRankScore(idea: TopicIdea): number {
+        const breadthPenalty = idea.audienceBreadthScore < 50
+            ? (50 - idea.audienceBreadthScore) * 1.5
+            : 0;
+
+        return (
+            (this.clampScore(idea.performanceScore ?? idea.estimatedPerformance.score) * 0.38) +
+            (this.clampScore(idea.titlePotentialScore) * 0.24) +
+            (idea.audienceBreadthScore * 0.28) +
+            (this.isCuriosityFraming(idea.curiosityAngle) ? 10 : 0) -
+            breadthPenalty
+        );
+    }
+
+    private clampScore(score: number): number {
+        if (!Number.isFinite(score)) return 0;
+        return Math.max(0, Math.min(100, Math.round(score)));
+    }
+
+    private isCuriosityFraming(curiosityAngle: string): boolean {
+        const normalized = curiosityAngle.trim().toLowerCase();
+        return [
+            'myth',
+            'hidden cost',
+            'surprising truth',
+            'counterintuitive behavior',
+            'tradeoff',
+            'failure mode',
+            'common mistake',
+        ].includes(normalized);
     }
 }

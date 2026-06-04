@@ -125,7 +125,10 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
         console.error('✅ SELECTED TOPIC (Hybrid: AI + Rules)');
         console.error('═'.repeat(80));
         console.error(`\n📌 Topic: ${selectedTopic.topic}`);
-        console.error(`\n📊 Performance Score: ${selectedTopic.estimatedPerformance.score}/100 (${selectedTopic.estimatedPerformance.confidence} confidence)`);
+        console.error(`\n📊 Audience Breadth Score: ${selectedTopic.audienceBreadthScore}/100`);
+        console.error(`📊 Title Potential Score: ${selectedTopic.titlePotentialScore}/100`);
+        console.error(`📊 Performance Score: ${selectedTopic.performanceScore ?? selectedTopic.estimatedPerformance.score}/100 (${selectedTopic.estimatedPerformance.confidence} confidence)`);
+        console.error(`🎯 Curiosity Angle: ${selectedTopic.curiosityAngle}`);
         console.error(`\n🎬 Target Formats:`);
         console.error(`   - 1 Long-form video (8-15 min)`);
         console.error(`   - ${selectedTopic.targetFormats.shorts} Shorts (30-60 sec each)`);
