@@ -102,25 +102,80 @@ class F5TTSService {
             `f5_tts_tasks_${Date.now()}_${Math.random().toString(36).slice(2)}.json`
         );
 
-        const pythonCode = `import json\n` +
+        const pythonCode =
+            `import json\n` +
+            `import time\n` +
+            `import traceback\n` +
             `import soundfile as sf\n` +
             `from f5_tts.api import F5TTS\n\n` +
+
             `REFERENCE_AUDIO = ${JSON.stringify(this.referenceAudioPath)}\n` +
             `REFERENCE_TEXT = ${JSON.stringify(this.referenceText)}\n` +
             `TASKS_PATH = ${JSON.stringify(tasksPath)}\n\n` +
+
+            `print("[F5] Script started", flush=True)\n` +
+
             `with open(TASKS_PATH, 'r', encoding='utf-8') as f:\n` +
             `    tasks = json.load(f)\n\n` +
-            `tts = F5TTS()\n\n` +
+
+            `print(f"[F5] Loaded {len(tasks)} tasks", flush=True)\n` +
+
             `for idx, task in enumerate(tasks, start=1):\n` +
             `    text = task['text']\n` +
-            `    output_path = task['outputPath']\n` +
-            `    wav, sr, _ = tts.infer(\n` +
-            `        ref_file=REFERENCE_AUDIO,\n` +
-            `        ref_text=REFERENCE_TEXT,\n` +
-            `        gen_text=text,\n` +
+            `    print(\n` +
+            `        f"[F5] Task {idx}: chars={len(text)} words={len(text.split())}",\n` +
+            `        flush=True\n` +
             `    )\n` +
-            `    sf.write(output_path, wav, sr)\n` +
-            `    print(f"[F5] Wrote {idx}/{len(tasks)}: {output_path}")\n`;
+
+            `print("[F5] Starting model load...", flush=True)\n` +
+            `model_load_start = time.time()\n` +
+
+            `tts = F5TTS()\n\n` +
+
+            `print(\n` +
+            `    f"[F5] Model loaded in {time.time() - model_load_start:.2f}s",\n` +
+            `    flush=True\n` +
+            `)\n\n` +
+
+            `for idx, task in enumerate(tasks, start=1):\n` +
+            `    text = task['text']\n` +
+            `    output_path = task['outputPath']\n\n` +
+
+            `    print(\n` +
+            `        f"[F5] Starting inference {idx}/{len(tasks)}",\n` +
+            `        flush=True\n` +
+            `    )\n` +
+
+            `    inference_start = time.time()\n\n` +
+
+            `    try:\n` +
+            `        wav, sr, _ = tts.infer(\n` +
+            `            ref_file=REFERENCE_AUDIO,\n` +
+            `            ref_text=REFERENCE_TEXT,\n` +
+            `            gen_text=text,\n` +
+            `        )\n\n` +
+
+            `        inference_time = time.time() - inference_start\n\n` +
+
+            `        print(\n` +
+            `            f"[F5] Inference {idx} completed in {inference_time:.2f}s",\n` +
+            `            flush=True\n` +
+            `        )\n\n` +
+
+            `        sf.write(output_path, wav, sr)\n\n` +
+
+            `        print(\n` +
+            `            f"[F5] Wrote {idx}/{len(tasks)}: {output_path}",\n` +
+            `            flush=True\n` +
+            `        )\n` +
+
+            `    except Exception as e:\n` +
+            `        print(\n` +
+            `            f"[F5] ERROR during task {idx}: {str(e)}",\n` +
+            `            flush=True\n` +
+            `        )\n` +
+            `        traceback.print_exc()\n` +
+            `        raise\n`;
 
         await fs.promises.writeFile(scriptPath, pythonCode, 'utf8');
         await fs.promises.writeFile(tasksPath, JSON.stringify(tasks), 'utf8');
