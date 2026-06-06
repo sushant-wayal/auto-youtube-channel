@@ -23,7 +23,33 @@ class F5TTSService {
         this.referenceText =
             config?.referenceText ||
             process.env.F5_REFERENCE_TEXT ||
-            'Most distributed systems fail silently before they fail visibly. A retry loop without backoff can destroy a production service.';
+            `Have you ever wondered why some websites load instantaneously while others take several seconds? At first glance, both applications may look identical. But behind the scenes, the architecture can be completely different. A few small engineering decisions can have a massive impact on performance, scalability, and reliability.
+            Most developers use databases, caches, APIs, and message queues every day. But very few stop to think about what actually happens after a request leaves the browser. That's exactly what we're going to explore.
+            
+            This sounds impossible, but it's true. A cache can sometimes make your application slower. A distributed database can return old data even when everything appears healthy. And a single configuration mistake can bring down an entire service.
+            The interesting part isn't that these things happen. The interesting part is why they happen.
+            
+            Let's break this down step by step. Imagine a request arrives at your server. The server checks the cache first because accessing memory is much faster than querying a database. If the data exists, the response is returned immediately. If it doesn't, the application has to perform additional work before sending a response back to the user.
+            This process happens thousands of times every second in modern systems.
+            
+            Here's the important part.
+            Speed is only one piece of the puzzle.
+            A system can be fast and still fail.
+            A system can be reliable and still become expensive.
+            And a system can scale beautifully right up until the moment it doesn't.
+            
+            Sounds simple, right?
+            Not quite.
+            There's one detail most people miss.
+            And that's where things start to get interesting.
+            Because once you understand this concept, a lot of engineering decisions suddenly make much more sense.
+            
+            Now watch what happens next.
+            Traffic suddenly doubles.
+            The cache starts missing.
+            Database queries increase.
+            Latency begins to rise.
+            And within a few seconds, a system that looked perfectly healthy starts behaving very differently.`;
         this.pythonBin =
             config?.pythonBin ||
             process.env.F5_PYTHON_BIN ||
@@ -43,7 +69,7 @@ class F5TTSService {
             '..',
             '..',
             'assests',
-            'reference-audio.mp3'
+            'better-reference-audio.wav'
         );
     }
 
