@@ -1,0 +1,1631 @@
+<html>
+
+<head></head>
+
+<body>
+
+
+
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap"
+        rel="stylesheet" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #070b16;
+            font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+        }
+
+        canvas {
+            display: block;
+            max-width: 100vw;
+            max-height: 100vh;
+            width: min(100vw, calc(100vh * 16 / 9));
+            height: auto;
+        }
+
+        .tester-controls {
+            position: fixed;
+            left: 18px;
+            right: 18px;
+            bottom: 16px;
+            z-index: 3;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            color: #e5e7f1;
+            background: rgba(7, 11, 22, 0.72);
+            border: 1px solid rgba(129, 140, 248, 0.28);
+            border-radius: 8px;
+            backdrop-filter: blur(12px);
+            font: 600 13px Inter, sans-serif;
+        }
+
+        .tester-controls button {
+            min-width: 72px;
+            border: 1px solid rgba(129, 140, 248, 0.44);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: #f8fafc;
+            background: rgba(99, 102, 241, 0.24);
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .tester-controls input {
+            width: 100%;
+            accent-color: #818cf8;
+        }
+    </style>
+    <canvas id="c"></canvas>
+    <div class="tester-controls">
+        <button id="playPause" type="button">Pause</button>
+        <input id="timeScrubber" type="range" min="0" max="11" step="0.01" value="0" />
+        <span id="timeReadout">0.00s</span>
+    </div>
+    <script>
+        const W = 1280;
+        const H = 720;
+        const DPR = (typeof window !== 'undefined') ? Math.max(window.devicePixelRatio || 1, 2) : 2;
+        const IS_SHORTS = false;
+        const SCENE_THEME = "dark";
+        const SCENE_DURATION = 11;
+
+        let canvas, ctx;
+        if (typeof document !== 'undefined') {
+            canvas = document.getElementById("c");
+            canvas.width = W * DPR;
+            canvas.height = H * DPR;
+            canvas.style.width = "min(100vw, calc(100vh * 16 / 9))";
+            canvas.style.height = "auto";
+            ctx = canvas.getContext("2d");
+            ctx.scale(DPR, DPR);
+        } else {
+            // Minimal headless canvas context stub for Node syntax checks
+            canvas = {};
+            ctx = {
+                scale: () => { }, fillRect: () => { }, beginPath: () => { }, moveTo: () => { }, lineTo: () => { }, stroke: () => { }, fill: () => { }, arc: () => { }, createLinearGradient: () => ({ addColorStop: () => { } }), createRadialGradient: () => ({ addColorStop: () => { } }), measureText: () => ({ width: 0 }), fillText: () => { }, strokeText: () => { }, setLineDash: () => { }, clearRect: () => { }, translate: () => { }, save: () => { }, restore: () => { }, fillStyle: "", strokeStyle: "", lineWidth: 1, font: "",
+            };
+        }
+
+        const THEME_LIGHT = {
+            bg: "#FAFAF9",
+            surfaceGradientStart: "#FFFFFF",
+            surfaceGradientEnd: "#F0F0F8",
+            gridLine: "rgba(0, 0, 0, 0.03)",
+            gridDot: "rgba(99, 102, 241, 0.06)",
+            bracket: "rgba(99, 102, 241, 0.08)",
+            symbolOpacity: 0.04,
+            traceOpacity: 0.035,
+            vignetteCenter: "rgba(255, 255, 255, 0.3)",
+            vignetteMid: "rgba(255, 255, 255, 0)",
+            vignetteEdge: "rgba(0, 0, 0, 0.015)",
+            surface: "#F5F5F4",
+            surfaceBorder: "#E7E5E4",
+            textPrimary: "#18181B",
+            textSecondary: "#52525B",
+            textMuted: "#A1A1AA",
+            accent: "#6366F1",
+            accentSoft: "#E0E7FF",
+            accentBorder: "#A5B4FC",
+            warning: "#F59E0B",
+            warningSoft: "#FEF3C7",
+            connector: "#A1A1AA",
+            connectorStrong: "#52525B"
+        }
+
+            ;
+
+        const THEME_DARK = {
+            bg: "#0b1326",
+            surfaceGradientStart: "#1a243a",
+            surfaceGradientEnd: "#131b2e",
+            gridLine: "rgba(99, 102, 241, 0.08)",
+            gridDot: "rgba(129, 140, 248, 0.14)",
+            bracket: "rgba(129, 140, 248, 0.2)",
+            symbolOpacity: 0.11,
+            traceOpacity: 0.14,
+            vignetteCenter: "rgba(148, 163, 184, 0.08)",
+            vignetteMid: "rgba(11, 19, 38, 0)",
+            vignetteEdge: "rgba(6, 14, 32, 0.5)",
+            surface: "#1a243a",
+            surfaceBorder: "#31394d",
+            textPrimary: "#e5e7f1",
+            textSecondary: "#c0c4d6",
+            textMuted: "#8a92ab",
+            accent: "#6366f1",
+            accentSoft: "rgba(99, 102, 241, 0.2)",
+            accentBorder: "#818cf8",
+            warning: "#FBBF24",
+            warningSoft: "rgba(251, 191, 36, 0.22)",
+            connector: "#8a92ab",
+            connectorStrong: "#c0c4d6"
+        }
+
+            ;
+
+        const isDarkTheme = SCENE_THEME === "dark";
+        const theme = isDarkTheme ? THEME_DARK : THEME_LIGHT;
+
+        /* ========================================================== */
+        /* RESPONSIVE TYPOGRAPHY & SPACING                            */
+        /* ========================================================== */
+
+        const scale = IS_SHORTS ? {
+            title: Math.round(W * 0.075),
+            subtitle: Math.round(W * 0.038),
+            body: Math.round(W * 0.030),
+            label: Math.round(W * 0.026),
+
+            marginX: Math.round(W * 0.09),
+            marginY: Math.round(H * 0.07),
+            gap: Math.round(W * 0.045),
+
+            baseDuration: 0.35,
+            staggerDelay: 0.12
+        }
+
+            : {
+                title: Math.round(H * 0.072),
+                subtitle: Math.round(H * 0.038),
+                body: Math.round(H * 0.032),
+                label: Math.round(H * 0.026),
+
+                marginX: Math.round(W * 0.12),
+                marginY: Math.round(H * 0.14),
+                gap: Math.round(W * 0.035),
+
+                baseDuration: 0.5,
+                staggerDelay: 0.15
+            }
+
+            ;
+
+        /* ========================================================== */
+        /* ACTIONS                                                    */
+        /* ========================================================== */
+
+        const actions = [
+            { t: 0.05, op: "text", x: 640, y: 58, value: "Video Scene Renderer UI Specimen", size: "title", fontWeight: 800, fill: "#f8fafc", align: "center", baseline: "middle", dur: 0.65, easing: "easeOut" },
+            { t: 0.25, op: "text", x: 640, y: 106, value: "Every ActionIR primitive, nested layout, and animation state in one scrub-friendly scene", size: "body", fontWeight: 500, fill: "#c0c4d6", align: "center", baseline: "middle", dur: 0.7, easing: "easeOut" },
+
+            { t: 0.45, op: "rect", x: 64, y: 142, w: 302, h: 205, r: 18, dur: 0.65, easing: "easeOut" },
+            { t: 0.55, op: "badge", x: 88, y: 166, value: "surface + badges", style: "accent", icon: "info", dur: 0.5, easing: "easeOut" },
+            { t: 0.7, op: "text", x: 88, y: 228, value: "Cards use gradient fills, borders, shadows, rounded paths, and slide-in motion.", fontSize: 22, fontWeight: 700, fill: "#f8fafc", align: "left", baseline: "top", typewriter: false, dur: 0.5, easing: "easeOut" },
+            { t: 0.9, op: "highlight", x: 88, y: 285, w: 238, h: 28, style: "box", fill: "#818cf8", opacity: 0.22, r: 8, dur: 0.55, easing: "easeOut" },
+            { t: 1.0, op: "text", x: 103, y: 299, value: "highlight box overlay", fontSize: 18, fontWeight: 700, fill: "#e5e7f1", align: "left", baseline: "middle", typewriter: false, dur: 0.45, easing: "easeOut" },
+            { t: 1.08, op: "highlight", x: 87, y: 331, w: 186, h: 10, style: "underline", fill: "#fbbf24", opacity: 0.75, dur: 0.45, easing: "easeOut" },
+
+            { t: 0.65, op: "ellipse", cx: 510, cy: 240, rx: 88, ry: 58, fill: "rgba(99,102,241,0.18)", stroke: "#818cf8", strokeWidth: 2, dur: 0.6, easing: "easeOut" },
+            { t: 0.8, op: "icon", x: 510, y: 214, name: "cpu", size: 42, stroke: "#c4b5fd", strokeWidth: 2.2, dur: 0.5, easing: "easeOut" },
+            { t: 0.9, op: "numberCounter", x: 510, y: 265, from: 0, to: 97.4, suffix: "%", decimals: 1, fontSize: 34, fontWeight: 800, fill: "#86efac", align: "center", dur: 1.0, easing: "easeOut" },
+            { t: 1.05, op: "text", x: 510, y: 304, value: "numberCounter + ellipse + icon", fontSize: 15, fontWeight: 700, fill: "#c0c4d6", align: "center", baseline: "middle", typewriter: false, dur: 0.45, easing: "easeOut" },
+
+            { t: 1.1, op: "line", x1: 366, y1: 245, x2: 422, y2: 240, stroke: "#818cf8", strokeWidth: 3, arrow: true, curve: 0, dur: 0.55, easing: "easeOut" },
+            { t: 1.2, op: "line", x1: 598, y1: 240, x2: 690, y2: 206, stroke: "#fbbf24", strokeWidth: 3, dashed: true, dashLength: 10, dashGap: 7, arrow: true, curve: 1, dur: 0.7, easing: "easeOut" },
+            { t: 1.35, op: "path", d: "M690 282 C740 332, 808 195, 868 255 S966 318, 1015 220", stroke: "#22c55e", strokeWidth: 3, dashed: true, dashLength: 12, dashGap: 8, fill: false, dur: 0.95, easing: "easeOut" },
+
+            { t: 0.85, op: "codeBlock", x: 694, y: 145, w: 472, h: 238, language: "typescript", theme: "dark", fontSize: 15, showLineNumbers: true, highlightLine: 3, maxVisibleLines: 7, cursor: true, lines: ["type ActionIR = Text | Code | Shape;", "const frame = renderFrame(time);", "for (const action of actions) {", "  draw(action, ease(progress));", "  timeline.push(action.op);", "}", "upload(sceneClip);"], dur: 1.75, easing: "easeOut" },
+
+            { t: 2.15, op: "progressBar", x: 64, y: 410, w: 440, h: 24, value: 88, max: 100, label: "Timeline coverage", r: 12, fill: "#22c55e", trackFill: "#131b2e", stroke: "#31394d", dur: 0.85, easing: "easeOut" },
+            { t: 2.35, op: "badge", x: 64, y: 462, value: "neutral", style: "neutral", icon: "clock", dur: 0.35, easing: "easeOut" },
+            { t: 2.45, op: "badge", x: 170, y: 462, value: "warning", style: "warning", icon: "warning", dur: 0.35, easing: "easeOut" },
+            { t: 2.55, op: "badge", x: 282, y: 462, value: "success", style: "success", icon: "check", dur: 0.35, easing: "easeOut" },
+            { t: 2.65, op: "badge", x: 398, y: 462, value: "danger", style: "danger", icon: "cross", dur: 0.35, easing: "easeOut" },
+
+            { t: 2.0, op: "table", x: 548, y: 420, w: 434, h: 166, headers: ["Primitive", "State", "Motion"], rows: [["rect / ellipse", "styled", "scale"], ["line / path", "dashed", "draw"], ["text / code", "typing", "cursor"], ["group", "nested", "translate"]], striped: true, headerFill: "#1e293b", gridStroke: "#31394d", textColor: "#e5e7f1", fontSize: 14, align: "left", dur: 1.15, easing: "easeOut" },
+
+            { t: 2.35, op: "group", dur: 0.9, easing: "easeOut", children: [
+                { t: 0, op: "rect", x: 1016, y: 418, w: 182, h: 166, r: 18, fill: "rgba(15,23,42,0.72)", stroke: "#31394d", strokeWidth: 1.5 },
+                { t: 0, op: "text", x: 1038, y: 442, value: "group()", fontSize: 22, fontWeight: 800, fill: "#f8fafc", align: "left", baseline: "top", typewriter: false },
+                { t: 0, op: "icon", x: 1054, y: 512, name: "database", size: 36, stroke: "#93c5fd" },
+                { t: 0, op: "line", x1: 1088, y1: 512, x2: 1138, y2: 512, stroke: "#64748b", strokeWidth: 2, arrow: true, curve: 0 },
+                { t: 0, op: "icon", x: 1160, y: 512, name: "cloud", size: 38, stroke: "#86efac" }
+            ] },
+            { t: 2.8, op: "transform", translate: [0, -34], dur: 1.0, easing: "easeOut", children: [
+                { t: 0, op: "badge", x: 1028, y: 592, value: "transform translate", style: "accent", icon: "arrowUp" }
+            ] },
+
+            { t: 3.25, op: "text", x: 640, y: 650, value: "Text replacement check: first line expires, second line takes the exact same anchor.", fontSize: 22, fontWeight: 700, fill: "#c0c4d6", align: "center", baseline: "middle", dur: 0.55, easing: "easeOut", endT: 5.2 },
+            { t: 5.2, op: "text", x: 640, y: 650, value: "Replacement text is now active. Scrub to verify no overlap at the same x/y/align.", fontSize: 22, fontWeight: 700, fill: "#86efac", align: "center", baseline: "middle", dur: 0.65, easing: "easeOut" },
+
+            { t: 6.05, op: "rect", x: 78, y: 142, w: 1102, h: 476, r: 20, fill: "rgba(15,23,42,0.76)", stroke: "#31394d", strokeWidth: 2, dur: 0.7, easing: "easeOut" },
+            { t: 6.2, op: "text", x: 112, y: 174, value: "Icon and connector matrix", fontSize: 34, fontWeight: 800, fill: "#f8fafc", align: "left", baseline: "top", typewriter: false, dur: 0.5, easing: "easeOut" },
+            { t: 6.35, op: "text", x: 112, y: 226, value: "Fallback icon, all named icons, straight/dashed/curved connectors, and explicit fill/stroke variants.", fontSize: 20, fontWeight: 500, fill: "#c0c4d6", align: "left", baseline: "top", typewriter: false, dur: 0.55, easing: "easeOut" },
+            { t: 6.5, op: "icon", x: 150, y: 316, name: "server", size: 42, stroke: "#93c5fd", dur: 0.5, easing: "easeOut" },
+            { t: 6.56, op: "icon", x: 260, y: 316, name: "lock", size: 42, stroke: "#fbbf24", dur: 0.5, easing: "easeOut" },
+            { t: 6.62, op: "icon", x: 370, y: 316, name: "unlock", size: 42, stroke: "#86efac", dur: 0.5, easing: "easeOut" },
+            { t: 6.68, op: "icon", x: 480, y: 316, name: "bug", size: 42, stroke: "#fca5a5", dur: 0.5, easing: "easeOut" },
+            { t: 6.74, op: "icon", x: 590, y: 316, name: "chartUp", size: 42, stroke: "#22c55e", dur: 0.5, easing: "easeOut" },
+            { t: 6.8, op: "icon", x: 700, y: 316, name: "chartDown", size: 42, stroke: "#fb7185", dur: 0.5, easing: "easeOut" },
+            { t: 6.86, op: "icon", x: 810, y: 316, name: "unknownIconFallback", size: 42, stroke: "#c4b5fd", dur: 0.5, easing: "easeOut" },
+            { t: 7.15, op: "line", x1: 130, y1: 414, x2: 1110, y2: 414, stroke: "#64748b", strokeWidth: 2, curve: 0, dur: 0.6, easing: "easeOut" },
+            { t: 7.3, op: "line", x1: 130, y1: 462, x2: 1110, y2: 462, stroke: "#818cf8", strokeWidth: 3, dashed: true, arrow: true, curve: 2, dur: 0.8, easing: "easeOut" },
+            { t: 7.45, op: "line", x1: 130, y1: 512, x2: 1110, y2: 512, stroke: "#22c55e", strokeWidth: 3, arrow: true, curve: 3, dur: 0.9, easing: "easeOut" },
+            { t: 7.6, op: "path", d: "M130 560 L250 540 L360 575 L470 530 L580 566 L690 542 L810 575 L930 536 L1110 560", stroke: "#fbbf24", strokeWidth: 2.5, fill: "rgba(251,191,36,0.08)", dur: 0.95, easing: "easeOut" }
+        ].sort((a, b) => a.t - b.t);
+        let CURRENT_TIME = 0;
+
+        const ICON_PATHS = {
+            check: "M5 13l4 4L19 7",
+            cross: "M6 6l12 12M18 6L6 18",
+            warning: "M12 3l9 16H3L12 3zm0 5v5m0 3h.01",
+            info: "M12 8h.01M11 12h1v4h1",
+            arrowRight: "M5 12h14M13 6l6 6-6 6",
+            arrowLeft: "M19 12H5M11 6l-6 6 6 6",
+            arrowUp: "M12 19V5M6 11l6-6 6 6",
+            arrowDown: "M12 5v14M6 13l6 6 6-6",
+            plus: "M12 5v14M5 12h14",
+            minus: "M5 12h14",
+            clock: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18",
+            database: "M4 7c0-2.2 3.6-4 8-4s8 1.8 8 4v10c0 2.2-3.6 4-8 4s-8-1.8-8-4V7zm0 0c0 2.2 3.6 4 8 4s8-1.8 8-4M4 12c0 2.2 3.6 4 8 4s8-1.8 8-4",
+            server: "M4 5h16v5H4zM4 14h16v5H4zM7 8h.01M7 17h.01",
+            cpu: "M9 3v2M15 3v2M9 19v2M15 19v2M3 9h2M3 15h2M19 9h2M19 15h2M8 8h8v8H8z",
+            lock: "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v10H6z",
+            unlock: "M16 11V8a4 4 0 0 0-8 0M6 11h12v10H6z",
+            cloud: "M7 18h10a4 4 0 0 0 .5-8A5.5 5.5 0 0 0 7 9a4 4 0 0 0 0 9",
+            bug: "M8 9h8v8H8zM12 5v4M4 11h4M16 11h4M5 7l3 2M19 7l-3 2M5 19l3-2M19 19l-3-2",
+            chartUp: "M4 19h16M6 15l3-3 3 2 5-6",
+            chartDown: "M4 19h16M6 9l3 3 3-2 5 6"
+        }
+
+            ;
+
+        /* ========================================================== */
+        /* SYNTAX HIGHLIGHTING FOR CODE BLOCKS                        */
+        /* ========================================================== */
+
+        const TokenType = {
+            Keyword: "keyword",
+            String: "string",
+            Number: "number",
+            Comment: "comment",
+            Function: "function",
+            Operator: "operator",
+            Punctuation: "punctuation",
+            Variable: "variable",
+            Type: "type",
+            BuiltIn: "builtin",
+            Plain: "plain"
+        }
+
+            ;
+
+        const KEYWORDS = {
+            javascript: new Set(["async", "await", "break", "case", "catch", "class", "const", "continue",
+                "debugger", "default", "delete", "do", "else", "export", "extends", "finally", "for",
+                "function", "if", "import", "in", "instanceof", "let", "new", "return", "static",
+                "super", "switch", "this", "throw", "try", "typeof", "var", "void", "while", "with", "yield"]),
+            typescript: new Set(["async", "await", "break", "case", "catch", "class", "const", "continue",
+                "debugger", "default", "delete", "do", "else", "enum", "export", "extends", "finally",
+                "for", "function", "if", "import", "in", "instanceof", "interface", "let", "new", "return",
+                "static", "super", "switch", "this", "throw", "try", "type", "typeof", "var", "void",
+                "while", "with", "yield", "public", "private", "protected", "readonly", "abstract", "as",
+                "namespace", "declare"]),
+            python: new Set(["and", "as", "assert", "async", "await", "break", "class", "continue", "def",
+                "del", "elif", "else", "except", "False", "finally", "for", "from", "global", "if",
+                "import", "in", "is", "lambda", "None", "nonlocal", "not", "or", "pass", "raise",
+                "return", "True", "try", "while", "with", "yield"]),
+            go: new Set(["break", "case", "chan", "const", "continue", "default", "defer", "else",
+                "fallthrough", "for", "func", "go", "goto", "if", "import", "interface", "map",
+                "package", "range", "return", "select", "struct", "switch", "type", "var"]),
+            rust: new Set(["as", "async", "await", "break", "const", "continue", "crate", "dyn", "else",
+                "enum", "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match",
+                "mod", "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct",
+                "super", "trait", "true", "type", "unsafe", "use", "where", "while"]),
+            sql: new Set(["SELECT", "FROM", "WHERE", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP",
+                "ALTER", "TABLE", "JOIN", "INNER", "LEFT", "RIGHT", "ON", "AS", "ORDER", "BY", "GROUP",
+                "HAVING", "UNION", "DISTINCT", "LIMIT", "AND", "OR", "NOT", "IN", "BETWEEN", "LIKE",
+                "IS", "NULL", "PRIMARY", "KEY", "FOREIGN", "SET", "VALUES", "INTO", "CASE", "WHEN",
+                "THEN", "ELSE", "END", "select", "from", "where", "insert", "update", "delete", "create",
+                "drop", "alter", "table", "join", "inner", "left", "right", "on", "as", "order", "by",
+                "group", "having", "union", "distinct", "limit", "and", "or", "not", "in", "between",
+                "like", "is", "null", "primary", "key", "foreign", "set", "values", "into", "case",
+                "when", "then", "else", "end"])
+        }
+
+            ;
+
+        const BUILTINS = {
+            javascript: new Set(["Array", "Boolean", "Date", "Error", "Function", "Map", "Math", "Number",
+                "Object", "Promise", "RegExp", "Set", "String", "Symbol", "console", "window", "document",
+                "setTimeout", "setInterval", "parseInt", "parseFloat", "isNaN", "JSON", "undefined", "null"]),
+            typescript: new Set(["Array", "Boolean", "Date", "Error", "Function", "Map", "Math", "Number",
+                "Object", "Promise", "RegExp", "Set", "String", "Symbol", "console", "window", "document",
+                "setTimeout", "setInterval", "parseInt", "parseFloat", "isNaN", "JSON", "undefined", "null",
+                "any", "unknown", "never", "string", "number", "boolean", "void"]),
+            python: new Set(["print", "len", "range", "str", "int", "float", "list", "dict", "tuple",
+                "set", "bool", "sum", "min", "max", "abs", "input", "open", "zip", "map", "filter",
+                "enumerate", "sorted", "Exception", "ValueError", "TypeError"]),
+            go: new Set(["make", "len", "cap", "append", "copy", "delete", "panic", "recover", "print",
+                "println", "error", "string", "int", "float32", "float64", "bool", "byte", "rune"]),
+            rust: new Set(["Some", "None", "Ok", "Err", "Vec", "String", "Box", "Option", "Result",
+                "i32", "i64", "u32", "u64", "f32", "f64", "bool", "char", "str", "println", "print"]),
+            sql: new Set(["INT", "INTEGER", "VARCHAR", "CHAR", "TEXT", "DATE", "DATETIME", "BOOLEAN",
+                "COUNT", "SUM", "AVG", "MIN", "MAX", "CONCAT", "UPPER", "LOWER", "NOW", "int", "integer",
+                "varchar", "char", "text", "date", "datetime", "boolean", "count", "sum", "avg", "min",
+                "max", "concat", "upper", "lower", "now"])
+        }
+
+            ;
+
+        function normalizeLanguage(lang) {
+            const normalized = lang.toLowerCase().trim();
+
+            const aliases = {
+                js: "javascript", ts: "typescript", py: "python", golang: "go", rs: "rust"
+            }
+
+                ;
+            return aliases[normalized] || normalized;
+        }
+
+        function tokenizeLine(line, language) {
+            const lang = normalizeLanguage(language);
+            const keywords = KEYWORDS[lang] || KEYWORDS.javascript;
+            const builtins = BUILTINS[lang] || BUILTINS.javascript;
+            const tokens = [];
+
+            if (!line || line.trim() === "") {
+                return [{
+                    type: TokenType.Plain, value: line
+                }
+
+                ];
+            }
+
+            let i = 0;
+
+            while (i < line.length) {
+                const char = line[i];
+                const rest = line.slice(i);
+
+                // Comments
+                if ((lang === "javascript" || lang === "typescript" || lang === "java" || lang === "go" || lang === "rust") && rest.startsWith("//")) {
+                    tokens.push({
+                        type: TokenType.Comment, value: line.slice(i)
+                    });
+                    break;
+                }
+
+                if (lang === "sql" && rest.startsWith("--")) {
+                    tokens.push({
+                        type: TokenType.Comment, value: line.slice(i)
+                    });
+                    break;
+                }
+
+                if ((lang === "python" || lang === "ruby") && char === "#") {
+                    tokens.push({
+                        type: TokenType.Comment, value: line.slice(i)
+                    });
+                    break;
+                }
+
+                // Strings
+                if (char === '"' || char === "'" || char === "\`") {
+                    const quote = char;
+                    let j = i + 1;
+                    let escaped = false;
+
+                    while (j < line.length) {
+                        if (escaped) {
+                            escaped = false;
+                            j++;
+                            continue;
+                        }
+
+                        if (line[j] === "\\\\") {
+                            escaped = true;
+                            j++;
+                            continue;
+                        }
+
+                        if (line[j] === quote) {
+                            j++;
+                            break;
+                        }
+
+                        j++;
+                    }
+
+                    tokens.push({
+                        type: TokenType.String, value: line.slice(i, j)
+                    });
+                    i = j;
+                    continue;
+                }
+
+                // Numbers
+                if (/\\d/.test(char)) {
+                    let j = i;
+                    while (j < line.length && /[\\d._xXoObB]/.test(line[j])) j++;
+
+                    tokens.push({
+                        type: TokenType.Number, value: line.slice(i, j)
+                    });
+                    i = j;
+                    continue;
+                }
+
+                // Identifiers and keywords
+                if (/[a-zA-Z_$]/.test(char)) {
+                    let j = i;
+                    while (j < line.length && /[a-zA-Z0-9_$]/.test(line[j])) j++;
+                    const word = line.slice(i, j);
+                    const nextNonSpace = line.slice(j).match(/^\s*\(/);
+
+                    if (nextNonSpace) {
+                        tokens.push({
+                            type: TokenType.Function, value: word
+                        });
+                    }
+
+                    else if (keywords.has(word)) {
+                        tokens.push({
+                            type: TokenType.Keyword, value: word
+                        });
+                    }
+
+                    else if (builtins.has(word)) {
+                        tokens.push({
+                            type: TokenType.BuiltIn, value: word
+                        });
+                    }
+
+                    else if (/^[A-Z]/.test(word)) {
+                        tokens.push({
+                            type: TokenType.Type, value: word
+                        });
+                    }
+
+                    else {
+                        tokens.push({
+                            type: TokenType.Variable, value: word
+                        });
+                    }
+
+                    i = j;
+                    continue;
+                }
+
+                // Operators
+                if (/[+\-*/%=<>!&|^~?:]/.test(char)) {
+                    let j = i;
+                    while (j < line.length && /[+\-*/%=<> !&|^~?:]/.test(line[j])) j++;
+
+                    tokens.push({
+                        type: TokenType.Operator, value: line.slice(i, j)
+                    });
+                    i = j;
+                    continue;
+                }
+
+                // Punctuation
+                if (/[(){}\[\];,.]/.test(char)) {
+                    tokens.push({
+                        type: TokenType.Punctuation, value: char
+                    });
+                    i++;
+                    continue;
+                }
+
+                // Whitespace
+                let j = i;
+                while (j < line.length && /\s/.test(line[j])) j++;
+
+                if (j > i) {
+                    tokens.push({
+                        type: TokenType.Plain, value: line.slice(i, j)
+                    });
+                    i = j;
+                    continue;
+                }
+
+                tokens.push({
+                    type: TokenType.Plain, value: char
+                });
+                i++;
+            }
+
+            return tokens;
+        }
+
+        function getTokenColor(tokenType, darkTheme) {
+            if (darkTheme) {
+                switch (tokenType) {
+                    case TokenType.Keyword: return "#c4b5fd";
+                    case TokenType.String: return "#a7f3d0";
+                    case TokenType.Number: return "#fcd34d";
+                    case TokenType.Comment: return "#64748b";
+                    case TokenType.Function: return "#93c5fd";
+                    case TokenType.Operator: return "#fca5a5";
+                    case TokenType.Punctuation: return "#94a3b8";
+                    case TokenType.Type: return "#6ee7b7";
+                    case TokenType.BuiltIn: return "#fde047";
+                    case TokenType.Variable: return "#f1f5f9";
+                    default: return "#f1f5f9";
+                }
+            }
+
+            else {
+                switch (tokenType) {
+                    case TokenType.Keyword: return "#7C3AED";
+                    case TokenType.String: return "#15803D";
+                    case TokenType.Number: return "#EA580C";
+                    case TokenType.Comment: return "#64748B";
+                    case TokenType.Function: return "#2563EB";
+                    case TokenType.Operator: return "#C2410C";
+                    case TokenType.Punctuation: return "#475569";
+                    case TokenType.Type: return "#059669";
+                    case TokenType.BuiltIn: return "#CA8A04";
+                    case TokenType.Variable: return "#0F172A";
+                    default: return "#0F172A";
+                }
+            }
+        }
+
+        /* ========================================================== */
+        /* EASING - Smooth, predictable curves only                   */
+        /* ========================================================== */
+
+        function ease(p, type) {
+            switch (type) {
+                case "easeOut":
+                    return 1 - Math.pow(1 - p, 4); // Smoother easeOut
+                case "easeInOut":
+                    return p < 0.5 ? 8 * p * p * p * p : 1 - Math.pow(-2 * p + 2, 4) / 2; // Snappier easeInOut
+                case "gentle":
+                    return p * p * (3 - 2 * p);
+                default:
+                    return p;
+            }
+        }
+
+        /* ========================================================== */
+        /* BACKGROUND - Technical explainer theme                     */
+        /* ========================================================== */
+
+        function drawBackground() {
+            ctx.fillStyle = theme.bg;
+            ctx.fillRect(0, 0, W, H);
+
+            ctx.strokeStyle = theme.gridLine;
+            ctx.lineWidth = 1;
+            const gridSize = IS_SHORTS ? 50 : 70;
+
+            for (let x = gridSize; x < W; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, H);
+                ctx.stroke();
+            }
+
+            for (let y = gridSize; y < H; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(W, y);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = theme.gridDot;
+
+            for (let x = gridSize; x < W; x += gridSize * 2) {
+                for (let y = gridSize; y < H; y += gridSize * 2) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            ctx.strokeStyle = theme.bracket;
+            ctx.lineWidth = 2;
+            ctx.lineCap = "square";
+            const bracketSize = IS_SHORTS ? 40 : 60;
+            const bracketOffset = IS_SHORTS ? 30 : 50;
+
+            ctx.beginPath();
+            ctx.moveTo(bracketOffset, bracketOffset + bracketSize);
+            ctx.lineTo(bracketOffset, bracketOffset);
+            ctx.lineTo(bracketOffset + bracketSize, bracketOffset);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(W - bracketOffset - bracketSize, bracketOffset);
+            ctx.lineTo(W - bracketOffset, bracketOffset);
+            ctx.lineTo(W - bracketOffset, bracketOffset + bracketSize);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(bracketOffset, H - bracketOffset - bracketSize);
+            ctx.lineTo(bracketOffset, H - bracketOffset);
+            ctx.lineTo(bracketOffset + bracketSize, H - bracketOffset);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(W - bracketOffset - bracketSize, H - bracketOffset);
+            ctx.lineTo(W - bracketOffset, H - bracketOffset);
+            ctx.lineTo(W - bracketOffset, H - bracketOffset - bracketSize);
+            ctx.stroke();
+
+            ctx.globalAlpha = theme.symbolOpacity;
+            ctx.font = "bold " + (IS_SHORTS ? 20 : 28) + "px monospace";
+            ctx.fillStyle = theme.accent;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            const symbols = ["{ }",
+                "< >",
+                "[ ]",
+                "=>",
+                "//",
+                "&&",
+                "( )",
+                "**"];
+            const positions = IS_SHORTS ? [[80,
+                200],
+            [W - 80,
+                350],
+            [100,
+                H - 300],
+            [W - 100,
+            H - 200],
+            [W - 60,
+                600],
+            [60,
+                800]] : [[120,
+                    150],
+                [W - 150,
+                    180],
+                [100,
+                    H - 120],
+                [W - 120,
+                H - 150],
+                [200,
+                    H - 80],
+                [W - 200,
+                    100]];
+
+            positions.forEach((pos, i) => {
+                ctx.fillText(symbols[i % symbols.length], pos[0], pos[1]);
+            });
+
+            ctx.globalAlpha = theme.traceOpacity;
+            ctx.strokeStyle = theme.accent;
+            ctx.lineWidth = 2;
+            ctx.lineCap = "round";
+
+            ctx.beginPath();
+            ctx.moveTo(W - 200, 30);
+            ctx.lineTo(W - 120, 30);
+            ctx.lineTo(W - 120, 80);
+            ctx.lineTo(W - 60, 80);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(W - 60, 80, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(30, H - 150);
+            ctx.lineTo(30, H - 80);
+            ctx.lineTo(100, H - 80);
+            ctx.lineTo(100, H - 40);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(100, H - 40, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.globalAlpha = 1;
+            const gradient = ctx.createRadialGradient(W * 0.5, H * 0.45, 0,
+                W * 0.5, H * 0.45, Math.max(W, H) * 0.7);
+            gradient.addColorStop(0, theme.vignetteCenter);
+            gradient.addColorStop(0.6, theme.vignetteMid);
+            gradient.addColorStop(1, theme.vignetteEdge);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, W, H);
+
+            ctx.lineCap = "round";
+        }
+
+        /* ========================================================== */
+        /* DRAWING UTILITIES                                          */
+        /* ========================================================== */
+
+        function resetStyles() {
+            ctx.globalAlpha = 1;
+            ctx.shadowColor = "transparent";
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+        }
+
+        function clamp(v, min, max) {
+            return Math.min(max, Math.max(min, v));
+        }
+
+        function lerp(a, b, p) {
+            return a + (b - a) * p;
+        }
+
+        function roundedRectPath(x, y, w, h, r) {
+            const safeR = Math.max(0, Math.min(r || 0, Math.abs(w) / 2, Math.abs(h) / 2));
+            ctx.beginPath();
+            ctx.moveTo(x + safeR, y);
+            ctx.lineTo(x + w - safeR, y);
+            ctx.arcTo(x + w, y, x + w, y + safeR, safeR);
+            ctx.lineTo(x + w, y + h - safeR);
+            ctx.arcTo(x + w, y + h, x + w - safeR, y + h, safeR);
+            ctx.lineTo(x + safeR, y + h);
+            ctx.arcTo(x, y + h, x, y + h - safeR, safeR);
+            ctx.lineTo(x, y + safeR);
+            ctx.arcTo(x, y, x + safeR, y, safeR);
+            ctx.closePath();
+        }
+
+        function formatNumber(value, decimals) {
+            const safeDecimals = Math.max(0, Math.min(4, decimals || 0));
+            return Number(value).toFixed(safeDecimals);
+        }
+
+        function getFontSize(sizeHint) {
+            if (typeof sizeHint === "number") return sizeHint;
+
+            switch (sizeHint) {
+                case "title": return scale.title;
+                case "subtitle": return scale.subtitle;
+                case "body": return scale.body;
+                case "label": return scale.label;
+                default: return scale.body;
+            }
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: LINE / CONNECTOR                                */
+        /* ========================================================== */
+
+        function seededRandom(seed) {
+            const x = Math.sin(seed * 9999) * 10000;
+            return x - Math.floor(x);
+        }
+
+        function drawLine(a, p) {
+            const fadeIn = Math.min(1, p * 2.5);
+            const drawProgress = ease(p, "easeOut");
+
+            ctx.globalAlpha = fadeIn;
+            ctx.strokeStyle = a.stroke || theme.connector;
+            ctx.lineWidth = a.strokeWidth || 2;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            if (a.dashed) {
+                const dashLen = a.dashLength || 8;
+                const gapLen = a.dashGap || 6;
+                ctx.setLineDash([dashLen, gapLen]);
+            }
+
+            const dx = a.x2 - a.x1;
+            const dy = a.y2 - a.y1;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const midX = (a.x1 + a.x2) / 2;
+            const midY = (a.y1 + a.y2) / 2;
+
+            const seed = a.x1 * 7 + a.y1 * 13 + a.x2 * 17 + a.y2 * 23;
+            const rand = seededRandom(seed);
+
+            const curveIntensity = Math.min(dist * 0.2, 40); // Smoother curves
+
+            const perpX = -dy / dist;
+            const perpY = dx / dist;
+
+            const curveType = a.curve !== undefined ? a.curve : Math.floor(rand * 4);
+
+            ctx.beginPath();
+            ctx.moveTo(a.x1, a.y1);
+
+            const endX = lerp(a.x1, a.x2, drawProgress);
+            const endY = lerp(a.y1, a.y2, drawProgress);
+
+            if (curveType === 0 || curveType === 1) {
+                const dir = curveType === 0 ? 1 : -1;
+                const cpX = midX + dir * perpX * curveIntensity;
+                const cpY = midY + dir * perpY * curveIntensity;
+                ctx.quadraticCurveTo(lerp(a.x1, cpX, drawProgress),
+                    lerp(a.y1, cpY, drawProgress),
+                    endX, endY);
+            }
+
+            else if (curveType === 2) {
+                const cp1X = a.x1 + dx * 0.25 + perpX * curveIntensity;
+                const cp1Y = a.y1 + dy * 0.25 + perpY * curveIntensity;
+                const cp2X = a.x1 + dx * 0.75 - perpX * curveIntensity;
+                const cp2Y = a.y1 + dy * 0.75 - perpY * curveIntensity;
+                ctx.bezierCurveTo(lerp(a.x1, cp1X, drawProgress),
+                    lerp(a.y1, cp1Y, drawProgress),
+                    lerp(a.x1, cp2X, drawProgress),
+                    lerp(a.y1, cp2Y, drawProgress),
+                    endX, endY);
+            }
+
+            else {
+                const cp1X = a.x1 + dx * 0.33 + perpX * curveIntensity * 0.5;
+                const cp1Y = a.y1 + dy * 0.33 + perpY * curveIntensity * 0.5;
+                const cp2X = a.x1 + dx * 0.66 - perpX * curveIntensity * 0.5;
+                const cp2Y = a.y1 + dy * 0.66 - perpY * curveIntensity * 0.5;
+                ctx.bezierCurveTo(lerp(a.x1, cp1X, drawProgress),
+                    lerp(a.y1, cp1Y, drawProgress),
+                    lerp(a.x1, cp2X, drawProgress),
+                    lerp(a.y1, cp2Y, drawProgress),
+                    endX, endY);
+            }
+
+            ctx.stroke();
+
+            if (a.arrow && p > 0.9) {
+                let angle;
+
+                if (curveType === 0 || curveType === 1) {
+                    const dir = curveType === 0 ? 1 : -1;
+                    const cpX = midX + dir * perpX * curveIntensity;
+                    const cpY = midY + dir * perpY * curveIntensity;
+                    angle = Math.atan2(a.y2 - cpY, a.x2 - cpX);
+                }
+
+                else {
+                    angle = Math.atan2(dy, dx);
+                }
+
+                const arrowSize = 10;
+                ctx.beginPath();
+                ctx.moveTo(endX, endY);
+                ctx.lineTo(endX - arrowSize * Math.cos(angle - Math.PI / 6),
+                    endY - arrowSize * Math.sin(angle - Math.PI / 6));
+                ctx.lineTo(endX - arrowSize * 0.5 * Math.cos(angle),
+                    endY - arrowSize * 0.5 * Math.sin(angle));
+                ctx.lineTo(endX - arrowSize * Math.cos(angle + Math.PI / 6),
+                    endY - arrowSize * Math.sin(angle + Math.PI / 6));
+                ctx.closePath();
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.fill();
+            }
+
+            resetStyles();
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: ROUNDED RECTANGLE (Surface)                     */
+        /* ========================================================== */
+
+        function drawRect(a, p) {
+            const fadeIn = Math.min(1, p * 2);
+            const scaleProgress = ease(p, "easeOut");
+            const currentScale = 0.97 + 0.03 * scaleProgress;
+            const slideY = (1 - scaleProgress) * 8;
+
+            ctx.globalAlpha = fadeIn;
+
+            const x = a.x;
+            const y = a.y + slideY;
+            const w = a.w;
+            const h = a.h;
+            const r = Math.max(0, Math.min(a.r || 16, Math.abs(w) / 2, Math.abs(h) / 2));
+
+            const cx = x + w / 2;
+            const cy = y + h / 2;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(currentScale, currentScale);
+            ctx.translate(-cx, -cy);
+
+            // Outer glow/shadow
+            if (isDarkTheme) {
+                ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+                ctx.shadowBlur = 20;
+                ctx.shadowOffsetY = 10;
+            }
+
+            ctx.beginPath();
+            roundedRectPath(x, y, w, h, r);
+
+            if (a.fill !== false) {
+                if (typeof a.fill === "string") {
+                    ctx.fillStyle = a.fill;
+                }
+
+                else {
+                    const rectGrad = ctx.createLinearGradient(x, y, x + w, y + h);
+                    rectGrad.addColorStop(0, theme.surfaceGradientStart);
+                    rectGrad.addColorStop(1, theme.surfaceGradientEnd);
+                    ctx.fillStyle = rectGrad;
+                }
+
+                ctx.fill();
+            }
+
+            // Inner glass effect border
+            if (a.stroke !== false) {
+                ctx.shadowColor = "transparent";
+                ctx.strokeStyle = a.stroke || theme.surfaceBorder;
+                ctx.lineWidth = a.strokeWidth || 1.5;
+                ctx.stroke();
+            }
+
+            ctx.restore();
+            resetStyles();
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: ELLIPSE / CIRCLE                                */
+        /* ========================================================== */
+
+        function drawEllipse(a, p) {
+            const fadeIn = Math.min(1, p * 2);
+            const scaleProgress = ease(p, "easeOut");
+            const currentScale = 0.95 + 0.05 * scaleProgress;
+
+            ctx.globalAlpha = fadeIn;
+
+            ctx.save();
+            ctx.translate(a.cx, a.cy);
+            ctx.scale(currentScale, currentScale);
+            ctx.translate(-a.cx, -a.cy);
+
+            if (isDarkTheme) {
+                ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+                ctx.shadowBlur = 15;
+                ctx.shadowOffsetY = 8;
+            }
+
+            ctx.beginPath();
+            ctx.ellipse(a.cx, a.cy, a.rx, a.ry, 0, 0, Math.PI * 2);
+
+            if (a.fill !== false) {
+                ctx.fillStyle = a.fill || theme.surface;
+                ctx.fill();
+            }
+
+            ctx.shadowColor = "transparent";
+
+            if (a.stroke !== false) {
+                ctx.strokeStyle = a.stroke || theme.surfaceBorder;
+                ctx.lineWidth = a.strokeWidth || 1.5;
+                ctx.stroke();
+            }
+
+            ctx.restore();
+            resetStyles();
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: PATH (for complex connectors)                   */
+        /* ========================================================== */
+
+        function drawPath(a, p) {
+            const fadeIn = Math.min(1, p * 2);
+            const drawProgress = ease(p, "easeOut");
+
+            ctx.globalAlpha = fadeIn;
+            ctx.strokeStyle = a.stroke || theme.connector;
+            ctx.lineWidth = a.strokeWidth || 2;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            if (a.dashed) {
+                const dashLen = a.dashLength || 8;
+                const gapLen = a.dashGap || 6;
+                ctx.setLineDash([dashLen, gapLen]);
+            }
+
+            const path = new Path2D(a.d);
+            const totalLen = Math.max(W, H) * 2;
+
+            ctx.setLineDash([totalLen]);
+            ctx.lineDashOffset = totalLen * (1 - drawProgress);
+            ctx.stroke(path);
+
+            if (a.fill && p > 0.95) {
+                ctx.globalAlpha = fadeIn * 0.9;
+                ctx.fillStyle = a.fill;
+                ctx.fill(path);
+            }
+
+            resetStyles();
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: TEXT                                            */
+        /* ========================================================== */
+
+        function drawText(a, p) {
+            const fadeIn = Math.min(1, p * 2.5);
+            const slideProgress = ease(p, "easeOut");
+            const slideY = (1 - slideProgress) * 10;
+
+            ctx.globalAlpha = fadeIn;
+
+            const fontSize = getFontSize(a.fontSize || a.size);
+            const fontWeight = a.fontWeight || (a.size === "title" ? 600 : 400);
+
+            const fontFamily = a.monospace ? "'JetBrains Mono', monospace" : "'Inter', 'Helvetica Neue', Arial, sans-serif";
+            ctx.font = fontWeight + " " + fontSize + "px " + fontFamily;
+            ctx.textAlign = a.align || "center";
+            ctx.textBaseline = a.baseline || "middle";
+            ctx.fillStyle = a.fill || theme.textPrimary;
+
+            let displayText = a.value;
+
+            if (a.typewriter !== false && a.value.length > 3) {
+                const charCount = Math.max(1, Math.floor(a.value.length * ease(p, "easeOut")));
+                displayText = a.value.slice(0, charCount);
+            }
+
+            ctx.fillText(displayText, a.x, a.y - slideY);
+
+            resetStyles();
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: CODE BLOCK                                      */
+        /* ========================================================== */
+
+        function drawCodeBlock(a, p) {
+            const reveal = ease(p, "easeOut");
+            const fadeIn = Math.min(1, p * 2);
+            const x = a.x;
+            const y = a.y;
+            const w = a.w;
+            const h = a.h;
+            const darkTheme = a.theme !== "light";
+            const headerH = Math.max(32, Math.round(h * 0.15));
+            const padding = Math.max(16, Math.round(h * 0.08));
+            const fontSize = a.fontSize || (IS_SHORTS ? 24 : 16);
+            const lineHeight = Math.max(fontSize + 8, fontSize * 1.4);
+            const lines = Array.isArray(a.lines) ? a.lines : [];
+            const maxVisible = Math.max(1, a.maxVisibleLines || lines.length || 1);
+            const baseFill = darkTheme ? "#0b1326" : "#F8FAFC";
+            const baseStroke = darkTheme ? "#31394d" : "#CBD5E1";
+            const language = a.language || "javascript";
+
+            const linesToShow = lines.slice(0, maxVisible);
+            const totalChars = linesToShow.reduce((sum, line) => sum + String(line || "").length, 0);
+            const visibleChars = Math.floor(totalChars * reveal);
+
+            ctx.globalAlpha = fadeIn;
+
+            if (darkTheme) {
+                ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+                ctx.shadowBlur = 24;
+                ctx.shadowOffsetY = 12;
+            }
+
+            roundedRectPath(x, y, w, h, 16);
+            ctx.fillStyle = baseFill;
+            ctx.fill();
+
+            ctx.shadowColor = "transparent";
+            ctx.strokeStyle = baseStroke;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            roundedRectPath(x, y, w, headerH, 16);
+            ctx.fillStyle = darkTheme ? "#131b2e" : "#E2E8F0";
+            ctx.fill();
+
+            const dotY = y + headerH / 2;
+
+            ["#EF4444",
+                "#F59E0B",
+                "#10B981"].forEach((c, i) => {
+                    ctx.beginPath();
+                    ctx.fillStyle = c;
+                    ctx.arc(x + 20 + i * 16, dotY, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+            if (language) {
+                ctx.fillStyle = darkTheme ? "#8a92ab" : "#64748B";
+                ctx.font = "600 " + (IS_SHORTS ? 16 : 12) + "px 'Inter', sans-serif";
+                ctx.textAlign = "right";
+                ctx.textBaseline = "middle";
+                ctx.fillText(String(language).toUpperCase(), x + w - 16, dotY);
+            }
+
+            const codeX = x + padding;
+            const codeY = y + headerH + padding;
+
+            let charCount = 0;
+            let currentLineNumber = 0;
+            let lastVisibleLine = -1;
+            let lastVisibleLineText = "";
+            let lastVisibleLineX = 0;
+
+            for (let i = 0; i < linesToShow.length; i++) {
+                const rawLine = String(linesToShow[i] || "");
+                const lineY = codeY + i * lineHeight;
+                if (lineY > y + h - padding) break;
+
+                if (a.highlightLine !== undefined && i === a.highlightLine) {
+                    ctx.fillStyle = darkTheme ? "rgba(99,102,241,0.15)" : "rgba(191,219,254,0.7)";
+                    roundedRectPath(x + 8, lineY - lineHeight * 0.72, w - 16, lineHeight, 8);
+                    ctx.fill();
+                }
+
+                const charsRemainingToShow = visibleChars - charCount;
+                if (charsRemainingToShow <= 0) break;
+
+                const lineLength = rawLine.length;
+                const charsToShowOnThisLine = Math.min(charsRemainingToShow, lineLength);
+                const visibleLineText = rawLine.substring(0, charsToShowOnThisLine);
+
+                let offsetX = codeX;
+
+                if (a.showLineNumbers !== false) {
+                    ctx.font = "500 " + fontSize + "px 'JetBrains Mono', monospace";
+                    ctx.fillStyle = darkTheme ? "#31394d" : "#94A3B8";
+                    ctx.textAlign = "right";
+                    ctx.textBaseline = "alphabetic";
+                    ctx.fillText(String(i + 1), codeX + 24, lineY);
+                    offsetX += 40;
+                }
+
+                const tokens = tokenizeLine(rawLine, language);
+                let cursorX = offsetX;
+                let renderedChars = 0;
+
+                for (const token of tokens) {
+                    if (renderedChars >= charsToShowOnThisLine) break;
+
+                    const charsToRenderFromToken = Math.min(token.value.length,
+                        charsToShowOnThisLine - renderedChars);
+                    const partialTokenValue = token.value.substring(0, charsToRenderFromToken);
+
+                    if (partialTokenValue) {
+                        ctx.font = "500 " + fontSize + "px 'JetBrains Mono', monospace";
+                        ctx.textAlign = "left";
+                        ctx.textBaseline = "alphabetic";
+                        ctx.fillStyle = getTokenColor(token.type, darkTheme);
+                        ctx.fillText(partialTokenValue, cursorX, lineY);
+                        cursorX += ctx.measureText(partialTokenValue).width;
+                    }
+
+                    renderedChars += charsToRenderFromToken;
+                }
+
+                if (charsToShowOnThisLine > 0) {
+                    lastVisibleLine = i;
+                    lastVisibleLineText = visibleLineText;
+                    lastVisibleLineX = cursorX;
+                    currentLineNumber = i;
+                }
+
+                charCount += lineLength;
+            }
+
+            if (a.cursor !== false && lastVisibleLine >= 0 && visibleChars < totalChars) {
+                const blinkOn = Math.floor(CURRENT_TIME * 2.5) % 2 === 0;
+
+                if (blinkOn) {
+                    const cursorY = codeY + lastVisibleLine * lineHeight;
+                    ctx.strokeStyle = darkTheme ? "#6366f1" : "#1D4ED8";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(lastVisibleLineX, cursorY - fontSize);
+                    ctx.lineTo(lastVisibleLineX, cursorY + 2);
+                    ctx.stroke();
+                }
+            }
+
+            resetStyles();
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: PROGRESS BAR                                    */
+        /* ========================================================== */
+
+        function drawProgressBar(a, p) {
+            const reveal = ease(p, "easeOut");
+            const max = Math.max(1, a.max || 100);
+            const targetRatio = clamp((a.value || 0) / max, 0, 1);
+            const currentRatio = targetRatio * reveal;
+            const r = a.r || Math.min(14, a.h / 2);
+            const fillW = Math.max(0, a.w * currentRatio);
+
+            roundedRectPath(a.x, a.y, a.w, a.h, r);
+            ctx.fillStyle = a.trackFill || (isDarkTheme ? "#131b2e" : "#E2E8F0");
+            ctx.fill();
+
+            if (a.stroke !== false) {
+                ctx.strokeStyle = a.stroke || (isDarkTheme ? "#31394d" : "#CBD5E1");
+                ctx.lineWidth = a.strokeWidth || 1.5;
+                ctx.stroke();
+            }
+
+            if (a.fill !== false && fillW > 0) {
+                roundedRectPath(a.x, a.y, fillW, a.h, r);
+                ctx.fillStyle = a.fill || theme.accent;
+                ctx.fill();
+            }
+
+            const percent = Math.round(currentRatio * 100);
+            ctx.font = "600 " + (IS_SHORTS ? 22 : 16) + "px 'Inter', sans-serif";
+            ctx.textAlign = "right";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = theme.textSecondary;
+            ctx.fillText(percent + "%", a.x + a.w, a.y - 10);
+
+            if (a.label) {
+                ctx.textAlign = "left";
+                ctx.fillStyle = theme.textPrimary;
+                ctx.fillText(a.label, a.x, a.y - 10);
+            }
+
+            resetStyles();
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: BADGE / CHIP                                    */
+        /* ========================================================== */
+
+        function drawBadge(a, p) {
+            const reveal = ease(p, "easeOut");
+            const fontSize = a.fontSize || (IS_SHORTS ? 22 : 15);
+            const paddingX = a.paddingX || Math.round(fontSize * 0.8);
+            const paddingY = a.paddingY || Math.round(fontSize * 0.5);
+            const text = String(a.value || "");
+            const style = a.style || "neutral";
+
+            const styleMap = {
+                neutral: {
+                    fill: isDarkTheme ? "#131b2e" : "#E5E7EB", stroke: isDarkTheme ? "#31394d" : "#CBD5E1", text: isDarkTheme ? "#c0c4d6" : "#334155"
+                }
+
+                ,
+                accent: {
+                    fill: isDarkTheme ? "rgba(99,102,241,0.15)" : "#E0E7FF", stroke: isDarkTheme ? "#6366f1" : "#A5B4FC", text: isDarkTheme ? "#e5e7f1" : "#3730A3"
+                }
+
+                ,
+                warning: {
+                    fill: isDarkTheme ? "rgba(251,191,36,0.15)" : "#FEF3C7", stroke: isDarkTheme ? "#FBBF24" : "#F59E0B", text: isDarkTheme ? "#FDE68A" : "#92400E"
+                }
+
+                ,
+                success: {
+                    fill: isDarkTheme ? "rgba(34,197,94,0.15)" : "#DCFCE7", stroke: isDarkTheme ? "#22C55E" : "#22C55E", text: isDarkTheme ? "#bbf7d0" : "#166534"
+                }
+
+                ,
+                danger: {
+                    fill: isDarkTheme ? "rgba(239,68,68,0.15)" : "#FEE2E2", stroke: isDarkTheme ? "#EF4444" : "#EF4444", text: isDarkTheme ? "#fecaca" : "#991B1B"
+                }
+            }
+
+                ;
+            const colors = styleMap[style] || styleMap.neutral;
+
+            ctx.font = (a.fontWeight || 600) + " " + fontSize + "px 'Inter', sans-serif";
+            const textWidth = ctx.measureText(text).width;
+            const iconExtra = a.icon ? fontSize * 1.15 : 0;
+            const w = textWidth + paddingX * 2 + iconExtra;
+            const h = fontSize + paddingY * 2;
+            const x = a.x;
+            const y = a.y;
+
+            ctx.save();
+            ctx.translate(x + w / 2, y + h / 2);
+            ctx.scale(0.96 + 0.04 * reveal, 0.96 + 0.04 * reveal);
+            ctx.translate(-(x + w / 2), -(y + h / 2));
+
+            roundedRectPath(x, y, w, h, h / 2);
+            ctx.fillStyle = a.fill || colors.fill;
+            ctx.fill();
+            ctx.strokeStyle = a.stroke || colors.stroke;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            let textX = x + paddingX;
+
+            if (a.icon) {
+                drawIcon({
+                    x: x + paddingX + fontSize * 0.45, y: y + h / 2, name: a.icon, size: fontSize * 0.8, stroke: colors.text, strokeWidth: 2
+                }
+
+                    , 1);
+                textX += iconExtra;
+            }
+
+            ctx.fillStyle = a.textColor || colors.text;
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            ctx.fillText(text, textX, y + h / 2);
+
+            ctx.restore();
+            resetStyles();
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: ICON                                            */
+        /* ========================================================== */
+
+        function drawIcon(a, p) {
+            const reveal = ease(p, "easeOut");
+            const size = a.size || (IS_SHORTS ? 44 : 28);
+            const pathData = ICON_PATHS[a.name] || ICON_PATHS.info;
+            const iconPath = new Path2D(pathData);
+
+            ctx.save();
+            ctx.translate(a.x, a.y);
+            ctx.scale((size / 24) * (0.9 + 0.1 * reveal), (size / 24) * (0.9 + 0.1 * reveal));
+            ctx.translate(-12, -12);
+
+            if (a.fill && a.fill !== false) {
+                ctx.fillStyle = a.fill;
+                ctx.fill(iconPath);
+            }
+
+            ctx.strokeStyle = a.stroke || theme.accent;
+            ctx.lineWidth = a.strokeWidth || 2;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.stroke(iconPath);
+            ctx.restore();
+            resetStyles();
+        }
+
+        /* ========================================================== */
+        /* PRIMITIVE: TABLE                                           */
+        /* ========================================================== */
+
+        function drawTable(a, p) {
+            const reveal = ease(p, "easeOut");
+            const headers = Array.isArray(a.headers) ? a.headers : [];
+            const rows = Array.isArray(a.rows) ? a.rows : [];
+            const cols = Math.max(1, headers.length || (rows[0] ? rows[0].length : 1));
+            const rowCount = Math.max(1, rows.length + 1);
+            const colW = a.w / cols;
+            const rowH = a.h / rowCount;
+            const visibleRows = Math.max(1, Math.floor((rows.length + 1) * reveal));
+            const fontSize = a.fontSize || (IS_SHORTS ? 20 : 14);
+
+            roundedRectPath(a.x, a.y, a.w, a.h, 12);
+            ctx.fillStyle = isDarkTheme ? "#0b1326" : "#FFFFFF";
+            ctx.fill();
+            ctx.strokeStyle = a.gridStroke || (isDarkTheme ? "#31394d" : "#CBD5E1");
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            roundedRectPath(a.x, a.y, a.w, rowH, 12);
+            ctx.fillStyle = a.headerFill || (isDarkTheme ? "#131b2e" : "#E2E8F0");
+            ctx.fill();
+
+            for (let r = 1; r < Math.min(rowCount, visibleRows); r++) {
+                if (a.striped !== false && r % 2 === 0) {
+                    ctx.fillStyle = isDarkTheme ? "rgba(49,57,77,0.3)" : "rgba(148,163,184,0.08)";
+                    ctx.fillRect(a.x, a.y + r * rowH, a.w, rowH);
+                }
+            }
+
+            ctx.strokeStyle = a.gridStroke || (isDarkTheme ? "#31394d" : "#CBD5E1");
+
+            for (let c = 1; c < cols; c++) {
+                const x = a.x + c * colW;
+                ctx.beginPath();
+                ctx.moveTo(x, a.y);
+                ctx.lineTo(x, a.y + a.h);
+                ctx.stroke();
+            }
+
+            for (let r = 1; r < Math.min(rowCount, visibleRows); r++) {
+                const y = a.y + r * rowH;
+                ctx.beginPath();
+                ctx.moveTo(a.x, y);
+                ctx.lineTo(a.x + a.w, y);
+                ctx.stroke();
+            }
+
+            const align = a.align || "left";
+            ctx.font = "600 " + fontSize + "px 'Inter', sans-serif";
+            ctx.fillStyle = a.textColor || (isDarkTheme ? "#e5e7f1" : "#0F172A");
+            ctx.textBaseline = "middle";
+
+            for (let c = 0; c < cols; c++) {
+                const text = String(headers[c] || "");
+                const cellX = a.x + c * colW;
+                const tx = align === "center" ? cellX + colW / 2 : align === "right" ? cellX + colW - 16 : cellX + 16;
+                ctx.textAlign = align;
+                ctx.fillText(text, tx, a.y + rowH / 2);
+            }
+
+            ctx.font = "500 " + fontSize + "px 'JetBrains Mono', monospace";
+            ctx.fillStyle = a.textColor || (isDarkTheme ? "#e5e7f1" : "#0F172A");
+
+            // Render visible rows
+            for (let r = 0; r < Math.min(rows.length, Math.max(0, visibleRows - 1)); r++) {
+                const row = rows[r] || [];
+
+                for (let c = 0; c < cols; c++) {
+                    const cellText = String(row[c] || "");
+                    const cellX = a.x + c * colW;
+                    const tx = align === "center" ? cellX + colW / 2 : align === "right" ? cellX + colW - 16 : cellX + 16;
+                    ctx.textAlign = align;
+                    ctx.fillText(cellText, tx, a.y + (r + 1) * rowH + rowH / 2);
+                }
+            }
+
+            resetStyles();
+        }
+
+        function drawNumberCounter(a, p) {
+            const reveal = ease(p, "easeOut");
+            const n = lerp(a.from || 0, a.to || 0, reveal);
+            const safeDecimals = Math.max(0, Math.min(4, a.decimals || 0));
+            const display = (a.prefix || "") + Number(n).toFixed(safeDecimals) + (a.suffix || "");
+            const fontSize = getFontSize(a.fontSize || a.size || "title");
+            const fontWeight = a.fontWeight || 700;
+
+            ctx.font = fontWeight + " " + fontSize + "px 'Inter', sans-serif";
+            ctx.textAlign = a.align || "center";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = a.fill || theme.accent;
+            ctx.fillText(display, a.x, a.y);
+            resetStyles();
+        }
+
+        function drawHighlight(a, p) {
+            const reveal = ease(p, "easeOut");
+            const opacity = clamp((a.opacity !== undefined ? a.opacity : 0.35) * reveal, 0, 1);
+            const fill = a.fill || "#FDE68A";
+
+            ctx.globalAlpha = opacity;
+            ctx.fillStyle = fill;
+
+            if (a.style === "underline") {
+                const underlineH = Math.max(4, Math.min(14, a.h || 8));
+                roundedRectPath(a.x, a.y + (a.h || underlineH) - underlineH, a.w, underlineH, underlineH / 2);
+                ctx.fill();
+            } else {
+                roundedRectPath(a.x, a.y, a.w, a.h, a.r || 8);
+                ctx.fill();
+            }
+
+            resetStyles();
+        }
+
+        function drawTransform(a, p) {
+            ctx.save();
+
+            const progress = ease(p, "easeOut");
+            if (a.translate) {
+                ctx.translate(a.translate[0] * progress, a.translate[1] * progress);
+            }
+
+            if (a.children) {
+                a.children.forEach(child => draw(child, p));
+            }
+
+            ctx.restore();
+            resetStyles();
+        }
+
+        function drawGroup(a, p) {
+            if (a.children) {
+                a.children.forEach(child => draw(child, p));
+            }
+        }
+
+        function draw(a, p) {
+            switch (a.op) {
+                case "line": return drawLine(a, p);
+                case "rect": return drawRect(a, p);
+                case "ellipse": return drawEllipse(a, p);
+                case "path": return drawPath(a, p);
+                case "text": return drawText(a, p);
+                case "codeBlock": return drawCodeBlock(a, p);
+                case "progressBar": return drawProgressBar(a, p);
+                case "badge": return drawBadge(a, p);
+                case "icon": return drawIcon(a, p);
+                case "table": return drawTable(a, p);
+                case "numberCounter": return drawNumberCounter(a, p);
+                case "highlight": return drawHighlight(a, p);
+                case "group": return drawGroup(a, p);
+                case "transform": return drawTransform(a, p);
+            }
+        }
+
+        function renderSceneFrame(time) {
+            CURRENT_TIME = time;
+            drawBackground();
+
+            for (const a of actions) {
+                if (time < a.t) continue;
+                if (a.op === "text" && a.endT !== undefined && time > a.endT) continue;
+
+                const duration = a.dur || scale.baseDuration;
+                const raw = Math.min(1, (time - a.t) / duration);
+                const p = ease(raw, a.easing || "easeOut");
+
+                draw(a, p);
+            }
+        }
+
+        window.renderFrame = renderSceneFrame;
+
+        const scrubber = typeof document !== "undefined" ? document.getElementById("timeScrubber") : null;
+        const playPause = typeof document !== "undefined" ? document.getElementById("playPause") : null;
+        const readout = typeof document !== "undefined" ? document.getElementById("timeReadout") : null;
+        let isPlaying = true;
+        let startMs = performance.now();
+        let pausedTime = 0;
+        let currentSceneTime = 0;
+
+        function setReadout(time) {
+            if (readout) readout.textContent = time.toFixed(2) + "s";
+            if (scrubber) scrubber.value = String(time);
+        }
+
+        function setSceneTime(time) {
+            const clamped = clamp(time, 0, SCENE_DURATION);
+            pausedTime = clamped;
+            currentSceneTime = clamped;
+            renderSceneFrame(clamped);
+            setReadout(clamped);
+        }
+
+        function tick(now) {
+            if (isPlaying) {
+                const elapsed = ((now - startMs) / 1000) % SCENE_DURATION;
+                currentSceneTime = elapsed;
+                renderSceneFrame(elapsed);
+                setReadout(elapsed);
+            }
+            requestAnimationFrame(tick);
+        }
+
+        if (scrubber) {
+            scrubber.max = String(SCENE_DURATION);
+            scrubber.addEventListener("input", () => {
+                isPlaying = false;
+                if (playPause) playPause.textContent = "Play";
+                setSceneTime(Number(scrubber.value));
+            });
+        }
+
+        if (playPause) {
+            playPause.addEventListener("click", () => {
+                isPlaying = !isPlaying;
+                playPause.textContent = isPlaying ? "Pause" : "Play";
+                if (isPlaying) {
+                    startMs = performance.now() - pausedTime * 1000;
+                } else {
+                    pausedTime = currentSceneTime;
+                }
+            });
+        }
+
+        renderSceneFrame(0);
+        requestAnimationFrame(tick);
+
+    </script>
+</body>
+
+</html>
