@@ -40,6 +40,9 @@ export const config = {
     website: {
         domain: process.env.WEBSITE_DOMAIN || 'http://localhost:3000',
     },
+    sceneRendering: {
+        method: (process.env.SCENE_RENDER_METHOD || 'code').toLowerCase(),
+    },
     video: {
         long: {
             width: 1920,

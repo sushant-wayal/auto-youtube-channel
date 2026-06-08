@@ -74,6 +74,7 @@ jobs:
         env:
           WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
+          SCENE_RENDER_METHOD: ${{ secrets.SCENE_RENDER_METHOD }}
         run: |
           VIDEO_ID="video-$(date +%s)"
           echo "video_id=$VIDEO_ID" >> $GITHUB_OUTPUT
@@ -123,6 +124,8 @@ jobs:
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          SCENE_RENDER_METHOD: ${{ secrets.SCENE_RENDER_METHOD }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
           npx tsx .github/scripts/render-scenes.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
@@ -368,6 +371,8 @@ jobs:
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           VOICEOVER_PROVIDER: ${{ secrets.VOICEOVER_PROVIDER }}
+          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          SCENE_RENDER_METHOD: ${{ secrets.SCENE_RENDER_METHOD }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}

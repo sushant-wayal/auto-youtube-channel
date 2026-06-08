@@ -19,10 +19,15 @@ export async function renderScenes({
     isShort?: boolean;
     videoId: string;
 }): Promise<{ urls: string[]; timings: number[]; animationStopTimes: number[] }> {
-    validateConfig(['cloudinary']);
+    const renderMethod = config.sceneRendering.method === 'ai' ? 'ai' : 'code';
+    validateConfig(renderMethod === 'ai' ? ['cloudinary', 'website'] : ['cloudinary']);
 
     const { width, height, fps } = isShort ? config.video.short : config.video.long;
     const outputDir = path.join(config.workDir, videoId, 'scenes');
-    const service = new ClipsRenderService(scenes, videoId);
+    const service = new ClipsRenderService(scenes, videoId, {
+        renderMethod,
+        isShort,
+        websiteDomain: config.website.domain,
+    });
     return service.renderScenes(width, height, fps, outputDir);
 }

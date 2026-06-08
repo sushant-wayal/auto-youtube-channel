@@ -19,7 +19,8 @@ class ScriptGenerationService {
     videoIdea: string,
     duration: number = 7
   ): Promise<VideoScript> {
-    const prompt = this.buildScriptPrompt(videoIdea, duration);
+    const renderMethod = this.getSceneRenderMethod();
+    const prompt = this.buildScriptPrompt(videoIdea, duration, renderMethod);
 
     try {
       const response = await this.gemini.generateText(prompt, {
@@ -27,7 +28,7 @@ class ScriptGenerationService {
         topP: 0.95,
       });
 
-      const script = this.parseScriptResponse(response, videoIdea);
+      const script = this.parseScriptResponse(response, videoIdea, renderMethod);
       return script;
     } catch (error) {
       console.error("Error generating script:", error);
@@ -35,7 +36,28 @@ class ScriptGenerationService {
     }
   }
 
-  private buildScriptPrompt(videoIdea: string, duration: number): string {
+  private getSceneRenderMethod(): "code" | "ai" {
+    return process.env.SCENE_RENDER_METHOD === "ai" ? "ai" : "code";
+  }
+
+  private buildScriptPrompt(videoIdea: string, duration: number, renderMethod: "code" | "ai"): string {
+    const aiRenderOverride = renderMethod === "ai"
+      ? `
+========================
+SCENE_RENDER_METHOD=ai OVERRIDE
+========================
+
+The scene renderer will generate final HTML from each scene narration separately.
+
+For every long-form scene and every short scene:
+- Still write high-quality narration.
+- Keep sceneTitle/baseDuration/holdDuration/id exactly as requested.
+- Set "actions" to an empty array: [].
+- Do NOT spend tokens creating visual actions.
+- Ignore all action-count requirements below; they apply only when SCENE_RENDER_METHOD=code.
+`
+      : "";
+
     return `You are a technical storyteller AI creating curiosity-driven, tension-led, technically accurate video content for developers and engineers.
 
 Create content for a ${duration}-minute YouTube video about:
@@ -43,6 +65,7 @@ Create content for a ${duration}-minute YouTube video about:
 
 Return ONLY valid JSON in the exact format below.
 This output feeds an automated video rendering pipeline.
+${aiRenderOverride}
 
 ========================
 DESIGN PHILOSOPHY
@@ -503,7 +526,7 @@ If the format is violated, the output will be rejected.
 `;
   }
 
-  private parseScriptResponse(response: string, videoIdea: string): VideoScript {
+  private parseScriptResponse(response: string, videoIdea: string, renderMethod: "code" | "ai" = "code"): VideoScript {
     try {
       let cleanResponse = response.trim();
 
@@ -569,7 +592,7 @@ If the format is violated, the output will be rejected.
 
       const narration = parsed.scenes.map((scene: any) => scene.narration).join(" [PAUSE=8s] ");
 
-      return {
+      const script = {
         title: parsed.title || videoIdea,
         description: parsed.description || "",
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
@@ -577,6 +600,8 @@ If the format is violated, the output will be rejected.
         scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [],
         shorts: Array.isArray(parsed.shorts) ? parsed.shorts.slice(0, 5) : [], // Max 5 shorts
       };
+
+      return renderMethod === "ai" ? this.stripVisualActions(script) : script;
     } catch (error) {
       console.error("❌ Error parsing script response:", error);
       console.error("📝 Response length:", response.length);
@@ -585,6 +610,17 @@ If the format is violated, the output will be rejected.
 
       throw new Error(`Failed to parse generated script: ${error instanceof Error ? error.message : 'Invalid format'}`);
     }
+  }
+
+  private stripVisualActions(script: VideoScript): VideoScript {
+    return {
+      ...script,
+      scenes: script.scenes.map(scene => ({ ...scene, actions: [] })),
+      shorts: script.shorts.map(short => ({
+        ...short,
+        scenes: short.scenes.map(scene => ({ ...scene, actions: [] })),
+      })),
+    };
   }
 
   /**

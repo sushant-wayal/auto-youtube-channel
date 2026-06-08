@@ -54,6 +54,7 @@ export interface SceneIR {
     sceneTheme?: "light" | "dark" | "auto";
     baseDuration: number;
     holdDuration: number;
+    narration?: string;
     actions: ActionIR[];
 }
 
@@ -72,5 +73,4 @@ export type ActionIR =
     | { t: number; op: "highlight"; x: number; y: number; w: number; h: number; style?: "underline" | "box"; r?: number; fill?: string; opacity?: number }
     | { t: number; op: "group"; children: ActionIR[] }
     | { t: number; op: "transform"; translate?: [number, number]; children: ActionIR[] };
-
 

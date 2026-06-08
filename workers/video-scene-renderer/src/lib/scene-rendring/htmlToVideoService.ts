@@ -35,9 +35,16 @@ export class HtmlToVideoService {
     await page.waitForFunction(
       "typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded'"
     );
+    await page.evaluate(() => {
+      // @ts-ignore
+      if (typeof window.renderFrame !== "function") {
+        // @ts-ignore
+        window.renderFrame = () => { };
+      }
+    });
 
     // crash early if renderer JS errors
-    page.on("pageerror", err => {
+    page.on("pageerror", (err: Error) => {
       const message = typeof err === "object" && err !== null && "message" in err
         ? (err as { message: string }).message
         : String(err);
@@ -49,7 +56,7 @@ export class HtmlToVideoService {
     for (let frame = 0; frame < totalFrames; frame++) {
       const time = frame / fps;
 
-      await page.evaluate(t => {
+      await page.evaluate((t: number) => {
         // @ts-ignore
         window.renderFrame(t);
       }, time);
