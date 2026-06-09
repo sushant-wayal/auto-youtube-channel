@@ -232,6 +232,31 @@ class F5TTSService {
         });
     }
 
+    private sanitizeNarrationForF5(text: string): string {
+    return text
+        // remove instruction tags
+        .replace(/\[PAUSE[^\]]*\]/gi, ' ')
+        .replace(/\[.*?\]/g, ' ')
+        .replace(/\[[^\]]+\]/g, ' ')
+
+        // remove SSML-like tags
+        .replace(/<[^>]+>/g, ' ')
+
+        // hyphenated words => normal words
+        .replace(/(\w)-(\w)/g, '$1 $2')
+
+        // normalize punctuation that causes odd pauses
+        .replace(/[–—]/g, ' ')
+        .replace(/[_*~`]/g, ' ')
+
+        // collapse repeated punctuation
+        .replace(/([.!?,;:]){2,}/g, '$1')
+
+        // normalize whitespace
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
     private addWavHeader(audioData: Buffer, sampleRate: number = 24000): Buffer {
         const numChannels = 1;
         const bitsPerSample = 16;
@@ -294,7 +319,13 @@ class F5TTSService {
                 const silentPath = await this.createSilenceAudio(outputPath, 1.0);
                 batchTasks.push({ text: '', outputPath: silentPath, index: i });
             } else {
-                batchTasks.push({ text: narration, outputPath, index: i });
+                const sanitizedNarration = this.sanitizeNarrationForF5(narration);
+
+                batchTasks.push({
+                    text: sanitizedNarration,
+                    outputPath,
+                    index: i,
+                });
             }
         }
 
