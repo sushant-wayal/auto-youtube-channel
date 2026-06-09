@@ -173,6 +173,7 @@ SCREEN DIMENSIONS:
 - Make the root layout fill the full viewport.
 - Use responsive CSS tied to these dimensions; do not rely on scrolling.
 - Keep all essential visual elements inside the safe area.
+- Do not clip or cut off the visuals, but ensure they are well-framed within the viewport.
 
 TIMING:
 - The scene may be rendered for up to ${maxDuration.toFixed(2)} seconds.
