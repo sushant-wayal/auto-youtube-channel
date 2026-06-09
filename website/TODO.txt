@@ -1,3 +1,0 @@
-1. then add the same pipeline for the 3-5 shorts script generated.
-2. add a upload button, that will upload the long form video and 3-5 shorts on the youtube.
-3. integrate the proper scheduler for the uploads, with custom frequency, with minimal approvals.
