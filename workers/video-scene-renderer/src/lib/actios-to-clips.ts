@@ -126,7 +126,9 @@ export class ClipsRenderService {
 
     return {
       html: data.html,
-      animationStopTime: duration,
+      // AI scenes often render a long looping/timeline visual. Let assembly
+      // choose the final length from narration audio instead of visual length.
+      animationStopTime: -1,
     };
   }
 }

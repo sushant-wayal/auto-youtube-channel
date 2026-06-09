@@ -155,8 +155,9 @@ export class VideoAssemblyService {
 
             const animationStop = input.animationStopTimes?.[i];
 
-            // Use animation stop time if valid, otherwise fallback to audio duration
-            const validAnimationStop = (typeof animationStop === 'number' && !isNaN(animationStop)) ? animationStop : sceneAudioDuration;
+            // Negative animation stop means "ignore visual length"; used by AI
+            // scenes so final timing follows narration audio plus the buffer.
+            const validAnimationStop = (typeof animationStop === 'number' && !isNaN(animationStop) && animationStop >= 0) ? animationStop : sceneAudioDuration;
             const targetDuration = Math.max(validAnimationStop + 0.5, sceneAudioDuration);
 
             // Store actual scene duration for timestamps
