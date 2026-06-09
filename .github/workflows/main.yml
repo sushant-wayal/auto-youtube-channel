@@ -72,7 +72,7 @@ jobs:
       - name: Generate script
         id: script
         env:
-          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
         run: |
@@ -133,7 +133,7 @@ jobs:
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
@@ -184,7 +184,7 @@ jobs:
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-          VOICEOVER_PROVIDER: ${{ secrets.VOICEOVER_PROVIDER }}
+          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
           npx tsx .github/scripts/generate-voiceover.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
@@ -214,7 +214,7 @@ jobs:
       - name: Generate thumbnail
         id: thumbnail
         env:
-          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
           npx tsx .github/scripts/generate-thumbnail.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
@@ -379,8 +379,8 @@ jobs:
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-          VOICEOVER_PROVIDER: ${{ secrets.VOICEOVER_PROVIDER }}
-          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
+          WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -427,7 +427,7 @@ jobs:
       - name: Send pipeline status to app
         if: always()
         env:
-          WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
+          WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           PIPELINE_WEBHOOK_SECRET: ${{ secrets.PIPELINE_WEBHOOK_SECRET }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
           VIDEO_ID: ${{ needs.generate-script.outputs.video_id }}
