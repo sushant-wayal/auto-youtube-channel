@@ -74,17 +74,26 @@ jobs:
         env:
           WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
-          SCENE_RENDER_METHOD: ${{ secrets.SCENE_RENDER_METHOD }}
+          SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
         run: |
-          VIDEO_ID="video-$(date +%s)"
-          echo "video_id=$VIDEO_ID" >> $GITHUB_OUTPUT
+          FALLBACK_VIDEO_ID="video-$(date +%s)"
           
           # Generate script via API or local function
           # If custom idea provided, use it; otherwise fetch from Redis queue
           RESPONSE=$(npx tsx .github/scripts/generate-script.ts "${{ github.event.inputs.video_idea }}")
-          echo "script_data=$RESPONSE" >> $GITHUB_OUTPUT
-          VIDEO_TITLE=$(echo "$RESPONSE" | jq -r '.script.title // "Unknown"')
-          echo "video_title=$VIDEO_TITLE" >> $GITHUB_OUTPUT
+          COMPACT_RESPONSE=$(echo "$RESPONSE" | jq -c .)
+
+          VIDEO_ID=$(echo "$COMPACT_RESPONSE" | jq -r '.videoId // empty')
+          VIDEO_ID=${VIDEO_ID:-$FALLBACK_VIDEO_ID}
+          VIDEO_TITLE=$(echo "$COMPACT_RESPONSE" | jq -r '.script.title // "Unknown"')
+
+          echo "video_id=$VIDEO_ID" >> "$GITHUB_OUTPUT"
+          echo "video_title=$VIDEO_TITLE" >> "$GITHUB_OUTPUT"
+          {
+            echo "script_data<<SCRIPT_DATA_EOF"
+            echo "$COMPACT_RESPONSE"
+            echo "SCRIPT_DATA_EOF"
+          } >> "$GITHUB_OUTPUT"
 
   # Step 2: Render scenes (runs in parallel with voice-over and thumbnail)
   render-scenes:
@@ -125,7 +134,7 @@ jobs:
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
-          SCENE_RENDER_METHOD: ${{ secrets.SCENE_RENDER_METHOD }}
+          SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
           npx tsx .github/scripts/render-scenes.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
@@ -372,7 +381,7 @@ jobs:
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           VOICEOVER_PROVIDER: ${{ secrets.VOICEOVER_PROVIDER }}
           WEBSITE_DOMAIN: ${{ secrets.WEBSITE_DOMAIN }}
-          SCENE_RENDER_METHOD: ${{ secrets.SCENE_RENDER_METHOD }}
+          SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
