@@ -105,6 +105,14 @@ export type ScheduleTimesResponse = {
     error?: string;
 };
 
+// Settings API Types
+export type SettingsResponse = {
+    ok: boolean;
+    voiceoverProvider?: 'gemini' | 'f5';
+    sceneRenderMethod?: 'code' | 'ai';
+    error?: string;
+};
+
 // Ideas Queue API
 export const ideasApi = {
     // Get all ideas
@@ -400,6 +408,50 @@ export const pipelineApi = {
         } catch (error: any) {
             console.error('[API] Error fetching pipeline status:', error.message || error);
             return { ok: false, error: error.message || String(error) };
+        }
+    },
+};
+
+// Settings API
+export const settingsApi = {
+    // Get current configuration settings
+    getSettings: async (): Promise<SettingsResponse> => {
+        try {
+            console.log('[API] Fetching settings from:', `${API_BASE_URL}/api/settings`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/settings`);
+            const data = await response.json();
+            console.log('[API] Settings fetched successfully:', data);
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error fetching settings:', error.message || error);
+            return {
+                ok: false,
+                error: error.message || String(error)
+            };
+        }
+    },
+
+    // Update settings
+    updateSettings: async (
+        voiceoverProvider: 'gemini' | 'f5',
+        sceneRenderMethod: 'code' | 'ai'
+    ): Promise<SettingsResponse> => {
+        try {
+            console.log('[API] Updating settings to:', { voiceoverProvider, sceneRenderMethod });
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ voiceoverProvider, sceneRenderMethod }),
+            });
+            const data = await response.json();
+            console.log('[API] Settings updated successfully:', data);
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error updating settings:', error.message || error);
+            return {
+                ok: false,
+                error: error.message || String(error)
+            };
         }
     },
 };

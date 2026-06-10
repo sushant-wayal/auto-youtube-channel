@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -8,13 +8,108 @@ import {
     ScrollView,
     RefreshControl,
     Platform,
+    Animated,
+    LayoutAnimation,
+    UIManager,
+    Modal,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { scheduleTimesApi } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { colors, spacing, borderRadius, typography, shadows } from '../theme';
+import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const triggerLayoutAnim = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+};
+
+type TimelineRowProps = {
+    time: string;
+    index: number;
+    loading: boolean;
+    openTimePicker: (index: number) => void;
+};
+
+function TimelineRow({ time, index, loading, openTimePicker }: TimelineRowProps) {
+    const scale = useRef(new Animated.Value(1)).current;
+
+    const handlePressIn = () => {
+        Animated.spring(scale, {
+            toValue: 0.96,
+            useNativeDriver: true,
+            tension: 200,
+            friction: 10,
+        }).start();
+    };
+
+    const handlePressOut = () => {
+        Animated.spring(scale, {
+            toValue: 1,
+            useNativeDriver: true,
+            tension: 200,
+            friction: 10,
+        }).start();
+    };
+
+    const getRankInfo = (idx: number) => {
+        const labels = ['Best Slot', '2nd Slot', '3rd Slot', '4th Slot', 'Worst Slot'];
+        const badgeColors = [
+            ['#FBBF24', '#D97706'], // Gold
+            ['#CBD5E1', '#64748B'], // Silver
+            ['#FDBA74', '#C2410C'], // Bronze
+            ['#94A3B8', '#475569'], // Grey
+            ['#475569', '#1E293B'], // Dark
+        ] as const;
+        return {
+            label: labels[idx],
+            colors: badgeColors[idx]
+        };
+    };
+
+    const rankInfo = getRankInfo(index);
+
+    return (
+        <Animated.View style={[styles.timelineRow, { transform: [{ scale }] }]}>
+            {/* Timeline track left */}
+            <View style={styles.trackContainer}>
+                <View style={styles.trackLine} />
+                <LinearGradient
+                    colors={rankInfo.colors}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.trackDot}
+                >
+                    <Text style={styles.trackDotText}>{index + 1}</Text>
+                </LinearGradient>
+            </View>
+
+            {/* Time Slot card */}
+            <TouchableOpacity
+                style={styles.timeButton}
+                onPress={() => openTimePicker(index)}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                disabled={loading}
+                activeOpacity={1}
+            >
+                <View style={styles.timeButtonLeft}>
+                    <Text style={styles.rankLabel}>{rankInfo.label}</Text>
+                    <Text style={styles.timeText}>{time}</Text>
+                </View>
+                <View style={styles.timeButtonRight}>
+                    <Ionicons name="time-outline" size={16} color={colors.primary} />
+                    <Ionicons name="chevron-down" size={16} color={colors.foregroundMuted} />
+                </View>
+            </TouchableOpacity>
+        </Animated.View>
+    );
+}
 
 export default function ScheduleTimesScreen() {
     const [shortsTimes, setShortsTimes] = useState<string[]>(['16:30', '18:00', '20:00', '12:00', '14:00']);
@@ -29,22 +124,6 @@ export default function ScheduleTimesScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-    // Convert time string (HH:MM) to Date object
-    const timeToDate = (timeStr: string): Date => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        const date = new Date();
-        date.setHours(hours, minutes, 0, 0);
-        return date;
-    };
-
-    // Convert Date object to time string (HH:MM)
-    const dateToTime = (date: Date): string => {
-        const hours = date.getHours().toString().padStart(2, '0');
-        const minutes = date.getMinutes().toString().padStart(2, '0');
-        return `${hours}:${minutes}`;
-    };
-
     useEffect(() => {
         loadScheduleTimes();
     }, []);
@@ -55,6 +134,7 @@ export default function ScheduleTimesScreen() {
         try {
             const response = await scheduleTimesApi.getScheduleTimes();
             if (response.ok && response.shortsTimes && response.longFormTime) {
+                triggerLayoutAnim();
                 setShortsTimes(response.shortsTimes);
                 setLongFormTime(response.longFormTime);
                 setOriginalShortsTimes(response.shortsTimes);
@@ -83,7 +163,6 @@ export default function ScheduleTimesScreen() {
     const handleSave = async () => {
         setSuccessMessage(null);
 
-        // Validate all times
         for (const time of shortsTimes) {
             if (!validateTime(time)) {
                 Alert.alert(
@@ -97,7 +176,7 @@ export default function ScheduleTimesScreen() {
         if (!validateTime(longFormTime)) {
             Alert.alert(
                 'Invalid Time Format',
-                'Please use HH:MM format (24-hour) for long-form time. Example: 16:30 for 4:30 PM'
+                'Please use HH:MM format (24-hour) for long-form time. Example: 18:30 for 6:30 PM'
             );
             return;
         }
@@ -107,12 +186,16 @@ export default function ScheduleTimesScreen() {
         try {
             const response = await scheduleTimesApi.updateAllScheduleTimes(shortsTimes, longFormTime);
             if (response.ok && response.shortsTimes && response.longFormTime) {
+                triggerLayoutAnim();
                 setShortsTimes(response.shortsTimes);
                 setLongFormTime(response.longFormTime);
                 setOriginalShortsTimes(response.shortsTimes);
                 setOriginalLongFormTime(response.longFormTime);
                 setSuccessMessage('Schedule times updated successfully!');
-                setTimeout(() => setSuccessMessage(null), 3000);
+                setTimeout(() => {
+                    triggerLayoutAnim();
+                    setSuccessMessage(null);
+                }, 3000);
             } else {
                 setError(response.error || 'Failed to update schedule times');
             }
@@ -124,6 +207,7 @@ export default function ScheduleTimesScreen() {
     };
 
     const handleReset = () => {
+        triggerLayoutAnim();
         setShortsTimes(originalShortsTimes);
         setLongFormTime(originalLongFormTime);
         setError(null);
@@ -139,10 +223,8 @@ export default function ScheduleTimesScreen() {
             const timeStr = dateToTime(selectedDate);
 
             if (editingIndex === -1) {
-                // Editing long-form time
                 setLongFormTime(timeStr);
             } else {
-                // Editing shorts time
                 const newTimes = [...shortsTimes];
                 newTimes[editingIndex] = timeStr;
                 setShortsTimes(newTimes);
@@ -160,6 +242,28 @@ export default function ScheduleTimesScreen() {
         setShowTimePicker(true);
     };
 
+    const getActiveTime = (): string => {
+        if (editingIndex === -1) return longFormTime;
+        if (editingIndex !== null && shortsTimes[editingIndex] !== undefined) {
+            return shortsTimes[editingIndex];
+        }
+        return '12:00';
+    };
+
+    const timeToDate = (timeStr?: string): Date => {
+        const safeTime = timeStr || '12:00';
+        const [hours, minutes] = safeTime.split(':').map(Number);
+        const date = new Date();
+        date.setHours(hours, minutes, 0, 0);
+        return date;
+    };
+
+    const dateToTime = (date: Date): string => {
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        return `${hours}:${minutes}`;
+    };
+
     const hasChanges =
         JSON.stringify(shortsTimes) !== JSON.stringify(originalShortsTimes) ||
         longFormTime !== originalLongFormTime;
@@ -167,16 +271,6 @@ export default function ScheduleTimesScreen() {
     if (loading && originalShortsTimes.length === 0) {
         return <LoadingSpinner />;
     }
-
-    const getRankLabel = (index: number) => {
-        const labels = ['Best', '2nd', '3rd', '4th', 'Worst'];
-        return labels[index];
-    };
-
-    const getRankEmoji = (index: number) => {
-        const emojis = ['🏆', '🥈', '🥉', '4️⃣', '5️⃣'];
-        return emojis[index];
-    };
 
     return (
         <ScrollView
@@ -193,46 +287,47 @@ export default function ScheduleTimesScreen() {
             {error && <ErrorMessage message={error} />}
 
             {successMessage && (
-                <View style={styles.successBanner}>
-                    <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <LinearGradient
+                    colors={['#0C2E24', '#065F46']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.successBanner}
+                >
+                    <Ionicons name="checkmark-circle" size={18} color={colors.successGlow} />
                     <Text style={styles.successText}>{successMessage}</Text>
-                </View>
+                </LinearGradient>
             )}
 
-            {/* Shorts Times Section */}
+            {/* Shorts Schedule Timeline */}
             <View style={styles.card}>
                 <View style={styles.cardHeader}>
-                    <Ionicons name="film-outline" size={24} color={colors.primary} />
+                    <View style={styles.iconShell}>
+                        <Ionicons name="film" size={18} color={colors.gradientTo} />
+                    </View>
                     <View style={styles.cardHeaderText}>
-                        <Text style={styles.cardTitle}>Shorts Schedule Times</Text>
-                        <Text style={styles.cardSubtitle}>5 ranked times (best to worst)</Text>
+                        <Text style={styles.cardTitle}>Shorts Schedule Flow</Text>
+                        <Text style={styles.cardSubtitle}>Times ranked by quality output slots</Text>
                     </View>
                 </View>
 
                 <View style={styles.infoBox}>
-                    <Ionicons name="information-circle-outline" size={18} color={colors.mutedForeground} />
+                    <Ionicons name="information-circle" size={16} color={colors.gradientFrom} />
                     <Text style={styles.infoText}>
-                        Shorts are assigned times based on their quality rank. Best shorts get Rank 1 time.
+                        Video rendering queue schedules the top quality renders at Rank 1 slot, decreasing sequentially.
                     </Text>
                 </View>
 
-                {shortsTimes.map((time, index) => (
-                    <View key={index} style={styles.timeRow}>
-                        <View style={styles.rankBadge}>
-                            <Text style={styles.rankEmoji}>{getRankEmoji(index)}</Text>
-                            <Text style={styles.rankLabel}>{getRankLabel(index)}</Text>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.timeButton}
-                            onPress={() => openTimePicker(index)}
-                            disabled={loading}
-                        >
-                            <Ionicons name="time-outline" size={18} color={colors.mutedForeground} />
-                            <Text style={styles.timeText}>{time}</Text>
-                            <Ionicons name="chevron-down" size={18} color={colors.mutedForeground} />
-                        </TouchableOpacity>
-                    </View>
-                ))}
+                <View style={styles.timelineContainer}>
+                    {shortsTimes.map((time, index) => (
+                        <TimelineRow
+                            key={index}
+                            time={time}
+                            index={index}
+                            loading={loading}
+                            openTimePicker={openTimePicker}
+                        />
+                    ))}
+                </View>
             </View>
 
             {/* Long-Form Time Section */}
@@ -260,7 +355,7 @@ export default function ScheduleTimesScreen() {
             {showTimePicker && (
                 <View style={styles.pickerContainer}>
                     <DateTimePicker
-                        value={editingIndex === -1 ? timeToDate(longFormTime) : timeToDate(shortsTimes[editingIndex!])}
+                        value={timeToDate(getActiveTime())}
                         mode="time"
                         is24Hour={true}
                         display={Platform.OS === 'ios' ? 'spinner' : 'default'}
@@ -288,19 +383,29 @@ export default function ScheduleTimesScreen() {
                     style={[styles.button, styles.secondaryButton]}
                     onPress={handleReset}
                     disabled={loading || !hasChanges}
+                    activeOpacity={0.8}
                 >
-                    <Ionicons name="refresh-outline" size={20} color={colors.mutedForeground} />
+                    <Ionicons name="refresh-outline" size={18} color={colors.foregroundMuted} />
                     <Text style={styles.secondaryButtonText}>Reset</Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
                     style={[styles.button, styles.primaryButton, (!hasChanges || loading) && styles.disabledButton]}
                     onPress={handleSave}
                     disabled={loading || !hasChanges}
+                    activeOpacity={0.85}
                 >
-                    <Ionicons name="save-outline" size={20} color={colors.primaryForeground} />
-                    <Text style={styles.primaryButtonText}>
-                        {loading ? 'Saving...' : 'Save Changes'}
-                    </Text>
+                    <LinearGradient
+                        colors={!hasChanges ? ['#242D42', '#1B2335'] : gradients.primary}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.gradientBtn}
+                    >
+                        <Ionicons name="save-outline" size={18} color={colors.primaryForeground} />
+                        <Text style={styles.primaryButtonText}>
+                            {loading ? 'Saving...' : 'Save Changes'}
+                        </Text>
+                    </LinearGradient>
                 </TouchableOpacity>
             </View>
         </ScrollView>
@@ -310,7 +415,7 @@ export default function ScheduleTimesScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: colors.backgroundSecondary,
     },
     contentContainer: {
         padding: spacing.lg,
@@ -320,25 +425,28 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
-        backgroundColor: '#0C241E',
         padding: spacing.md,
         borderRadius: borderRadius.md,
         marginBottom: spacing.lg,
         borderWidth: 1,
-        borderColor: '#1D7F68',
+        borderColor: 'rgba(16, 185, 129, 0.4)',
+        ...shadows.glowSuccess,
     },
     successText: {
         flex: 1,
-        fontSize: typography.fontSizeMd,
-        color: colors.success,
-        fontWeight: '500',
+        fontSize: typography.fontSizeSm,
+        color: colors.foreground,
+        fontWeight: typography.fontWeightSemibold,
     },
     card: {
         backgroundColor: colors.card,
         borderRadius: borderRadius.lg,
         padding: spacing.lg,
         marginBottom: spacing.lg,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
         ...shadows.md,
+        overflow: 'hidden',
     },
     cardHeader: {
         flexDirection: 'row',
@@ -346,70 +454,117 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         marginBottom: spacing.lg,
     },
+    iconShell: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(139, 92, 246, 0.2)',
+    },
     cardHeaderText: {
         flex: 1,
     },
     cardTitle: {
-        fontSize: typography.fontSizeLg,
-        fontWeight: '600',
+        fontSize: typography.fontSizeMd + 1,
+        fontWeight: typography.fontWeightBold,
         color: colors.foreground,
+        letterSpacing: 0.3,
     },
     cardSubtitle: {
         fontSize: typography.fontSizeXs,
-        color: colors.mutedForeground,
+        color: colors.foregroundMuted,
         marginTop: 2,
     },
     infoBox: {
         flexDirection: 'row',
         alignItems: 'flex-start',
         gap: spacing.sm,
-        backgroundColor: colors.muted,
+        backgroundColor: 'rgba(99, 102, 241, 0.05)',
         padding: spacing.md,
         borderRadius: borderRadius.md,
         marginBottom: spacing.lg,
+        borderWidth: 1,
+        borderColor: 'rgba(99, 102, 241, 0.15)',
     },
     infoText: {
         flex: 1,
         fontSize: typography.fontSizeXs,
-        color: colors.mutedForeground,
+        color: colors.foregroundMuted,
         lineHeight: 18,
     },
-    timeRow: {
+    timelineContainer: {
+        paddingLeft: spacing.sm,
+    },
+    timelineRow: {
         flexDirection: 'row',
+        alignItems: 'stretch',
+        minHeight: 72,
+    },
+    trackContainer: {
+        width: 30,
         alignItems: 'center',
-        gap: spacing.md,
-        marginBottom: spacing.md,
+        position: 'relative',
     },
-    rankBadge: {
-        flexDirection: 'row',
+    trackLine: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        width: 2,
+        backgroundColor: colors.border,
+    },
+    trackDot: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
         alignItems: 'center',
-        gap: spacing.xs,
-        minWidth: 90,
+        justifyContent: 'center',
+        marginTop: 18,
+        zIndex: 2,
+        borderWidth: 2,
+        borderColor: colors.card,
     },
-    rankEmoji: {
-        fontSize: 20,
-    },
-    rankLabel: {
-        fontSize: typography.fontSizeXs,
-        fontWeight: '600',
-        color: colors.foreground,
+    trackDotText: {
+        fontSize: 10,
+        color: '#FFFFFF',
+        fontWeight: typography.fontWeightBold,
     },
     timeButton: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: spacing.sm,
-        backgroundColor: colors.muted,
-        padding: spacing.md,
+        backgroundColor: colors.secondary,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
         borderRadius: borderRadius.md,
         borderWidth: 1,
         borderColor: colors.border,
+        marginLeft: spacing.sm,
+        marginBottom: spacing.md,
+        ...shadows.sm,
+        overflow: 'hidden',
+    },
+    timeButtonLeft: {
+        gap: 3,
+    },
+    timeButtonRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+    },
+    rankLabel: {
+        fontSize: 10,
+        fontWeight: typography.fontWeightBold,
+        color: colors.foregroundMuted,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     timeText: {
-        flex: 1,
-        fontSize: typography.fontSizeMd,
-        fontWeight: '500',
+        fontSize: typography.fontSizeLg,
+        fontWeight: typography.fontWeightBold,
         color: colors.foreground,
     },
     longFormTimeButton: {
@@ -456,6 +611,13 @@ const styles = StyleSheet.create({
     },
     button: {
         flex: 1,
+        borderRadius: borderRadius.md,
+        overflow: 'hidden',
+    },
+    primaryButton: {
+        ...shadows.sm,
+    },
+    gradientBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -464,26 +626,28 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
         borderRadius: borderRadius.md,
     },
-    primaryButton: {
-        backgroundColor: colors.primary,
-        ...shadows.sm,
-    },
     secondaryButton: {
-        backgroundColor: colors.muted,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        backgroundColor: colors.secondary,
         borderWidth: 1,
         borderColor: colors.border,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
     },
     disabledButton: {
-        opacity: 0.5,
+        opacity: 0.6,
     },
     primaryButtonText: {
         fontSize: typography.fontSizeMd,
-        fontWeight: '600',
+        fontWeight: typography.fontWeightSemibold,
         color: colors.primaryForeground,
     },
     secondaryButtonText: {
         fontSize: typography.fontSizeMd,
-        fontWeight: '600',
-        color: colors.mutedForeground,
+        fontWeight: typography.fontWeightSemibold,
+        color: colors.foregroundMuted,
     },
 });

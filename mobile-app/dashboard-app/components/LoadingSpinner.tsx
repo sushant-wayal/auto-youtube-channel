@@ -9,7 +9,7 @@ type LoadingSpinnerProps = {
 export default function LoadingSpinner({ size = 'large' }: LoadingSpinnerProps) {
     return (
         <View style={styles.container}>
-            <ActivityIndicator size={size} color={colors.gradientMid} />
+            <ActivityIndicator size={size} color={colors.primary} />
         </View>
     );
 }
@@ -20,6 +20,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         padding: 32,
-        backgroundColor: colors.background,
+        backgroundColor: colors.backgroundSecondary,
     },
 });

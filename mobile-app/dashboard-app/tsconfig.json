@@ -8,6 +8,11 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "noImplicitAny": false,
+    "baseUrl": ".",
+    "typeRoots": [
+      "./node_modules/@types"
+    ],
+    "module": "esnext",
     "paths": {
       "@/*": [
         "./*"
