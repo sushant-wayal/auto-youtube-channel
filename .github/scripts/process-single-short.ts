@@ -80,23 +80,29 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
 
     console.error(`\n📱 Processing short ${shortIndex + 1}/${shorts.length}: ${short.hook}`);
 
-    // ── Validate hook scene ──────────────────────────────────────────────────
-    const hookScene = short.scenes[0];
-    if (!hookScene || hookScene.id !== 'hook') {
-        throw new Error(`Short ${shortIndex + 1} must have first scene with id='hook'`);
-    }
-    if (hookScene.narration !== '') {
-        throw new Error(`Hook scene must have empty narration (short ${shortIndex + 1})`);
-    }
-    if (hookScene.baseDuration < 0.8 || hookScene.baseDuration > 1.5) {
-        console.warn(`⚠️ Hook scene duration ${hookScene.baseDuration}s outside recommended range 0.8–1.5s`);
+    const isAiRender = (process.env.SCENE_RENDER_METHOD || '').toLowerCase() === 'ai';
+
+    if (!isAiRender) {
+        // ── Validate hook scene ──────────────────────────────────────────────────
+        const hookScene = short.scenes[0];
+        if (!hookScene || hookScene.id !== 'hook') {
+            throw new Error(`Short ${shortIndex + 1} must have first scene with id='hook'`);
+        }
+        if (hookScene.narration !== '') {
+            throw new Error(`Hook scene must have empty narration (short ${shortIndex + 1})`);
+        }
+        if (hookScene.baseDuration < 0.8 || hookScene.baseDuration > 1.5) {
+            console.warn(`⚠️ Hook scene duration ${hookScene.baseDuration}s outside recommended range 0.8–1.5s`);
+        }
+
+        console.error(`   Hook scene: ${hookScene.baseDuration}s (no narration)`);
     }
 
-    console.error(`   Hook scene: ${hookScene.baseDuration}s (no narration)`);
-    const contentScenes = short.scenes.slice(1);
+    const contentScenes = isAiRender ? short.scenes : short.scenes.slice(1);
     contentScenes.forEach((scene, idx) => {
         const totalDuration = scene.baseDuration + scene.holdDuration;
-        console.error(`   Scene ${idx + 2}: ${totalDuration}s (${scene.baseDuration}s base + ${scene.holdDuration}s hold)`);
+        const sceneNum = isAiRender ? idx + 1 : idx + 2;
+        console.error(`   Scene ${sceneNum}: ${totalDuration}s (${scene.baseDuration}s base + ${scene.holdDuration}s hold)`);
     });
 
     // ── 1. Render scenes ─────────────────────────────────────────────────────
@@ -107,9 +113,9 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         videoId: shortId,
     });
 
-    // ── 2. Generate voice-overs (hook narration is empty → silent slot) ──────
+    // ── 2. Generate voice-overs ──────────────────────────────────────────────
     const allNarrations = short.scenes.map(scene => scene.narration);
-    console.error(`🎤 Generating voice-over for ${allNarrations.length} scenes (including hook)...`);
+    console.error(`🎤 Generating voice-over for ${allNarrations.length} scenes...`);
     const { urls: voiceovers } = await generateVoiceOvers({
         perSceneNarration: allNarrations,
         videoId: shortId,

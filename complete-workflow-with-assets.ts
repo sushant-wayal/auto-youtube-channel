@@ -3,7 +3,7 @@
 import { renderScenes } from './workers/video-scene-renderer/src/index';
 import { assembleVideo } from './workers/video-assembler/src/index';
 import { uploadToYouTube } from './workers/youtube-upload/src/index';
-import { validateConfig } from './shared/config';
+import { validateConfig, config } from './shared/config';
 import { getShortsPublishTimeByRank, getLongFormPublishTime } from './shared/services/shorts-publish-time-service';
 import CloudinaryService from './shared/services/cloudinary-service';
 import fs from 'fs/promises';
@@ -432,10 +432,14 @@ async function main() {
 
                 console.log(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook}`);
 
-                // Validate first scene is hook scene
-                const hookScene = short.scenes[0];
-                if (!hookScene || hookScene.id !== 'hook') {
-                    throw new Error(`Short ${i} must have first scene as hook (id='hook')`);
+                const isAiRender = config.sceneRendering.method === 'ai';
+
+                if (!isAiRender) {
+                    // Validate first scene is hook scene
+                    const hookScene = short.scenes[0];
+                    if (!hookScene || hookScene.id !== 'hook') {
+                        throw new Error(`Short ${i} must have first scene as hook (id='hook')`);
+                    }
                 }
 
                 // 1. Render short scenes
@@ -459,8 +463,14 @@ async function main() {
                         const flatUrls = shortUrlsArray as string[];
                         shortVoiceoverUrls = new Array(short.scenes.length).fill('');
                         if (i === 0) {
-                            for (let j = 0; j < flatUrls.length && j < short.scenes.length - 1; j++) {
-                                shortVoiceoverUrls[j + 1] = flatUrls[j];
+                            if (isAiRender) {
+                                for (let j = 0; j < flatUrls.length && j < short.scenes.length; j++) {
+                                    shortVoiceoverUrls[j] = flatUrls[j];
+                                }
+                            } else {
+                                for (let j = 0; j < flatUrls.length && j < short.scenes.length - 1; j++) {
+                                    shortVoiceoverUrls[j + 1] = flatUrls[j];
+                                }
                             }
                         }
                     } else {
@@ -469,8 +479,14 @@ async function main() {
                         shortVoiceoverUrls = new Array(short.scenes.length).fill('');
                         if (shortsUrls[i]) {
                             const urls = shortsUrls[i];
-                            for (let j = 0; j < urls.length && j < short.scenes.length - 1; j++) {
-                                shortVoiceoverUrls[j + 1] = urls[j];
+                            if (isAiRender) {
+                                for (let j = 0; j < urls.length && j < short.scenes.length; j++) {
+                                    shortVoiceoverUrls[j] = urls[j];
+                                }
+                            } else {
+                                for (let j = 0; j < urls.length && j < short.scenes.length - 1; j++) {
+                                    shortVoiceoverUrls[j + 1] = urls[j];
+                                }
                             }
                         }
                     }
@@ -504,7 +520,7 @@ async function main() {
 
                     const filtered = files.filter(f => f.endsWith('.wav') || f.endsWith('.mp3')).sort();
 
-                    const expected = Math.max(0, short.scenes.length - 1);
+                    const expected = isAiRender ? short.scenes.length : Math.max(0, short.scenes.length - 1);
                     if (filtered.length > expected) {
                         console.warn(
                             `  ⚠️  More voiceover files (${filtered.length}) than content scenes (${expected}) for short ${i}`
@@ -519,22 +535,22 @@ async function main() {
                         const upload = await cloudinaryService.uploadVideo(
                             p,
                             `${shortId}/voiceovers`,
-                            `voiceover_${j + 1}` // offset by one because hook slot is empty
+                            isAiRender ? `voiceover_${j}` : `voiceover_${j + 1}`
                         );
-                        shortVoiceoverUrls[j + 1] = upload.secureUrl;
+                        if (isAiRender) {
+                            shortVoiceoverUrls[j] = upload.secureUrl;
+                        } else {
+                            shortVoiceoverUrls[j + 1] = upload.secureUrl;
+                        }
                     }
-                    console.log(`  ✅ Uploaded ${filtered.length} provided voiceovers (hook omitted)`);
+                    console.log(`  ✅ Uploaded ${filtered.length} provided voiceovers${isAiRender ? '' : ' (hook omitted)'}`);
                 } else {
                     // no directory or URLs supplied: reuse long-form audio for content scenes
-                    // Behavior:
-                    //  - index-first: try to reuse the long-form voiceover at the
-                    //    same position (skip hook), i.e. voiceoverUrls[j-1]
-                    //  - fallback: if index missing, try to map by scene id
-                    //  - hook (index 0) remains silent
                     shortVoiceoverUrls = new Array(short.scenes.length).fill('');
-                    for (let j = 1; j < short.scenes.length; j++) {
+                    const startIdx = isAiRender ? 0 : 1;
+                    for (let j = startIdx; j < short.scenes.length; j++) {
                         const sceneId = short.scenes[j].id;
-                        const longFormByIndex = (voiceoverUrls && voiceoverUrls[j - 1]) || '';
+                        const longFormByIndex = (voiceoverUrls && voiceoverUrls[isAiRender ? j : j - 1]) || '';
                         if (longFormByIndex) {
                             shortVoiceoverUrls[j] = longFormByIndex;
                         } else if (voiceoverMap[sceneId]) {
@@ -549,7 +565,7 @@ async function main() {
 
                 // 3. Assemble short
                 console.log(`  🧩 Assembling short...`);
-                const shortContentScenes = short.scenes.slice(1); // Skip hook
+                const shortContentScenes = isAiRender ? short.scenes : short.scenes.slice(1); // Skip hook if not AI
                 const shortContentNarrations = shortContentScenes.map(s => s.narration);
                 const shortFullNarration = shortContentNarrations.join(' ');
 

@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs";
+import Redis from "ioredis";
 
 import { SceneHtmlRenderer } from "./scene-rendring/action-flow-to-html";
 import { HtmlToVideoService } from "./scene-rendring/htmlToVideoService";
@@ -15,6 +16,7 @@ export class ClipsRenderService {
   private renderMethod: "code" | "ai";
   private isShort: boolean;
   private websiteDomain: string;
+  private pendingCleanups: Promise<void>[] = [];
 
   constructor(
     scenes: SceneIR[],
@@ -95,6 +97,12 @@ export class ClipsRenderService {
 
     fs.rmSync(outputDir, { recursive: true, force: true });
 
+    // Await all pending rate-limit cooldowns (65 seconds sleep + queue releases)
+    if (this.pendingCleanups.length > 0) {
+      console.error(`[Queue] Waiting for ${this.pendingCleanups.length} pending rate-limit cooldown(s) to complete...`);
+      await Promise.all(this.pendingCleanups);
+    }
+
     return { urls, timings, animationStopTimes };
   }
 
@@ -119,9 +127,38 @@ export class ClipsRenderService {
       throw new Error(`AI scene HTML generation failed (${response.status}): ${errorBody || response.statusText}`);
     }
 
-    const data = await response.json() as { html?: string; error?: string };
+    const data = await response.json() as { html?: string; ticket?: number; error?: string };
     if (!data.html) {
       throw new Error(data.error || "AI scene HTML generation returned no HTML");
+    }
+
+    const ticket = data.ticket;
+    if (ticket !== undefined) {
+      console.error(`[Queue] Received HTML and ticket ${ticket} for scene ${scene.id}.`);
+      
+      const cleanupPromise = (async () => {
+        try {
+          console.error(`[Queue] Cooldown: sleeping for 65 seconds for ticket ${ticket}...`);
+          await new Promise((resolve) => setTimeout(resolve, 65000));
+          
+          console.error(`[Queue] Cooldown complete. Advancing queue for ticket ${ticket}...`);
+          const redis = new Redis(process.env.REDIS_URL!);
+          
+          // Atomically increment turn and delete processing key using a pipeline
+          const pipeline = redis.multi();
+          pipeline.incr("html_queue:turn");
+          pipeline.del("html_queue:processing");
+          await pipeline.exec();
+          
+          await redis.quit();
+          console.error(`[Queue] Queue advanced and processing lease deleted for ticket ${ticket}.`);
+        } catch (err) {
+          console.error(`[Queue] Error during cleanup for ticket ${ticket}:`, err);
+        }
+      })();
+      this.pendingCleanups.push(cleanupPromise);
+    } else {
+      console.error(`[Queue] No ticket returned from API route. Rate limiting might be bypassed.`);
     }
 
     return {

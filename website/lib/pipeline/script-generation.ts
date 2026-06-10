@@ -49,12 +49,23 @@ SCENE_RENDER_METHOD=ai OVERRIDE
 
 The scene renderer will generate final HTML from each scene narration separately.
 
-For every long-form scene and every short scene:
+For every long-form scene:
 - Still write high-quality narration.
 - Keep sceneTitle/baseDuration/holdDuration/id exactly as requested.
 - Set "actions" to an empty array: [].
 - Do NOT spend tokens creating visual actions.
 - Ignore all action-count requirements below; they apply only when SCENE_RENDER_METHOD=code.
+
+For YouTube Shorts when SCENE_RENDER_METHOD=ai:
+- Do NOT generate a silent hook scene (id: "hook") followed by a content scene.
+- Instead, each short MUST contain only a SINGLE scene in the "scenes" array (e.g., exactly 1 scene total per short).
+- This single scene should have:
+  - "id": "content"
+  - "baseDuration": 10.0 to 15.0 (the total duration for the entire short)
+  - "holdDuration": 0.5
+  - "narration": The full narration explaining the concept (do not make the narration empty)
+  - "actions": []
+- Ignore all hook scene requirements and content scene rules below; they apply only when SCENE_RENDER_METHOD=code.
 `
       : "";
 

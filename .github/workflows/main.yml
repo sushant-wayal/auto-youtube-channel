@@ -136,6 +136,7 @@ jobs:
           WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
         run: |
           npx tsx .github/scripts/render-scenes.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
 

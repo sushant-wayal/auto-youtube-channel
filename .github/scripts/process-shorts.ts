@@ -73,25 +73,30 @@ async function processAllShorts(videoId: string, scriptData: string) {
         // 1. Render all scenes for short (hook + content)
         console.error(`🎬 Rendering ${short.scenes.length} scenes for short ${i + 1}...`);
 
-        // Validate first scene is hook scene
-        const hookScene = short.scenes[0];
-        if (!hookScene || hookScene.id !== 'hook') {
-            throw new Error(`Short ${i + 1} must have first scene with id='hook'`);
-        }
-        if (hookScene.narration !== '') {
-            throw new Error(`Hook scene must have empty narration (short ${i + 1})`);
-        }
-        if (hookScene.baseDuration < 0.8 || hookScene.baseDuration > 1.5) {
-            console.warn(`⚠️ Hook scene duration ${hookScene.baseDuration}s outside recommended range 0.8-1.5s`);
-        }
+        const isAiRender = (process.env.SCENE_RENDER_METHOD || '').toLowerCase() === 'ai';
 
-        console.error(`   Hook scene: ${hookScene.baseDuration}s (no narration)`);
+        if (!isAiRender) {
+            // Validate first scene is hook scene
+            const hookScene = short.scenes[0];
+            if (!hookScene || hookScene.id !== 'hook') {
+                throw new Error(`Short ${i + 1} must have first scene with id='hook'`);
+            }
+            if (hookScene.narration !== '') {
+                throw new Error(`Hook scene must have empty narration (short ${i + 1})`);
+            }
+            if (hookScene.baseDuration < 0.8 || hookScene.baseDuration > 1.5) {
+                console.warn(`⚠️ Hook scene duration ${hookScene.baseDuration}s outside recommended range 0.8-1.5s`);
+            }
+
+            console.error(`   Hook scene: ${hookScene.baseDuration}s (no narration)`);
+        }
 
         // Log content scenes
-        const contentScenes = short.scenes.slice(1);
+        const contentScenes = isAiRender ? short.scenes : short.scenes.slice(1);
         contentScenes.forEach((scene, idx) => {
             const totalDuration = scene.baseDuration + scene.holdDuration;
-            console.error(`   Scene ${idx + 2}: ${totalDuration}s (${scene.baseDuration}s base + ${scene.holdDuration}s hold)`);
+            const sceneNum = isAiRender ? idx + 1 : idx + 2;
+            console.error(`   Scene ${sceneNum}: ${totalDuration}s (${scene.baseDuration}s base + ${scene.holdDuration}s hold)`);
         });
 
         const { urls: clips, timings, animationStopTimes } = await renderScenes({

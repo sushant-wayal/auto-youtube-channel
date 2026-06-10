@@ -58,6 +58,11 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
         // Try to get idea from Redis queue (simple LPOP from existing queue)
         try {
             const redis = new Redis(process.env.REDIS_URL!);
+            
+            // Initialize Gemini rate limit queue keys if they don't exist
+            await redis.setnx('html_queue:turn', '1');
+            await redis.setnx('html_queue:last_enquiry', '0');
+
             const queueKey = 'video:ideas'; // TEST queue - separate from production
 
             const idea = await redis.lpop(queueKey);

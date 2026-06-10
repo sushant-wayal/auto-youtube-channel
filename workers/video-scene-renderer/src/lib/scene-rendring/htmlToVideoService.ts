@@ -44,7 +44,7 @@ export class HtmlToVideoService {
     });
 
     // crash early if renderer JS errors
-    page.on("pageerror", (err: Error) => {
+    page.on("pageerror", (err: any) => {
       const message = typeof err === "object" && err !== null && "message" in err
         ? (err as { message: string }).message
         : String(err);
