@@ -59,9 +59,9 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
         try {
             const redis = new Redis(process.env.REDIS_URL!);
             
-            // Initialize Gemini rate limit queue keys if they don't exist
-            await redis.setnx('html_queue:turn', '1');
-            await redis.setnx('html_queue:last_enquiry', '0');
+            // Initialize Gemini rate limit queue keys
+            await redis.set('html_queue:turn', '1');
+            await redis.set('html_queue:last_enquiry', '0');
 
             const queueKey = 'video:ideas'; // TEST queue - separate from production
 
