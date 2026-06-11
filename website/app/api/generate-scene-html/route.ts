@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
 
-    // 3. Create lease (10 minutes)
-    await redis.set("html_queue:processing", String(ticket), "EX", 600);
+    // 3. Create lease (90 seconds crash safe time)
+    await redis.set("html_queue:processing", String(ticket), "EX", 90);
     console.log(`[Queue] Ticket ${ticket} created processing lease.`);
 
     // 4. Call Gemini

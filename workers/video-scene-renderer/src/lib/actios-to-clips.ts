@@ -138,8 +138,8 @@ export class ClipsRenderService {
       
       const cleanupPromise = (async () => {
         try {
-          console.error(`[Queue] Cooldown: sleeping for 65 seconds for ticket ${ticket}...`);
-          await new Promise((resolve) => setTimeout(resolve, 65000));
+          console.error(`[Queue] Cooldown: sleeping for 22 seconds for ticket ${ticket}...`);
+          await new Promise((resolve) => setTimeout(resolve, 22000));
           
           console.error(`[Queue] Cooldown complete. Advancing queue for ticket ${ticket}...`);
           const redis = new Redis(process.env.REDIS_URL!);
