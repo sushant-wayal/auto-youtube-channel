@@ -88,6 +88,8 @@ Animation style:
 - premium
 - deliberate
 - satisfying
+- make the animations such that it perfectly time the narration timing
+- avoid looping over of things; make sure everything is run exactly once in the one cycle of duration
 
 EXPLANATION RULES:
 
@@ -119,6 +121,7 @@ SCREEN COMPOSITION:
 - Clear visual hierarchy
 - Minimal empty space
 - No tiny diagrams
+- Avoid HTML such that things overlap on each other; ensure proper layout and spacing
 
 TEXT RULES:
 

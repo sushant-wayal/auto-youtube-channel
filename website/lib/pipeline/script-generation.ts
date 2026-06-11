@@ -210,6 +210,7 @@ SCENE RULES (MAIN VIDEO)
 - sceneTitle should capture the key concept/topic of that scene section
 - sceneTitle will be used for YouTube chapter timestamps
 - narration ~130-150 words per scene for ${duration} min video
+- calculate duration according to the narration considering avg narration speed as 2.6 words/sec (baseDuration = narration word count / 2.6)
 - narration length should match baseDuration + holdDuration
 - The long-form video MUST follow this story-first structure:
   1. Unexpected Problem
