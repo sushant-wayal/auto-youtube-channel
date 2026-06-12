@@ -116,6 +116,7 @@ auto-youtube-channel/
 | [06-website-api.md](./06-website-api.md) | Website structure and all 13 API routes |
 | [07-mobile-app.md](./07-mobile-app.md) | Mobile dashboard app |
 | [08-types-schema.md](./08-types-schema.md) | TypeScript types and data schemas |
+| [09-advanced-features.md](./09-advanced-features.md) | In-depth mechanics of F5-TTS and Redis AI scene queue |
 
 ---
 
@@ -392,3 +393,4 @@ F5_PYTHON_BIN=python3
 1. Read [01-workers.md](./01-workers.md) to understand the worker architecture
 2. Review [08-types-schema.md](./08-types-schema.md) for data structure details
 3. Check [05-github-actions.md](./05-github-actions.md) for deployment configuration
+4. See [09-advanced-features.md](./09-advanced-features.md) for F5-TTS and Redis queue mechanics

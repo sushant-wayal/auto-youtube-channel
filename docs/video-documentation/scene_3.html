@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline State Transfer Architecture</title>
+    <style>
+        :root {
+            --bg-color: #FAFAFA;
+            --grid: #E5E7EB;
+            --surface: #FFFFFF;
+            --border: #D1D5DB;
+            --text-main: #111827;
+            --text-muted: #6B7280;
+            
+            --blue: #2563EB;
+            --blue-light: #EFF6FF;
+            --red: #EF4444;
+            --red-light: #FEF2F2;
+            --green: #10B981;
+            --green-light: #ECFDF5;
+            --purple: #8B5CF6;
+            --purple-dark: #2E1065;
+            --code-bg: #1E1E1E;
+            --code-text: #D4D4D4;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            background-image: 
+                linear-gradient(to right, var(--grid) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+            background-size: 40px 40px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #app {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            margin-left: -960px;
+            margin-top: -540px;
+            width: 1920px;
+            height: 1080px;
+            background: radial-gradient(circle at center, transparent 0%, rgba(250, 250, 250, 0.8) 100%);
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.02);
+            overflow: hidden;
+        }
+
+        /* Base Node Styling */
+        .node {
+            position: absolute;
+            background: var(--surface);
+            border: 2px solid var(--border);
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            padding: 32px;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        .node-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .node-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: var(--blue-light);
+            color: var(--blue);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .node-icon svg {
+            width: 28px;
+            height: 28px;
+            stroke-width: 2;
+            fill: none;
+            stroke: currentColor;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .node-title { font-size: 24px; font-weight: 700; color: var(--text-main); }
+        .node-sub { font-size: 14px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; }
+
+        /* The Pipe connecting workers */
+        .pipe-container {
+            position: absolute;
+            top: 540px;
+            left: 400px;
+            width: 1120px;
+            height: 240px;
+            transform: translateY(-50%);
+            border-top: 4px dashed var(--border);
+            border-bottom: 4px dashed var(--border);
+            background: linear-gradient(to right, rgba(37, 99, 235, 0.05), rgba(37, 99, 235, 0.05));
+            z-index: 1;
+        }
+
+        .pipe-label {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* Constraint Gates */
+        .gate {
+            position: absolute;
+            left: 300px;
+            width: 80px;
+            height: 120px;
+            background: #E5E7EB;
+            border: 2px solid #9CA3AF;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            transition: height 0.1s;
+        }
+        
+        .gate-top { top: -100px; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; }
+        .gate-bot { bottom: -100px; border-top-left-radius: 16px; border-top-right-radius: 16px; }
+        
+        .gate-label {
+            position: absolute;
+            left: -180px;
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--text-main);
+            background: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 2px solid var(--border);
+            white-space: nowrap;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+
+        .gate-warning {
+            color: var(--red);
+            font-weight: 800;
+            font-size: 16px;
+            margin-top: 4px;
+        }
+
+        /* Secret Scanner */
+        .scanner-station {
+            position: absolute;
+            left: 800px;
+            top: -60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 25;
+        }
+
+        .scanner-unit {
+            width: 100px;
+            height: 60px;
+            background: var(--surface);
+            border: 2px solid var(--text-main);
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 -10px 20px rgba(0,0,0,0.05);
+        }
+
+        .scanner-lens {
+            width: 40px;
+            height: 20px;
+            background: #111827;
+            border-radius: 20px;
+            box-shadow: inset 0 0 10px rgba(255,255,255,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .scanner-eye {
+            position: absolute;
+            left: 5px;
+            top: 5px;
+            width: 10px;
+            height: 10px;
+            background: #60A5FA;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #60A5FA;
+        }
+
+        .scanner-label {
+            font-weight: 800;
+            font-size: 16px;
+            color: var(--text-main);
+            margin-bottom: 12px;
+            background: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 2px solid var(--text-main);
+            white-space: nowrap;
+        }
+
+        .scanner-beam {
+            position: absolute;
+            top: 60px;
+            width: 4px;
+            height: 0px;
+            background: linear-gradient(to bottom, #60A5FA, transparent);
+            box-shadow: 0 0 20px 5px rgba(96, 165, 250, 0.4);
+            transform-origin: top center;
+            opacity: 0.8;
+            z-index: 30;
+        }
+
+        /* Data Payloads */
+        .payload {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            z-index: 15;
+            will-change: transform, opacity;
+        }
+
+        .payload-json {
+            width: 320px;
+            background: var(--code-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 0 2px #333;
+            font-family: 'SF Mono', Consolas, Monaco, monospace;
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--code-text);
+        }
+
+        .syntax-key { color: #9CDCFE; }
+        .syntax-str { color: #CE9178; }
+        .syntax-url { color: #CE9178; text-decoration: underline; text-decoration-color: rgba(206, 145, 120, 0.4); }
+        .syntax-url.flagged { 
+            background: rgba(239, 68, 68, 0.3); 
+            color: #FCA5A5;
+            text-decoration-color: #EF4444;
+            border-radius: 4px;
+            padding: 0 4px;
+        }
+
+        .payload-hex {
+            background: var(--purple-dark);
+            border: 2px solid #5B21B6;
+            border-radius: 100px;
+            padding: 16px 32px;
+            color: #C4B5FD;
+            font-family: 'SF Mono', Consolas, Monaco, monospace;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), inset 0 0 20px rgba(139, 92, 246, 0.2);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            opacity: 0;
+        }
+
+        .hex-icon {
+            background: #8B5CF6;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Transform Box (xxd) */
+        .terminal-box {
+            position: absolute;
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 24px;
+            width: 380px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            opacity: 0;
+        }
+
+        .term-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .term-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .term-dot.r { background: #EF4444; }
+        .term-dot.y { background: #F59E0B; }
+        .term-dot.g { background: #10B981; }
+
+        .term-body {
+            font-family: 'SF Mono', Consolas, Monaco, monospace;
+            font-size: 18px;
+            color: #38BDF8;
+            font-weight: 600;
+        }
+
+        .term-prompt { color: #22C55E; margin-right: 8px; }
+
+        /* Crash Overlay */
+        .crash-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(239, 68, 68, 0.1);
+            border: 8px solid var(--red);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .crash-text {
+            background: var(--red);
+            color: white;
+            font-size: 64px;
+            font-weight: 900;
+            padding: 24px 64px;
+            border-radius: 24px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            box-shadow: 0 25px 50px rgba(239, 68, 68, 0.5);
+            transform: scale(0.8);
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="app">
+
+    <!-- The Pipe -->
+    <div class="pipe-container">
+        <div class="pipe-label">GitHub Actions Job Output (Ephemeral)</div>
+
+        <!-- Size Limits Gate -->
+        <div class="gate gate-top" id="gate-t">
+            <div class="gate-label">Output Constraints<div class="gate-warning">Max: 1 MB</div></div>
+        </div>
+        <div class="gate gate-bot" id="gate-b"></div>
+
+        <!-- Secret Scanner -->
+        <div class="scanner-station">
+            <div class="scanner-label">Secret Scanner</div>
+            <div class="scanner-unit" id="scan-unit">
+                <div class="scanner-lens"><div class="scanner-eye" id="scan-eye"></div></div>
+            </div>
+            <div class="scanner-beam" id="scan-beam"></div>
+        </div>
+    </div>
+
+    <!-- Node 1: Worker A -->
+    <div class="node" id="node-1" style="left: 200px; top: 540px;">
+        <div class="node-header">
+            <div class="node-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></div>
+            <div>
+                <div class="node-title">Worker 1</div>
+                <div class="node-sub">Video Renderer</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Node 2: Worker B -->
+    <div class="node" id="node-2" style="left: 1720px; top: 540px;">
+        <div class="node-header">
+            <div class="node-icon"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg></div>
+            <div>
+                <div class="node-title">Worker 2</div>
+                <div class="node-sub">YouTube Publisher</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- xxd Encoder Terminal -->
+    <div class="terminal-box" id="term-encode" style="left: 200px; top: 850px;">
+        <div class="term-header">
+            <div class="term-dot r"></div><div class="term-dot y"></div><div class="term-dot g"></div>
+        </div>
+        <div class="term-body"><span class="term-prompt">$</span>xxd -p state.json</div>
+    </div>
+
+    <!-- xxd Decoder Terminal -->
+    <div class="terminal-box" id="term-decode" style="left: 1720px; top: 850px;">
+        <div class="term-header">
+            <div class="term-dot r"></div><div class="term-dot y"></div><div class="term-dot g"></div>
+        </div>
+        <div class="term-body"><span class="term-prompt">$</span>xxd -p -r > state.json</div>
+    </div>
+
+    <!-- JSON Payload -->
+    <div class="payload payload-json" id="payload-json" style="left: 200px; top: 540px;">
+<pre style="margin:0;">{
+  <span class="syntax-key">"jobId"</span>: <span class="syntax-str">"8f392a"</span>,
+  <span class="syntax-key">"clips"</span>: [ ... ],
+  <span class="syntax-key">"script"</span>: <span class="syntax-str">"Today we..."</span>,
+  <span class="syntax-key">"assets"</span>: {
+    <span class="syntax-key">"voice"</span>: <span class="syntax-str">"blob:..."</span>,
+    <span class="syntax-key">"video"</span>: <span class="syntax-str" id="url-text">"<span class="syntax-url" id="url-inner">https://res.cloudinary.com/api/v1/vi...</span>"</span>
+  }
+}</pre>
+    </div>
+
+    <!-- Hex Payload -->
+    <div class="payload payload-hex" id="payload-hex" style="left: 200px; top: 850px;">
+        <div class="hex-icon"><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:white;fill:none;stroke-width:3;"><path d="M4 17L10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></div>
+        7b226a6f624964223a22...
+    </div>
+
+    <!-- Global Crash Overlay -->
+    <div class="crash-overlay" id="crash-screen">
+        <div class="crash-text" id="crash-text">Pipeline Crashed</div>
+    </div>
+
+</div>
+
+<script>
+    // --- Responsive Scaling ---
+    function resize() {
+        const app = document.getElementById('app');
+        const scale = Math.max(window.innerWidth / 1920, window.innerHeight / 1080);
+        app.style.transform = `scale(${scale})`;
+        app.style.transformOrigin = 'center center';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- Interpolation Utils ---
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function interp(t, tStart, tEnd, vStart, vEnd, ease = 'easeInOutCubic') {
+        if (t <= tStart) return vStart;
+        if (t >= tEnd) return vEnd;
+        let p = (t - tStart) / (tEnd - tStart);
+        
+        if (ease === 'easeOutCubic') p = 1 - Math.pow(1 - p, 3);
+        else if (ease === 'easeInOutCubic') p = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        else if (ease === 'easeOutBack') {
+            const c1 = 1.70158; const c3 = c1 + 1;
+            p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
+        }
+        else if (ease === 'easeInCubic') p = p * p * p;
+        
+        return vStart + (vEnd - vStart) * p;
+    }
+
+    // --- DOM Elements ---
+    const pJson = document.getElementById('payload-json');
+    const pHex = document.getElementById('payload-hex');
+    const urlInner = document.getElementById('url-inner');
+    
+    const gateT = document.getElementById('gate-t');
+    const gateB = document.getElementById('gate-b');
+    
+    const scanBeam = document.getElementById('scan-beam');
+    const scanEye = document.getElementById('scan-eye');
+    const scanUnit = document.getElementById('scan-unit');
+    
+    const crashScreen = document.getElementById('crash-screen');
+    const crashText = document.getElementById('crash-text');
+    
+    const termEncode = document.getElementById('term-encode');
+    const termDecode = document.getElementById('term-decode');
+    const node2 = document.getElementById('node-2');
+
+    // --- Render Frame Function ---
+    // Total narration is ~40 seconds.
+    window.renderFrame = function(t) {
+        
+        // ---- Phase 1: The Problem (0 - 16s) ----
+        
+        // 1. JSON Generation at Worker 1
+        let jsonScale = interp(t, 0, 1.5, 0, 1, 'easeOutBack');
+        let jsonX = 200;
+        let jsonY = 540;
+        let jsonOp = 1;
+
+        // 2. JSON moves to pipeline
+        jsonX = interp(t, 2, 4, 200, 700, 'easeInOutCubic');
+        
+        // 3. Size Limits hit
+        let gateH = interp(t, 3.5, 4.5, 0, 85, 'easeInOutCubic');
+        gateT.style.height = `${120 + gateH}px`;
+        gateB.style.height = `${120 + gateH}px`;
+        
+        // JSON squeezing / bouncing
+        if(t > 4 && t < 10) {
+            let squeeze = Math.sin((t-4)*15) * 5;
+            pJson.style.height = `${220 - squeeze}px`;
+            jsonX += Math.sin((t-4)*20) * 8; // jitter
+        } else {
+            pJson.style.height = `auto`;
+        }
+
+        // 4. Scanner sweeps
+        let beamH = 0;
+        let beamColor = '#60A5FA'; // blue
+        let eyeColor = '#60A5FA';
+        let beamX = 0;
+
+        if (t > 5.5 && t < 14) {
+            beamH = interp(t, 5.5, 6.5, 0, 300, 'easeOutCubic');
+            beamX = interp(t, 6, 8, -40, 40, 'easeInOutCubic');
+            
+            // Hits URL (Cloudinary)
+            if (t > 7) {
+                beamColor = '#EF4444'; // red
+                eyeColor = '#EF4444';
+                urlInner.classList.add('flagged');
+            } else {
+                urlInner.classList.remove('flagged');
+            }
+        } else {
+            urlInner.classList.remove('flagged');
+        }
+
+        // 5. Crash state
+        if (t > 7.5 && t < 14) {
+            crashScreen.style.opacity = interp(t, 7.5, 7.8, 0, 1);
+            crashText.style.transform = `scale(${interp(t, 7.5, 8, 0.8, 1, 'easeOutBack')})`;
+            
+            // Jitter the screen
+            let shake = Math.sin(t * 50) * 10;
+            document.getElementById('app').style.transform = `scale(${window.innerWidth / 1920}) translateX(${shake}px)`;
+            
+            // JSON turns red
+            pJson.style.boxShadow = `0 25px 50px -12px rgba(239,68,68,0.5), 0 0 0 2px #EF4444`;
+        } else {
+            crashScreen.style.opacity = interp(t, 14, 15, 1, 0);
+            document.getElementById('app').style.transform = `scale(${window.innerWidth / 1920})`;
+            pJson.style.boxShadow = `0 25px 50px -12px rgba(0,0,0,0.5), 0 0 0 2px #333`;
+        }
+
+        // 6. Reset JSON
+        if (t > 14 && t < 16) {
+            jsonX = interp(t, 14, 15, 700, 200, 'easeInOutCubic');
+        }
+
+
+        // ---- Phase 2: The Hex Solution (16s - 40s) ----
+
+        // 7. Enter `xxd` terminal
+        let termOp = interp(t, 16, 17, 0, 1);
+        termEncode.style.opacity = termOp;
+        termEncode.style.transform = `translate(-50%, -50%) translateY(${interp(t, 16, 17, 20, 0, 'easeOutBack')}px)`;
+
+        // 8. JSON drops into xxd
+        if (t > 17) {
+            jsonY = interp(t, 17, 18.5, 540, 850, 'easeInOutCubic');
+            jsonScale = interp(t, 18, 19.5, 1, 0, 'easeInCubic');
+            jsonOp = interp(t, 18, 19.5, 1, 0);
+        }
+
+        // Apply JSON transforms
+        pJson.style.transform = `translate(-50%, -50%) translate(${jsonX - 200}px, ${jsonY - 540}px) scale(${jsonScale})`;
+        pJson.style.opacity = jsonOp;
+
+        // 9. Hex String emerges
+        let hexOp = 0;
+        let hexX = 200;
+        let hexY = 850;
+        
+        if (t > 20) {
+            hexOp = interp(t, 20, 21, 0, 1);
+            // Rise to pipe level
+            hexY = interp(t, 21, 23, 850, 540, 'easeInOutCubic');
+            // Move through pipe
+            hexX = interp(t, 24, 30, 200, 1720, 'easeInOutCubic');
+        }
+
+        pHex.style.opacity = hexOp;
+        pHex.style.transform = `translate(-50%, -50%) translate(${hexX - 200}px, ${hexY - 850}px)`;
+
+        // 10. Scanner checks Hex string
+        if (t > 26 && t < 31) {
+            beamH = interp(t, 26, 27, 0, 300, 'easeOutCubic') * interp(t, 30, 31, 1, 0);
+            beamX = interp(t, 26.5, 29.5, -40, 40, 'easeInOutCubic');
+            
+            // Scanner turns green (safe)
+            if (t > 27.5) {
+                beamColor = '#10B981'; // green
+                eyeColor = '#10B981';
+                pHex.style.boxShadow = `0 0 40px rgba(16, 185, 129, 0.6), inset 0 0 20px rgba(16, 185, 129, 0.2)`;
+                pHex.style.borderColor = `#10B981`;
+            }
+        } else if (t > 31) {
+            pHex.style.boxShadow = `0 0 30px rgba(139, 92, 246, 0.4), inset 0 0 20px rgba(139, 92, 246, 0.2)`;
+            pHex.style.borderColor = `#5B21B6`;
+        }
+
+        // Apply Scanner Beam
+        scanBeam.style.height = `${beamH}px`;
+        scanBeam.style.background = `linear-gradient(to bottom, ${beamColor}, transparent)`;
+        scanBeam.style.boxShadow = `0 0 20px 5px ${beamColor}40`; // 40 is alpha hex
+        scanBeam.style.transform = `translateX(-50%) rotate(${beamX}deg)`;
+        scanEye.style.background = eyeColor;
+        scanEye.style.boxShadow = `0 0 10px ${eyeColor}`;
+        scanUnit.style.borderColor = (beamColor !== '#60A5FA' && beamH > 0) ? beamColor : 'var(--text-main)';
+
+        // 11. Decode at Worker 2
+        let termDecOp = interp(t, 30, 31, 0, 1);
+        termDecode.style.opacity = termDecOp;
+        termDecode.style.transform = `translate(-50%, -50%) translateY(${interp(t, 30, 31, 20, 0, 'easeOutBack')}px)`;
+
+        if (t > 31) {
+            // Hex drops to decode
+            hexY = interp(t, 31, 33, 540, 850, 'easeInOutCubic');
+            // Hex fades
+            hexOp = interp(t, 33, 34, 1, 0);
+            pHex.style.opacity = hexOp;
+            pHex.style.transform = `translate(-50%, -50%) translate(${hexX - 200}px, ${hexY - 850}px)`;
+
+            // JSON returns!
+            jsonScale = interp(t, 34, 35.5, 0, 1, 'easeOutBack');
+            jsonOp = interp(t, 34, 35, 0, 1);
+            jsonX = 1720; // At worker 2
+            jsonY = interp(t, 35, 37, 850, 540, 'easeInOutCubic');
+
+            pJson.style.transform = `translate(-50%, -50%) translate(${jsonX - 200}px, ${jsonY - 540}px) scale(${jsonScale})`;
+            pJson.style.opacity = jsonOp;
+            
+            // Worker 2 success glow
+            if (t > 36.5) {
+                node2.style.boxShadow = `0 0 50px rgba(16, 185, 129, 0.4)`;
+                node2.style.borderColor = `#10B981`;
+            }
+        }
+    };
+
+    // --- Dev Loop (uncomment to test animation automatically) ---
+  
+    let startTime = performance.now();
+    function loop() {
+        let t = (performance.now() - startTime) / 1000;
+        window.renderFrame(t);
+        if (t < 42) requestAnimationFrame(loop);
+    }
+    loop();
+  
+</script>
+
+</body>
+</html>

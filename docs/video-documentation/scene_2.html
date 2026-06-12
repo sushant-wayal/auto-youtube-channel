@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Video Pipeline Architecture</title>
+    <style>
+        :root {
+            --bg-color: #F8FAFC;
+            --grid-color: #E2E8F0;
+            --plane-bg: rgba(255, 255, 255, 0.75);
+            --plane-border: rgba(255, 255, 255, 1);
+            --text-main: #0F172A;
+            --text-muted: #64748B;
+
+            --control-accent: #8B5CF6;
+            /* Purple */
+            --control-light: #EDE9FE;
+
+            --compute-accent: #3B82F6;
+            /* Blue */
+            --compute-light: #DBEAFE;
+
+            --data-accent: #10B981;
+            /* Emerald/Green */
+            --data-light: #D1FAE5;
+
+            --danger: #EF4444;
+            /* Red */
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            background-image:
+                linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+            background-size: 50px 50px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #universe {
+            perspective: 2500px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #camera {
+            width: 0;
+            height: 0;
+            position: relative;
+            transform-style: preserve-3d;
+        }
+
+        /* --- Monolith (Tightly Coupled) --- */
+        .monolith {
+            position: absolute;
+            width: 240px;
+            height: 240px;
+            left: -120px;
+            top: -120px;
+            background: #1E293B;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(239, 68, 68, 0.3), inset 0 0 0 2px var(--danger);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 1000;
+            transform-style: preserve-3d;
+        }
+
+        .monolith svg {
+            width: 80px;
+            height: 80px;
+            stroke: var(--danger);
+            margin-bottom: 16px;
+        }
+
+        .monolith h2 {
+            margin: 0;
+            font-size: 18px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--danger);
+        }
+
+        .monolith-mess {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        /* --- Planes --- */
+        .plane {
+            position: absolute;
+            width: 1000px;
+            height: 800px;
+            left: -500px;
+            top: -400px;
+            background: var(--plane-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1.5px solid var(--plane-border);
+            border-radius: 32px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.05), inset 0 2px 4px rgba(255, 255, 255, 0.8);
+            transform-style: preserve-3d;
+            opacity: 0;
+        }
+
+        .plane-label {
+            position: absolute;
+            top: 32px;
+            left: 40px;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .plane-sublabel {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        /* Plane-specific accents */
+        #plane-control .plane-sublabel {
+            color: var(--control-accent);
+        }
+
+        #plane-compute .plane-sublabel {
+            color: var(--compute-accent);
+        }
+
+        #plane-data .plane-sublabel {
+            color: var(--data-accent);
+        }
+
+        /* SVG Wiring */
+        .wiring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .wire-bg {
+            fill: none;
+            stroke: #CBD5E1;
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .wire-flow {
+            fill: none;
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 12 24;
+            opacity: 0;
+        }
+
+        #plane-control .wire-flow {
+            stroke: var(--control-accent);
+        }
+
+        #plane-compute .wire-flow {
+            stroke: var(--compute-accent);
+        }
+
+        #plane-data .wire-flow {
+            stroke: var(--data-accent);
+        }
+
+        /* --- Nodes --- */
+        .node {
+            position: absolute;
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.05);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            padding: 16px 24px;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        .node-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+
+        .node-icon svg {
+            width: 20px;
+            height: 20px;
+            stroke-width: 2.5;
+            fill: none;
+        }
+
+        .node-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .node-title {
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--text-main);
+        }
+
+        .node-desc {
+            font-weight: 500;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* Node Accents */
+        .n-control .node-icon {
+            background: var(--control-light);
+            color: var(--control-accent);
+            stroke: var(--control-accent);
+        }
+
+        .n-compute .node-icon {
+            background: var(--compute-light);
+            color: var(--compute-accent);
+            stroke: var(--compute-accent);
+        }
+
+        .n-data .node-icon {
+            background: var(--data-light);
+            color: var(--data-accent);
+            stroke: var(--data-accent);
+        }
+
+        /* --- Data Plane Lake --- */
+        .data-lake {
+            position: absolute;
+            left: 600px;
+            top: 150px;
+            width: 350px;
+            height: 500px;
+            background: linear-gradient(135deg, rgba(209, 250, 229, 0.5), rgba(16, 185, 129, 0.1));
+            border: 2px dashed #34D399;
+            border-radius: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--data-accent);
+            font-weight: 700;
+            font-size: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.8;
+            z-index: 1;
+        }
+
+        /* --- Vertical Inter-Plane Connectors --- */
+        .z-line {
+            position: absolute;
+            width: 4px;
+            background: linear-gradient(to bottom, var(--grid-color), var(--compute-accent) 50%, var(--grid-color));
+            transform-origin: top center;
+            opacity: 0;
+        }
+
+        /* Dynamic Packets */
+        .packet {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #FFFFFF;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: 800;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+        }
+
+        .packet-asset {
+            color: var(--compute-accent);
+            border: 2px solid var(--compute-accent);
+        }
+
+        .packet-url {
+            color: var(--data-accent);
+            border: 2px solid var(--data-accent);
+        }
+
+        /* Pure JSON Badge */
+        .json-badge {
+            position: absolute;
+            left: 500px;
+            top: 150px;
+            background: var(--data-light);
+            color: var(--data-accent);
+            border: 1px solid var(--data-accent);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 14px;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2);
+            z-index: 20;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="universe">
+        <div id="camera">
+
+            <!-- Initial Monolith -->
+            <div class="monolith" id="monolith">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+                <h2>Monolith</h2>
+                <div style="font-size: 12px; color: #94A3B8; margin-top: 8px;">Tightly Coupled</div>
+                <svg class="monolith-mess" viewBox="0 0 100 100">
+                    <path fill="none" stroke="#EF4444" stroke-width="2"
+                        d="M10,10 Q50,90 90,10 T10,90 Q50,10 90,90 T10,10" />
+                </svg>
+            </div>
+
+            <!-- TOP: Control Plane -->
+            <div class="plane" id="plane-control">
+                <div class="plane-label">Control Plane<div class="plane-sublabel">The Brain (Next.js 15)</div>
+                </div>
+
+                <svg class="wiring" viewBox="0 0 1000 800">
+                    <!-- BG Paths -->
+                    <path class="wire-bg" d="M 200 400 L 500 400" />
+                    <path class="wire-bg" d="M 500 400 L 800 400" />
+                    <!-- Flow Paths -->
+                    <path class="wire-flow" id="flow-api-brain" d="M 200 400 L 500 400" />
+                    <path class="wire-flow" id="flow-brain-redis" d="M 500 400 L 800 400" />
+                </svg>
+
+                <div class="node n-control" style="left: 200px; top: 400px;">
+                    <div class="node-icon"><svg viewBox="0 0 24 24">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                        </svg></div>
+                    <div class="node-text">
+                        <div class="node-title">REST API</div>
+                        <div class="node-desc">Clean Interface</div>
+                    </div>
+                </div>
+
+                <div class="node n-control" id="node-brain"
+                    style="left: 500px; top: 400px; transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 15px 30px rgba(139, 92, 246, 0.2);">
+                    <div class="node-icon" style="background: var(--control-accent); color: white; stroke: white;">
+                        <svg viewBox="0 0 24 24">
+                            <path
+                                d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" />
+                            <path
+                                d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
+                        </svg>
+                    </div>
+                    <div class="node-text">
+                        <div class="node-title">Next.js 15</div>
+                        <div class="node-desc">AI Prompt Engine</div>
+                    </div>
+                </div>
+
+                <div class="node n-control" id="node-redis" style="left: 800px; top: 400px;">
+                    <div class="node-icon"><svg viewBox="0 0 24 24">
+                            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                        </svg></div>
+                    <div class="node-text">
+                        <div class="node-title">Redis DB</div>
+                        <div class="node-desc">State Management</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MIDDLE: Compute Plane -->
+            <div class="plane" id="plane-compute">
+                <div class="plane-label">Compute Plane<div class="plane-sublabel">The Muscle (GitHub Actions)</div>
+                </div>
+
+                <div class="json-badge" id="json-badge">{ JSON } Purely Functional</div>
+
+                <svg class="wiring" viewBox="0 0 1000 800">
+                    <!-- BG -->
+                    <path class="wire-bg" d="M 120 400 L 280 400" /> <!-- Trig -> N1 -->
+                    <path class="wire-bg" d="M 280 400 L 480 400" /> <!-- N1 -> N2 -->
+                    <path class="wire-bg" d="M 480 400 L 530 400 L 530 200 L 680 200" /> <!-- N2 -> N3 -->
+                    <path class="wire-bg" d="M 480 400 L 530 400 L 530 600 L 680 600" /> <!-- N2 -> N4 -->
+                    <path class="wire-bg" d="M 680 200 L 800 200 L 800 400 L 880 400" /> <!-- N3 -> N5 -->
+                    <path class="wire-bg" d="M 680 600 L 800 600 L 800 400 L 880 400" /> <!-- N4 -> N5 -->
+
+                    <!-- Flows -->
+                    <path class="wire-flow" id="f-c-0" d="M 120 400 L 280 400" />
+                    <path class="wire-flow" id="f-c-1" d="M 280 400 L 480 400" />
+                    <path class="wire-flow" id="f-c-2" d="M 480 400 L 530 400 L 530 200 L 680 200" />
+                    <path class="wire-flow" id="f-c-3" d="M 480 400 L 530 400 L 530 600 L 680 600" />
+                    <path class="wire-flow" id="f-c-4" d="M 680 200 L 800 200 L 800 400 L 880 400" />
+                    <path class="wire-flow" id="f-c-5" d="M 680 600 L 800 600 L 800 400 L 880 400" />
+                </svg>
+
+                <!-- DAG Nodes -->
+                <div class="node n-compute" id="n-trig"
+                    style="left: 120px; top: 400px; padding: 12px; border-radius: 50%;">
+                    <div class="node-icon" style="margin:0; width:32px; height:32px;"><svg viewBox="0 0 24 24">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg></div>
+                </div>
+
+                <div class="node n-compute" id="n-1" style="left: 280px; top: 400px;">
+                    <div class="node-icon"><svg viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg></div>
+                    <div class="node-text">
+                        <div class="node-title">1. Research</div>
+                        <div class="node-desc">Microservice</div>
+                    </div>
+                </div>
+
+                <div class="node n-compute" id="n-2" style="left: 480px; top: 400px;">
+                    <div class="node-icon"><svg viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg></div>
+                    <div class="node-text">
+                        <div class="node-title">2. Script</div>
+                        <div class="node-desc">Microservice</div>
+                    </div>
+                </div>
+
+                <div class="node n-compute" id="n-3" style="left: 680px; top: 200px;">
+                    <div class="node-icon"><svg viewBox="0 0 24 24">
+                            <path d="M12 2v20M17 7v10M22 10v4M7 7v10M2 10v4"></path>
+                        </svg></div>
+                    <div class="node-text">
+                        <div class="node-title">3. Voice</div>
+                        <div class="node-desc">Microservice</div>
+                    </div>
+                </div>
+
+                <div class="node n-compute" id="n-4" style="left: 680px; top: 600px;">
+                    <div class="node-icon"><svg viewBox="0 0 24 24">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg></div>
+                    <div class="node-text">
+                        <div class="node-title">4. Canvas UI</div>
+                        <div class="node-desc">Microservice</div>
+                    </div>
+                </div>
+
+                <div class="node n-compute" id="n-5" style="left: 880px; top: 400px;">
+                    <div class="node-icon"><svg viewBox="0 0 24 24">
+                            <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                        </svg></div>
+                    <div class="node-text">
+                        <div class="node-title">5. Render</div>
+                        <div class="node-desc">Microservice</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTTOM: Data Plane -->
+            <div class="plane" id="plane-data">
+                <div class="plane-label">Data Plane<div class="plane-sublabel">State Storage (Cloudinary)</div>
+                </div>
+
+                <div class="data-lake" id="data-lake">
+                    Cloudinary Asset Storage
+                </div>
+
+                <svg class="wiring" viewBox="0 0 1000 800">
+                    <!-- Return URLs on Data Plane -->
+                    <path class="wire-bg" d="M 680 200 L 880 200 L 880 400" />
+                    <path class="wire-bg" d="M 680 600 L 880 600 L 880 400" />
+
+                    <path class="wire-flow" id="f-d-url1" d="M 680 200 L 880 200 L 880 400" />
+                    <path class="wire-flow" id="f-d-url2" d="M 680 600 L 880 600 L 880 400" />
+                </svg>
+            </div>
+
+            <!-- Vertical Connectors (Z-Lines) relative to Camera Center -->
+            <!-- Center of planes is camera (0,0). Width 1000, Height 800. 
+             So X inside plane = X - 500. Y inside plane = Y - 400. -->
+
+            <!-- Drops from Voice N3 (680, 200) -> X: 180, Y: -200 -->
+            <div class="z-line" id="z-drop-1"
+                style="left: calc(50% + 180px); top: calc(50% - 200px); transform: translateZ(0) rotateX(-90deg); height: 300px;">
+                <div class="packet packet-asset" id="p-drop-1" style="transform: translateY(0px)">AUDIO.MP3</div>
+            </div>
+
+            <!-- Drops from Anim N4 (680, 600) -> X: 180, Y: 200 -->
+            <div class="z-line" id="z-drop-2"
+                style="left: calc(50% + 180px); top: calc(50% + 200px); transform: translateZ(0) rotateX(-90deg); height: 300px;">
+                <div class="packet packet-asset" id="p-drop-2" style="transform: translateY(0px)">VIDEO.MP4</div>
+            </div>
+
+            <!-- Rises to Render N5 (880, 400) -> X: 380, Y: 0 -->
+            <div class="z-line" id="z-rise"
+                style="left: calc(50% + 380px); top: calc(50% + 0px); transform: translateZ(0) rotateX(-90deg); height: 300px;">
+                <div class="packet packet-url" id="p-rise-1" style="transform: translateY(300px)">URL</div>
+                <div class="packet packet-url" id="p-rise-2" style="transform: translateY(300px)">URL</div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Math Utilities
+        function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+        function interp(t, tStart, tEnd, vStart, vEnd, ease = 'easeInOutCubic') {
+            if (t <= tStart) return vStart;
+            if (t >= tEnd) return vEnd;
+            let p = (t - tStart) / (tEnd - tStart);
+
+            if (ease === 'easeOutCubic') p = 1 - Math.pow(1 - p, 3);
+            else if (ease === 'easeInOutCubic') p = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+            else if (ease === 'easeOutBack') {
+                const c1 = 1.70158; const c3 = c1 + 1;
+                p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
+            }
+            else if (ease === 'linear') p = p;
+
+            return vStart + (vEnd - vStart) * p;
+        }
+
+        // DOM Elements
+        const cam = document.getElementById('camera');
+        const monolith = document.getElementById('monolith');
+        const planeControl = document.getElementById('plane-control');
+        const planeCompute = document.getElementById('plane-compute');
+        const planeData = document.getElementById('plane-data');
+
+        // Flow Paths
+        const flowApiBrain = document.getElementById('flow-api-brain');
+        const flowBrainRedis = document.getElementById('flow-brain-redis');
+
+        const fc0 = document.getElementById('f-c-0');
+        const fc1 = document.getElementById('f-c-1');
+        const fc2 = document.getElementById('f-c-2');
+        const fc3 = document.getElementById('f-c-3');
+        const fc4 = document.getElementById('f-c-4');
+        const fc5 = document.getElementById('f-c-5');
+
+        const fdUrl1 = document.getElementById('f-d-url1');
+        const fdUrl2 = document.getElementById('f-d-url2');
+
+        // Initial Path setup
+        function setupPath(el, len) {
+            if (!el) return;
+            el.style.strokeDasharray = len;
+            el.style.strokeDashoffset = len;
+        }
+        setupPath(flowApiBrain, 300); setupPath(flowBrainRedis, 300);
+        setupPath(fc0, 160); setupPath(fc1, 200);
+        setupPath(fc2, 350); setupPath(fc3, 350);
+        setupPath(fc4, 300); setupPath(fc5, 300);
+        setupPath(fdUrl1, 400); setupPath(fdUrl2, 400);
+
+        // Compute Nodes
+        const cnIds = ['n-trig', 'n-1', 'n-2', 'n-3', 'n-4', 'n-5'];
+        const cNodes = cnIds.map(id => document.getElementById(id));
+        const jsonBadge = document.getElementById('json-badge');
+
+        // Z-Lines & Packets
+        const zLines = [document.getElementById('z-drop-1'), document.getElementById('z-drop-2'), document.getElementById('z-rise')];
+        const pDrop1 = document.getElementById('p-drop-1');
+        const pDrop2 = document.getElementById('p-drop-2');
+        const pRise1 = document.getElementById('p-rise-1');
+        const pRise2 = document.getElementById('p-rise-2');
+        const dataLake = document.getElementById('data-lake');
+
+        // State Variables
+        let zSpacing = 0;
+
+        window.renderFrame = function (t) {
+            // --- 1. Scene Transitions & Camera (0 to 35s) ---
+
+            // Split Monolith
+            let monoOp = interp(t, 2, 2.5, 1, 0, 'easeOutCubic');
+            let monoShake = Math.sin(t * 30) * interp(t, 0, 2, 0, 8);
+            if (t > 2.5) monoShake = 0;
+            monolith.style.opacity = monoOp;
+            monolith.style.transform = `scale(${interp(t, 0, 2.5, 1, 1.2)}) translateX(${monoShake}px)`;
+
+            // Plane Separation
+            let planeOp = interp(t, 2.5, 3.5, 0, 1, 'easeOutCubic');
+            planeControl.style.opacity = planeOp;
+            planeCompute.style.opacity = planeOp;
+            planeData.style.opacity = planeOp;
+
+            zSpacing = interp(t, 2.5, 4.5, 0, 300, 'easeInOutCubic');
+
+            planeControl.style.transform = `translate(-50%, -50%) translateZ(${zSpacing}px)`;
+            planeCompute.style.transform = `translate(-50%, -50%) translateZ(0px)`;
+            planeData.style.transform = `translate(-50%, -50%) translateZ(${-zSpacing}px)`;
+
+            // Z-lines opacity based on separation
+            zLines.forEach(l => l.style.opacity = interp(t, 3.5, 4.5, 0, 1));
+
+            // Camera Math
+            let camX = interp(t, 2.5, 4.5, 0, 60, 'easeInOutCubic');
+            camX = interp(t, 4.5, 6, camX, 45, 'easeInOutCubic'); // Zoom Top
+            camX = interp(t, 11, 13, camX, 60, 'easeInOutCubic'); // Zoom Mid
+            camX = interp(t, 19, 21.5, camX, 70, 'easeInOutCubic'); // Tilt for Bottom
+            camX = interp(t, 29, 32, camX, 55, 'easeInOutCubic'); // Final Wide
+
+            let camZrot = interp(t, 2.5, 4.5, 0, -40, 'easeInOutCubic');
+            camZrot = interp(t, 4.5, 6, camZrot, -20, 'easeInOutCubic');
+            camZrot = interp(t, 11, 13, camZrot, -35, 'easeInOutCubic');
+            camZrot = interp(t, 19, 21.5, camZrot, -25, 'easeInOutCubic');
+            camZrot = interp(t, 29, 32, camZrot, -45, 'easeInOutCubic');
+
+            let camZoom = interp(t, 4.5, 6, 0, 300, 'easeInOutCubic'); // Zoom into Control (pulls screen closer)
+            camZoom = interp(t, 11, 13, camZoom, 200, 'easeInOutCubic'); // Mid
+            camZoom = interp(t, 19, 21.5, camZoom, 0, 'easeInOutCubic'); // Pull out for data
+            camZoom = interp(t, 29, 32, camZoom, -300, 'easeInOutCubic'); // Final Wide
+
+            let camYPan = interp(t, 4.5, 6, 0, 150, 'easeInOutCubic');
+            camYPan = interp(t, 11, 13, camYPan, -50, 'easeInOutCubic');
+            camYPan = interp(t, 19, 21.5, camYPan, -150, 'easeInOutCubic');
+            camYPan = interp(t, 29, 32, camYPan, 0, 'easeInOutCubic');
+
+            let camZPan = interp(t, 4.5, 6, 0, -300, 'easeInOutCubic'); // Shift coordinate system down
+            camZPan = interp(t, 11, 13, camZPan, 0, 'easeInOutCubic'); // Center
+            camZPan = interp(t, 19, 21.5, camZPan, 100, 'easeInOutCubic');
+            camZPan = interp(t, 29, 32, camZPan, 0, 'easeInOutCubic');
+
+            // Apply Camera
+            cam.style.transform = `translateZ(${camZoom}px) rotateX(${camX}deg) rotateZ(${camZrot}deg) translateY(${camYPan}px) translateZ(${camZPan}px)`;
+
+            // --- 2. Control Plane Actions (6s - 11.5s) ---
+            if (t > 6) {
+                flowApiBrain.style.opacity = 1; flowBrainRedis.style.opacity = 1;
+
+                // Flow animation (loops via modulo)
+                let actT = Math.max(0, t - 6);
+                flowApiBrain.style.strokeDashoffset = 300 - (actT * 150) % 600;
+                flowBrainRedis.style.strokeDashoffset = 300 - (actT * 150) % 600;
+
+                // Brain Pulse
+                let bScale = 1.1 + Math.sin(actT * 4) * 0.05;
+                document.getElementById('node-brain').style.transform = `translate(-50%, -50%) scale(${bScale})`;
+            } else {
+                flowApiBrain.style.opacity = 0; flowBrainRedis.style.opacity = 0;
+                document.getElementById('node-brain').style.transform = `translate(-50%, -50%) scale(1.1)`;
+            }
+
+            // --- 3. Compute Plane Actions (12s - 20s) ---
+            // Pop in nodes
+            cNodes.forEach((n, i) => {
+                let tIn = 12 + i * 0.3;
+                n.style.transform = `translate(-50%, -50%) scale(${interp(t, tIn, tIn + 0.5, 0, 1, 'easeOutBack')})`;
+                n.style.opacity = interp(t, tIn, tIn + 0.2, 0, 1);
+            });
+
+            // JSON Badge
+            jsonBadge.style.opacity = interp(t, 15, 16, 0, 1);
+            jsonBadge.style.transform = `translate(-50%, -50%) translateY(${interp(t, 15, 16, 20, 0, 'easeOutBack')}px)`;
+
+            // JSON Data Flows
+            if (t > 14) {
+                [fc0, fc1, fc2, fc3].forEach(f => f.style.opacity = 1);
+                let flowT = Math.max(0, t - 14);
+                fc0.style.strokeDashoffset = 160 - (flowT * 150) % 320;
+                fc1.style.strokeDashoffset = 200 - (flowT * 150) % 400;
+                fc2.style.strokeDashoffset = 350 - (flowT * 150) % 700;
+                fc3.style.strokeDashoffset = 350 - (flowT * 150) % 700;
+            } else {
+                [fc0, fc1, fc2, fc3].forEach(f => f.style.opacity = 0);
+            }
+
+            // --- 4. Data Plane Actions (20s - 28s) ---
+            // Assets Drop (Z Drops)
+
+            let dropT1 = clamp(t, 22, 23.5);
+            let dropT2 = clamp(t, 22.5, 24);
+
+            if (t > 22) {
+                pDrop1.style.opacity = interp(t, 22, 22.2, 0, 1) * interp(t, 23.3, 23.5, 1, 0);
+                pDrop2.style.opacity = interp(t, 22.5, 22.7, 0, 1) * interp(t, 23.8, 24.0, 1, 0);
+
+                pDrop1.style.transform = `translateX(-50%) translateY(${interp(dropT1, 22, 23.5, 0, zSpacing, 'easeInCubic')}px)`;
+                pDrop2.style.transform = `translateX(-50%) translateY(${interp(dropT2, 22.5, 24, 0, zSpacing, 'easeInCubic')}px)`;
+
+                // Cloudinary Lake Glow
+                let lakeGlow = interp(t, 23.3, 24, 0, 1) * interp(t, 26, 28, 1, 0);
+                dataLake.style.boxShadow = `0 0 ${lakeGlow * 60}px rgba(16, 185, 129, 0.6)`;
+                dataLake.style.background = `linear-gradient(135deg, rgba(209, 250, 229, ${0.5 + lakeGlow * 0.3}), rgba(16, 185, 129, ${0.1 + lakeGlow * 0.4}))`;
+            }
+
+            // URL Routes on Data Plane
+            if (t > 23.5) {
+                fdUrl1.style.opacity = interp(t, 23.5, 24, 0, 1);
+                let u1T = clamp(t, 23.5, 25.5);
+                fdUrl1.style.strokeDashoffset = interp(u1T, 23.5, 25.5, 400, 0, 'easeInOutCubic');
+            } else { fdUrl1.style.opacity = 0; }
+
+            if (t > 24.0) {
+                fdUrl2.style.opacity = interp(t, 24.0, 26.0, 0, 1);
+                let u2T = clamp(t, 24.0, 26.0);
+                fdUrl2.style.strokeDashoffset = interp(u2T, 24.0, 26.0, 400, 0, 'easeInOutCubic');
+            } else { fdUrl2.style.opacity = 0; }
+
+            // URLs Rise (Z Rise)
+            let riseT1 = clamp(t, 25.5, 27.0);
+            let riseT2 = clamp(t, 26.0, 27.5);
+
+            if (t > 25.5) {
+                pRise1.style.opacity = interp(t, 25.5, 25.7, 0, 1) * interp(t, 26.8, 27.0, 1, 0);
+                pRise1.style.transform = `translateX(-50%) translateY(${interp(riseT1, 25.5, 27.0, zSpacing, 0, 'easeOutCubic')}px)`;
+            }
+            if (t > 26.0) {
+                pRise2.style.opacity = interp(t, 26.0, 26.2, 0, 1) * interp(t, 27.3, 27.5, 1, 0);
+                pRise2.style.transform = `translateX(-50%) translateY(${interp(riseT2, 26.0, 27.5, zSpacing, 0, 'easeOutCubic')}px)`;
+            }
+
+            // N5 Render Activity
+            if (t > 26.5) {
+                fc4.style.opacity = 1; fc5.style.opacity = 1;
+                let n5FlowT = Math.max(0, t - 26.5);
+                fc4.style.strokeDashoffset = 300 - (n5FlowT * 150) % 600;
+                fc5.style.strokeDashoffset = 300 - (n5FlowT * 150) % 600;
+
+                let n5Scale = 1 + Math.sin(n5FlowT * 10) * 0.05 * interp(t, 26.5, 28, 1, 0); // Burst
+                n5Scale += Math.sin(t * 3) * 0.02; // Continual breathing
+                cNodes[5].style.transform = `translate(-50%, -50%) scale(${n5Scale})`;
+                cNodes[5].style.boxShadow = `0 10px 30px rgba(59, 130, 246, ${interp(t, 26.5, 28, 0, 0.4)})`;
+            } else {
+                fc4.style.opacity = 0; fc5.style.opacity = 0;
+                cNodes[5].style.boxShadow = `0 10px 20px -5px rgba(0,0,0,0.05)`;
+            }
+
+            // --- Continuous Pipeline Loop (After 28s) ---
+            if (t > 28) {
+                // Re-trigger drops every 4 seconds
+                let loopT = (t - 28) % 4;
+
+                // Packets down
+                if (loopT < 1.5) {
+                    pDrop1.style.opacity = interp(loopT, 0, 0.2, 0, 1) * interp(loopT, 1.3, 1.5, 1, 0);
+                    pDrop1.style.transform = `translateX(-50%) translateY(${interp(loopT, 0, 1.5, 0, zSpacing, 'easeInCubic')}px)`;
+                } else { pDrop1.style.opacity = 0; }
+
+                if (loopT > 0.5 && loopT < 2.0) {
+                    pDrop2.style.opacity = interp(loopT, 0.5, 0.7, 0, 1) * interp(loopT, 1.8, 2.0, 1, 0);
+                    pDrop2.style.transform = `translateX(-50%) translateY(${interp(loopT, 0.5, 2.0, 0, zSpacing, 'easeInCubic')}px)`;
+                } else { pDrop2.style.opacity = 0; }
+
+                // URL paths
+                fdUrl1.style.strokeDashoffset = 400 - (loopT * 300) % 800;
+                fdUrl2.style.strokeDashoffset = 400 - ((loopT + 0.5) * 300) % 800;
+
+                // URLs up
+                if (loopT > 1.5 && loopT < 3.0) {
+                    pRise1.style.opacity = interp(loopT, 1.5, 1.7, 0, 1) * interp(loopT, 2.8, 3.0, 1, 0);
+                    pRise1.style.transform = `translateX(-50%) translateY(${interp(loopT, 1.5, 3.0, zSpacing, 0, 'easeOutCubic')}px)`;
+                } else { pRise1.style.opacity = 0; }
+
+                if (loopT > 2.0 && loopT < 3.5) {
+                    pRise2.style.opacity = interp(loopT, 2.0, 2.2, 0, 1) * interp(loopT, 3.3, 3.5, 1, 0);
+                    pRise2.style.transform = `translateX(-50%) translateY(${interp(loopT, 2.0, 3.5, zSpacing, 0, 'easeOutCubic')}px)`;
+                } else { pRise2.style.opacity = 0; }
+            }
+        };
+
+        // Auto-play for testing if external caller doesn't override
+        // Commented out to adhere strictly to rules, but ready if needed.
+
+        let start = performance.now();
+        function loop() {
+            let t = (performance.now() - start) / 1000;
+            window.renderFrame(t);
+            requestAnimationFrame(loop);
+        }
+        loop();
+
+
+    </script>
+</body>
+
+</html>

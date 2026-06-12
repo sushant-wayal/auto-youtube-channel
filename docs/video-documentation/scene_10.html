@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Pipeline: Architecture Summary</title>
+    <style>
+        :root {
+            /* Premium Light SaaS Theme */
+            --bg: #F8FAFC;
+            --surface: #FFFFFF;
+            --surface-alt: #F1F5F9;
+            --grid: #E2E8F0;
+            --border: #CBD5E1;
+            
+            --text-main: #0F172A;
+            --text-mut: #64748B;
+            
+            --blue: #3B82F6;
+            --blue-light: #DBEAFE;
+            --purple: #8B5CF6;
+            --purple-light: #EDE9FE;
+            --green: #10B981;
+            --green-light: #D1FAE5;
+            --red: #EF4444;
+            --red-light: #FEE2E2;
+            --orange: #F59E0B;
+            
+            --slate: #1E293B;
+
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
+            background-color: var(--bg); font-family: var(--font);
+            overflow: hidden; display: flex; justify-content: center; align-items: center;
+        }
+
+        #app {
+             position: absolute; left: 50%; top: 50%; margin-left: -960px; margin-top: -540px; width: 1920px; height: 1080px;
+            background-color: var(--bg);
+            background-image: radial-gradient(var(--border) 1px, transparent 1px);
+            background-size: 32px 32px; overflow: hidden;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.03);
+        }
+
+        #world {
+            position: absolute; top: 0; left: 0; width: 6000px; height: 2000px;
+            transform-origin: 0 0; will-change: transform;
+        }
+
+        /* --- GLOBAL UTILS --- */
+        .node {
+            position: absolute; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);
+            display: flex; align-items: center; padding: 24px;
+            transform: translate(-50%, -50%); z-index: 10;
+        }
+        .node-col { flex-direction: column; align-items: flex-start; gap: 4px; }
+        .node-center { flex-direction: column; align-items: center; text-align: center; }
+        
+        .icon-box {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; justify-content: center; align-items: center;
+            flex-shrink: 0; margin-right: 16px;
+        }
+        .icon-box.top { margin-right: 0; margin-bottom: 16px; width: 64px; height: 64px; border-radius: 16px;}
+        .icon-box svg { width: 24px; height: 24px; stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+        .icon-box.top svg { width: 32px; height: 32px; }
+
+        .title { font-weight: 800; font-size: 20px; color: var(--text-main); line-height: 1.2; letter-spacing: -0.5px;}
+        .sub { font-weight: 600; font-size: 14px; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.5px; }
+        .desc { font-weight: 500; font-size: 15px; color: var(--text-mut); margin-top: 8px; line-height: 1.5; max-width: 280px;}
+
+        /* --- ZONE 1: THE BUS --- */
+        .bus-line {
+            position: absolute; width: 1400px; height: 8px;
+            background: var(--grid); border-radius: 4px;
+            top: 540px; left: 100px; z-index: 1;
+        }
+        .bus-flow {
+            position: absolute; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, var(--purple), transparent);
+            border-radius: 4px; top: 0; left: 0; transform-origin: left; opacity: 0;
+        }
+        .pure-fn {
+            font-family: var(--font-mono); font-weight: 800; font-size: 14px;
+            color: var(--blue); background: var(--blue-light);
+            padding: 6px 12px; border-radius: 8px; margin-top: 12px; border: 1px solid rgba(59,130,246,0.3);
+        }
+        .hex-packet {
+            position: absolute; background: var(--slate); color: #C4B5FD;
+            font-family: var(--font-mono); font-size: 14px; font-weight: 700;
+            padding: 8px 16px; border-radius: 20px; border: 1px solid #4C1D95;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1); transform: translate(-50%, -50%);
+            z-index: 20; opacity: 0; display: flex; align-items: center; gap: 8px;
+        }
+
+        /* --- ZONE 2: SOLUTIONS --- */
+        .sol-box {
+            position: absolute; width: 500px; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 20px; padding: 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05); transform: translate(-50%, -50%);
+            display: flex; flex-direction: column; gap: 24px; opacity: 0;
+        }
+        .sol-title { font-weight: 800; font-size: 24px; color: var(--text-main); display: flex; align-items: center; gap: 12px;}
+        
+        /* Async Graphic */
+        .gantt-row { display: flex; align-items: center; gap: 16px; }
+        .gantt-label { width: 80px; font-weight: 700; font-size: 13px; color: var(--text-mut); text-align: right; }
+        .gantt-track { flex-grow: 1; height: 24px; background: var(--grid); border-radius: 12px; position: relative; overflow: hidden;}
+        .gantt-bar { position: absolute; height: 100%; border-radius: 12px; display: flex; align-items: center; padding: 0 12px; font-size: 11px; font-weight: 800; color: white; }
+        
+        /* Batch Graphic */
+        .batch-flow { display: flex; align-items: center; gap: 16px; justify-content: center; background: var(--surface-alt); padding: 16px; border-radius: 12px; border: 1px dashed var(--border);}
+        .b-doc { width: 32px; height: 40px; background: white; border: 2px solid var(--purple); border-radius: 6px; display: flex; justify-content: center; align-items: center; font-size: 10px; font-weight: 800; color: var(--purple); }
+        .b-arrow { color: var(--text-mut); font-weight: 800; }
+        .b-engine { padding: 8px 16px; background: var(--purple); color: white; border-radius: 8px; font-weight: 800; font-size: 12px;}
+        .b-out { display: flex; gap: 4px; }
+        .b-wav { width: 20px; height: 24px; background: var(--blue-light); border: 2px solid var(--blue); border-radius: 4px; }
+
+        /* WAV Graphic */
+        .wav-hack { display: flex; align-items: center; gap: 8px; justify-content: center; font-family: var(--font-mono); font-weight: 700; font-size: 14px;}
+        .w-hdr { background: var(--blue); color: white; padding: 8px 12px; border-radius: 8px; box-shadow: 0 4px 10px rgba(59,130,246,0.3);}
+        .w-pcm { background: var(--grid); color: var(--text-mut); padding: 8px 12px; border-radius: 8px; }
+
+        /* --- ZONE 3: TRADEOFFS --- */
+        .trade-box {
+            position: absolute; width: 600px; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 20px; padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05); transform: translate(-50%, -50%); opacity: 0;
+        }
+        .gauge-container { display: flex; justify-content: space-around; margin-top: 32px; }
+        .gauge { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .g-circle { width: 120px; height: 120px; border-radius: 50%; border: 8px solid var(--grid); position: relative; display: flex; justify-content: center; align-items: center; font-size: 24px; font-weight: 900; color: var(--text-main); }
+        .g-fill { position: absolute; top: -8px; left: -8px; width: 120px; height: 120px; border-radius: 50%; border: 8px solid transparent; border-top-color: var(--blue); border-right-color: var(--blue); transform: rotate(-45deg); opacity: 0;}
+        .g-fill.green { border-top-color: var(--green); border-right-color: var(--green); border-bottom-color: var(--green); border-left-color: var(--green); transition: all 1s; }
+        .g-label { font-weight: 800; font-size: 16px; color: var(--text-mut); text-transform: uppercase; letter-spacing: 1px;}
+        
+        .cpu-chart { margin-top: 40px; height: 80px; width: 100%; border-bottom: 2px solid var(--border); border-left: 2px solid var(--border); position: relative; }
+        .cpu-line { position: absolute; top: 50%; left: 0; width: 0%; height: 4px; background: var(--green); box-shadow: 0 0 10px var(--green); border-radius: 2px;}
+        .cpu-label { position: absolute; right: 0; top: 10px; font-family: var(--font-mono); font-weight: 800; color: var(--green); font-size: 14px; opacity: 0;}
+
+        /* --- ZONE 4: THE PATTERN --- */
+        .pillar {
+            position: absolute; width: 340px; height: 400px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 24px; padding: 40px; box-sizing: border-box;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.05);
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            transform: translate(-50%, -50%) translateY(50px); opacity: 0;
+        }
+        .p-graphic { width: 100%; flex-grow: 1; display: flex; justify-content: center; align-items: center; position: relative; }
+        
+        /* Pillar 1: Deterministic Wrapper */
+        .wrap-core { width: 60px; height: 60px; background: var(--purple-light); border-radius: 12px; display: flex; justify-content: center; align-items: center; color: var(--purple); z-index: 2; }
+        .wrap-shield { position: absolute; width: 100px; height: 100px; border: 4px solid var(--purple); border-radius: 20px; z-index: 1; }
+        
+        /* Pillar 2: Stateless Compute */
+        .stateless-box { width: 80px; height: 80px; border: 3px dashed var(--blue); border-radius: 16px; display: flex; justify-content: center; align-items: center; color: var(--blue); background: rgba(59,130,246,0.05);}
+        .s-arrow { position: absolute; color: var(--border); }
+        
+        /* Pillar 3: Central State */
+        .state-core { width: 80px; height: 80px; background: var(--green); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: white; box-shadow: 0 10px 20px rgba(16,185,129,0.3); z-index: 2;}
+        .state-orbit { position: absolute; width: 160px; height: 160px; border: 2px dashed var(--green-light); border-radius: 50%; z-index: 1; animation: spin 10s linear infinite;}
+        .orb { position: absolute; width: 16px; height: 16px; background: var(--green); border-radius: 50%; top: -8px; left: 72px; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* --- OUTRO --- */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 1920px; height: 1080px;
+            background: rgba(248, 250, 252, 0.8); backdrop-filter: blur(20px);
+            z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none;
+        }
+        .outro-title { font-size: 64px; font-weight: 900; color: var(--text-main); letter-spacing: -2px; margin-bottom: 40px; transform: translateY(20px); opacity: 0;}
+        .sub-btn {
+            background: #27272A; color: white; font-weight: 800; font-size: 24px;
+            padding: 20px 48px; border-radius: 40px; display: flex; align-items: center; gap: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2); transform: translateY(20px); opacity: 0;
+            transition: background 0.3s, color 0.3s, transform 0.1s;
+        }
+        .sub-btn.active { background: var(--grid); color: var(--text-mut); box-shadow: none; }
+        .cursor {
+            position: absolute; width: 40px; height: 40px; background: rgba(0,0,0,0.1);
+            border-radius: 50%; border: 2px solid rgba(0,0,0,0.2); z-index: 101;
+            transform: translate(-50%, -50%); opacity: 0;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="world">
+        
+        <!-- ================= ZONE 1: DECOUPLING & BUS ================= -->
+        <div class="bus-line" id="bus-line">
+            <div class="bus-flow" id="bus-flow"></div>
+        </div>
+
+        <div class="node node-center" id="w1" style="left: 300px; top: 540px;">
+            <div class="icon-box top" style="background: var(--blue-light); color: var(--blue);"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+            <div class="title">Worker 1</div><div class="sub">Idea Gen</div>
+            <div class="pure-fn">f(state) ➔ json</div>
+        </div>
+
+        <div class="node node-center" id="w2" style="left: 700px; top: 540px;">
+            <div class="icon-box top" style="background: var(--purple-light); color: var(--purple);"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            <div class="title">Worker 2</div><div class="sub">Script IR</div>
+            <div class="pure-fn">f(json) ➔ json</div>
+        </div>
+
+        <div class="node node-center" id="w3" style="left: 1100px; top: 540px;">
+            <div class="icon-box top" style="background: var(--green-light); color: var(--green);"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></div>
+            <div class="title">Worker 3</div><div class="sub">Voiceover</div>
+            <div class="pure-fn">f(json) ➔ wav</div>
+        </div>
+
+        <div class="hex-packet" id="hex-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17L10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            7b226964...
+        </div>
+        <div class="hex-packet" id="hex-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17L10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            636c6970...
+        </div>
+
+        <!-- ================= ZONE 2: SOLUTIONS ================= -->
+        <!-- Async Compute Box -->
+        <div class="sol-box" id="sol-1" style="left: 2000px; top: 340px;">
+            <div class="sol-title">
+                <div class="icon-box" style="background: var(--purple-light); color: var(--purple); margin:0;"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                Async Compute Overlap
+            </div>
+            <div>
+                <div class="gantt-row" style="margin-bottom: 12px;">
+                    <div class="gantt-label">Background</div>
+                    <div class="gantt-track">
+                        <div class="gantt-bar" id="gb-1" style="width: 0%; background: var(--purple);">Wait 22s</div>
+                    </div>
+                </div>
+                <div class="gantt-row">
+                    <div class="gantt-label">Main Thread</div>
+                    <div class="gantt-track">
+                        <div class="gantt-bar" id="gb-2" style="width: 0%; background: var(--blue);">Heavy Render</div>
+                    </div>
+                </div>
+            </div>
+            <div class="desc" style="max-width:100%; margin:0;">Hides API rate-limit penalties completely behind rendering time.</div>
+        </div>
+
+        <!-- Batch & Wav Box -->
+        <div class="sol-box" id="sol-2" style="left: 2000px; top: 740px;">
+            <div class="sol-title">
+                <div class="icon-box" style="background: var(--blue-light); color: var(--blue); margin:0;"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                Optimized ML & Binary
+            </div>
+            
+            <div class="batch-flow">
+                <div class="b-doc">JSON</div>
+                <div class="b-arrow">➔</div>
+                <div class="b-engine">F5-TTS Batch</div>
+                <div class="b-arrow">➔</div>
+                <div class="b-out"><div class="b-wav"></div><div class="b-wav"></div><div class="b-wav"></div></div>
+            </div>
+
+            <div class="wav-hack">
+                <div class="w-hdr" id="wh-1">44-Byte Header</div>
+                <div>+</div>
+                <div class="w-pcm" id="wh-2">00 00 00... (Silence)</div>
+            </div>
+            
+            <div class="desc" style="max-width:100%; margin:0;">Batches heavy PyTorch models and constructs empty WAV files via raw buffer injection.</div>
+        </div>
+
+
+        <!-- ================= ZONE 3: TRADEOFFS ================= -->
+        <div class="trade-box" id="trade-box" style="left: 3200px; top: 540px;">
+            <div class="sol-title" style="justify-content:center; font-size: 32px; margin-bottom: 16px;">The Tradeoff</div>
+            <div class="desc" style="max-width:100%; text-align:center; font-size:18px;">Sacrificing raw speed for absolute stability in CI/CD.</div>
+            
+            <div class="gauge-container">
+                <div class="gauge">
+                    <div class="g-circle" id="g-speed">
+                        <div class="g-fill" id="gf-speed"></div>
+                        <span id="gt-speed">100%</span>
+                    </div>
+                    <div class="g-label">Speed</div>
+                </div>
+                <div class="gauge">
+                    <div class="g-circle" id="g-stab">
+                        <div class="g-fill" id="gf-stab"></div>
+                        <span id="gt-stab">50%</span>
+                    </div>
+                    <div class="g-label">Stability</div>
+                </div>
+            </div>
+
+            <div class="cpu-chart">
+                <div class="cpu-line" id="cpu-line"></div>
+                <div class="cpu-label" id="cpu-label">-threads 1 (Safe)</div>
+            </div>
+        </div>
+
+
+        <!-- ================= ZONE 4: THE PATTERN ================= -->
+        <div class="pillar" id="pil-1" style="left: 4200px; top: 540px;">
+            <div class="p-graphic">
+                <div class="wrap-shield" id="w-shield"></div>
+                <div class="wrap-core">LLM</div>
+            </div>
+            <div class="title">Deterministic Wrappers</div>
+            <div class="desc">Never trust raw AI output. Force strict schemas and mathematically validate ideas.</div>
+        </div>
+
+        <div class="pillar" id="pil-2" style="left: 4600px; top: 540px;">
+            <div class="p-graphic">
+                <div class="s-arrow" style="left:40px;">➔</div>
+                <div class="stateless-box" id="s-box">Worker</div>
+                <div class="s-arrow" style="right:40px;">➔</div>
+            </div>
+            <div class="title">Stateless Compute</div>
+            <div class="desc">Isolate heavy processing into ephemeral, functional DAG nodes.</div>
+        </div>
+
+        <div class="pillar" id="pil-3" style="left: 5000px; top: 540px;">
+            <div class="p-graphic">
+                <div class="state-orbit">
+                    <div class="orb"></div>
+                </div>
+                <div class="state-core">DB</div>
+            </div>
+            <div class="title">Centralized State</div>
+            <div class="desc">Maintain a single source of truth for queues, locks, and asset references.</div>
+        </div>
+
+        <!-- ================= OUTRO ================= -->
+        <div class="overlay" id="overlay">
+            <div class="outro-title" id="outro-title">Keep Building.</div>
+            <div class="sub-btn" id="sub-btn">
+                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>
+                Subscribe
+            </div>
+            <div class="cursor" id="cursor"></div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- UTILS ---
+    function resize() {
+        const app = document.getElementById('app');
+        const scale = Math.max(window.innerWidth / 1920, window.innerHeight / 1080);
+        app.style.transform = `scale(${scale})`;
+        app.style.transformOrigin = 'center center';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function interp(t, tStart, tEnd, vStart, vEnd, ease = 'easeInOutCubic') {
+        if (t <= tStart) return vStart;
+        if (t >= tEnd) return vEnd;
+        let p = (t - tStart) / (tEnd - tStart);
+        if (ease === 'easeOutCubic') p = 1 - Math.pow(1 - p, 3);
+        else if (ease === 'easeInOutCubic') p = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        else if (ease === 'easeOutBack') { const c1 = 1.70158; const c3 = c1 + 1; p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
+        else if (ease === 'easeInCubic') p = p * p * p;
+        return vStart + (vEnd - vStart) * p;
+    }
+
+    // --- DOM CACHE ---
+    const world = document.getElementById('world');
+    
+    const hex1 = document.getElementById('hex-1');
+    const hex2 = document.getElementById('hex-2');
+    const busFlow = document.getElementById('bus-flow');
+
+    const sol1 = document.getElementById('sol-1');
+    const sol2 = document.getElementById('sol-2');
+    const gb1 = document.getElementById('gb-1');
+    const gb2 = document.getElementById('gb-2');
+    const wh1 = document.getElementById('wh-1');
+    const wh2 = document.getElementById('wh-2');
+
+    const tradeBox = document.getElementById('trade-box');
+    const gfSpeed = document.getElementById('gf-speed');
+    const gtSpeed = document.getElementById('gt-speed');
+    const gfStab = document.getElementById('gf-stab');
+    const gtStab = document.getElementById('gt-stab');
+    const gStab = document.getElementById('g-stab');
+    const cpuLine = document.getElementById('cpu-line');
+    const cpuLabel = document.getElementById('cpu-label');
+
+    const pil1 = document.getElementById('pil-1');
+    const pil2 = document.getElementById('pil-2');
+    const pil3 = document.getElementById('pil-3');
+    const wShield = document.getElementById('w-shield');
+    const sBox = document.getElementById('s-box');
+
+    const overlay = document.getElementById('overlay');
+    const outroTitle = document.getElementById('outro-title');
+    const subBtn = document.getElementById('sub-btn');
+    const cursor = document.getElementById('cursor');
+
+    // --- ANIMATION LOGIC (0 to 45s) ---
+    window.renderFrame = function(t) {
+        
+        // --- CAMERA PANNING ---
+        // Scene 1 (Bus): 0-8s -> Center on 700
+        // Scene 2 (Sol): 8-16s -> Center on 2000
+        // Scene 3 (Trade): 16-24s -> Center on 3200
+        // Scene 4 (Pillars): 24-34s -> Center on 4600
+        // Scene 5 (Outro): 34-45s -> Stay, overlay UI
+        
+        let cx = 700;
+        cx = interp(t, 6, 10, cx, 2000, 'easeInOutCubic');
+        cx = interp(t, 16, 20, cx, 3200, 'easeInOutCubic');
+        cx = interp(t, 28, 33, cx, 4600, 'easeInOutCubic');
+        
+        let cy = 540;
+
+        world.style.transform = `translate(${960 - cx}px, ${540 - cy}px)`;
+
+        // --- ZONE 1: BUS & WORKERS (0-8s) ---
+        if (t < 8) {
+            busFlow.style.opacity = interp(t, 0, 1, 0, 1);
+            busFlow.style.transform = `scaleX(${interp(t, 0, 2, 0, 1, 'easeInOutCubic')})`;
+
+            // Packets flowing
+            let p1T = t % 3; // loops every 3s
+            hex1.style.opacity = interp(p1T, 0, 0.2, 0, 1) * interp(p1T, 2.8, 3, 1, 0);
+            hex1.style.left = `${interp(p1T, 0, 3, 300, 700, 'linear')}px`;
+            hex1.style.top = `540px`;
+
+            let p2T = (t + 1.5) % 3;
+            hex2.style.opacity = interp(p2T, 0, 0.2, 0, 1) * interp(p2T, 2.8, 3, 1, 0);
+            hex2.style.left = `${interp(p2T, 0, 3, 700, 1100, 'linear')}px`;
+            hex2.style.top = `540px`;
+        } else {
+            hex1.style.opacity = 0; hex2.style.opacity = 0;
+        }
+
+        // --- ZONE 2: SOLUTIONS (8-18s) ---
+        if (t > 7) {
+            sol1.style.opacity = interp(t, 7, 8.5, 0, 1);
+            sol1.style.transform = `translate(-50%, -50%) translateY(${interp(t, 7, 8.5, 50, 0, 'easeOutCubic')}px)`;
+            
+            sol2.style.opacity = interp(t, 8, 9.5, 0, 1);
+            sol2.style.transform = `translate(-50%, -50%) translateY(${interp(t, 8, 9.5, 50, 0, 'easeOutCubic')}px)`;
+        }
+
+        if (t > 10 && t < 18) {
+            // Gantt animation
+            gb1.style.width = `${interp(t, 10, 14, 0, 100, 'linear')}%`;
+            gb2.style.width = `${interp(t, 10, 14, 0, 80, 'linear')}%`;
+
+            // WAV Hack Animation
+            if (t > 12) {
+                wh1.style.transform = `translateX(${interp(t, 12, 13, -20, 0, 'easeOutBack')}px)`;
+                wh2.style.background = `rgba(59,130,246, ${interp(t, 12.5, 13, 0, 0.1)})`; // slight blue tint
+                wh2.style.color = interp(t, 12.5, 13, 0, 1) > 0.5 ? 'var(--blue)' : 'var(--text-mut)';
+            }
+        }
+
+        // --- ZONE 3: TRADEOFFS (18-28s) ---
+        if (t > 17) {
+            tradeBox.style.opacity = interp(t, 17, 19, 0, 1);
+            tradeBox.style.transform = `translate(-50%, -50%) scale(${interp(t, 17, 19, 0.9, 1, 'easeOutBack')})`;
+        }
+
+        if (t > 19) {
+            // Speed drops
+            let spd = Math.floor(interp(t, 19, 21, 100, 40, 'easeInOutCubic'));
+            gtSpeed.innerText = `${spd}%`;
+            gfSpeed.style.opacity = 1;
+            // CSS rotate trick for gauge: -45deg is 0%, 135deg is 100%. 40% = -45 + (180 * 0.4) = 27deg
+            let spdRot = -45 + (180 * (spd/100));
+            gfSpeed.style.transform = `rotate(${spdRot}deg)`;
+
+            // Stability rises
+            let stb = Math.floor(interp(t, 20, 22, 50, 100, 'easeInOutCubic'));
+            gtStab.innerText = `${stb}%`;
+            gfStab.style.opacity = 1;
+            let stbRot = -45 + (180 * (stb/100));
+            gfStab.style.transform = `rotate(${stbRot}deg)`;
+
+            if (t > 22) {
+                gfStab.classList.add('green');
+                gtStab.style.color = 'var(--green)';
+                gStab.style.borderColor = 'var(--green-light)';
+                gStab.style.boxShadow = `0 0 30px rgba(16,185,129,0.3)`;
+            }
+
+            // CPU Line
+            cpuLine.style.width = `${interp(t, 21, 23, 0, 100, 'easeInOutCubic')}%`;
+            cpuLabel.style.opacity = interp(t, 22.5, 23, 0, 1);
+        }
+
+        // --- ZONE 4: THE PATTERN (28-40s) ---
+        if (t > 29) {
+            pil1.style.opacity = interp(t, 29, 30.5, 0, 1);
+            pil1.style.transform = `translate(-50%, -50%) translateY(${interp(t, 29, 30.5, 50, 0, 'easeOutBack')}px)`;
+            
+            pil2.style.opacity = interp(t, 30, 31.5, 0, 1);
+            pil2.style.transform = `translate(-50%, -50%) translateY(${interp(t, 30, 31.5, 50, 0, 'easeOutBack')}px)`;
+            
+            pil3.style.opacity = interp(t, 31, 32.5, 0, 1);
+            pil3.style.transform = `translate(-50%, -50%) translateY(${interp(t, 31, 32.5, 50, 0, 'easeOutBack')}px)`;
+        }
+
+        if (t > 30.5) wShield.style.boxShadow = `0 0 ${interp(Math.sin(t*5),-1,1,10,30)}px rgba(139,92,246,0.4)`;
+        if (t > 31.5) sBox.style.transform = `scale(${1 + Math.sin(t*10)*0.05})`;
+
+
+        // --- OUTRO (38-45s) ---
+        if (t > 38) {
+            overlay.style.opacity = interp(t, 38, 40, 0, 1);
+            overlay.style.pointerEvents = 'auto'; // allow visual block
+
+            outroTitle.style.opacity = interp(t, 39, 40.5, 0, 1);
+            outroTitle.style.transform = `translateY(${interp(t, 39, 40.5, 20, 0, 'easeOutCubic')}px)`;
+            
+            subBtn.style.opacity = interp(t, 39.5, 41, 0, 1);
+            subBtn.style.transform = `translateY(${interp(t, 39.5, 41, 20, 0, 'easeOutCubic')}px)`;
+
+            // Cursor animation
+            if (t > 41) {
+                cursor.style.opacity = interp(t, 41, 41.5, 0, 1);
+                
+                // Animate from bottom right to the button
+                // Overlay center is 960, 540
+                let curX = interp(t, 41.5, 43, 1100, 960, 'easeInOutCubic');
+                let curY = interp(t, 41.5, 43, 700, 600, 'easeInOutCubic'); // button is slightly below center due to layout
+                
+                cursor.style.left = `${curX}px`;
+                cursor.style.top = `${curY}px`;
+
+                // Click
+                if (t > 43.2 && t < 43.5) {
+                    cursor.style.transform = `translate(-50%, -50%) scale(0.8)`;
+                    subBtn.classList.add('active');
+                    subBtn.innerHTML = `<svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Subscribed`;
+                } else if (t >= 43.5) {
+                    cursor.style.transform = `translate(-50%, -50%) scale(1)`;
+                }
+            }
+        }
+    };
+
+    // --- DEV AUTOPLAY ---
+    
+    let start = performance.now();
+    function loop() {
+        let t = (performance.now() - start) / 1000;
+        window.renderFrame(t);
+        if (t < 46) requestAnimationFrame(loop);
+    }
+    loop();
+    
+</script>
+
+</body>
+</html>

@@ -368,12 +368,20 @@ HTML string
 
 ### Rate-Limit Queue (AI mode only)
 
-Redis keys managed:
-- `html_queue:turn` — current turn counter (atomically incremented)
-- `html_queue:processing` — lease key (deleted when cooldown ends)
-- `html_queue:last_enquiry` — timestamp of last request
+To serialize HTML generation requests and enforce a strict **22-second cooldown** between Gemini calls (avoiding RPM limits), the system uses a shared Redis-backed ticketing queue:
 
-After receiving AI HTML, the worker spawns a background promise that: sleeps 22s, then atomically `INCR html_queue:turn` + `DEL html_queue:processing`. All pending cleanups are awaited before `renderScenes()` returns.
+1. **Ticket Assignment**: Each request hits `POST /api/generate-scene-html` and increments the Redis key `html_queue:last_enquiry` to receive a unique integer `ticket` ID.
+2. **Turn Polling Loop**: The server handler polls the key `html_queue:turn` every 2 seconds. When `turn === ticket`, the request proceeds.
+3. **Deadlock Recovery (Lua Script)**: If a predecessor fails or times out, the lease key `html_queue:processing` will expire. The waiting runner detects this and runs a Lua script to atomically increment `html_queue:turn` if no active processing lock exists:
+   ```typescript
+   // Atomic queue turn advancement in Redis via eval:
+   const recovered = await redis.eval(luaScript, 0, String(ticket - 1));
+   ```
+4. **Processing Lease**: The active ticket locks the queue via `redis.set("html_queue:processing", ticket, "EX", 90)` (90-second crash-safe lease) and prompts Gemini.
+5. **Worker Parallel Handoff**: Once the worker receives `{ html, ticket }`, it immediately returns the layout response. The worker starts a **background promise** to handle the 22-second delay:
+   - The worker thread does *not* wait; it immediately loads Puppeteer, captures PNG frames, encodes the MP4 clip, and uploads it to Cloudinary.
+   - Meanwhile, in the background, the timer sleeps for 22 seconds and then atomically increments `html_queue:turn` and deletes `html_queue:processing` via a Redis `multi` transaction.
+   - At the very end of all rendering loops, the worker awaits `Promise.all(this.pendingCleanups)` to block exit until all background queue keys are advanced.
 
 ---
 
@@ -425,21 +433,21 @@ for each narration[i]:
 
 **File:** [`src/lib/f5/f5-tts-service.ts`](file:///c:/Users/susha/OneDrive/Desktop/auto-youtube-channel/workers/voice-over-generation/src/lib/f5/f5-tts-service.ts)
 
-- Python package from `git+https://github.com/SWivid/F5-TTS.git`
-- **Reference audio:** `assets/shorter-better-reference-audio.wav` (bundled voice sample)
-- **Reference text:** `"Sounds simple, right? Not quite. There's one detail most people miss..."` (default)
-- **Batch mode:** All non-empty narrations collected into a single task list, one Python script loads the F5TTS model once and processes all tasks — avoids costly per-narration model loading
-- **Text sanitization:** Strips `[PAUSE...]` tags, `[...]` tags, SSML `<...>` tags, converts hyphenated-words to `hyphenated words`, removes `–—_*~\`` characters, collapses repeated punctuation
-
-**Python batch execution:**
-```
-write tasks JSON + Python script to disk
-spawn: python3 <script.py>
-    → load F5TTS()
-    → for each task: tts.infer(ref_file, ref_text, gen_text) → sf.write(output_path, wav, sr)
-upload each output WAV to Cloudinary
-delete local files
-```
+- **Reference Audio**: Uses a pre-bundled sample (`shorter-better-reference-audio.wav` under the worker's `assets/` subdirectory) or an absolute path specified via `F5_REFERENCE_AUDIO_PATH`.
+- **Reference Transcription**: Stored in `F5_REFERENCE_TEXT` or defaults to: `"Sounds simple, right? Not quite. There's one detail most people miss..."`.
+- **Direct Silence Generation**: Empty or whitespace-only narration segments bypass Python execution entirely. The Node service invokes `createSilenceAudio()` to manually compile a mono, 16-bit, 24kHz PCM WAV file with a 44-byte RIFF header in-memory and write it directly to the filesystem.
+- **Text Sanitization Rules**: Prior to inference, narration strings undergo regex cleaning:
+  - Strips comment brackets (`\[.*?\]`) and instructions like `[PAUSE...]`.
+  - Strips XML/SSML tags (`<[^>]+>`).
+  - Converts hyphenated words to space-separated words (`low-latency` $\rightarrow$ `low latency`) to prevent model slurring.
+  - Normalizes dashes (`–`, `—`) and styling characters (`_`, `*`, `~`, `` ` ``) to spaces.
+  - Collapses repeated punctuation marks (e.g., `...` $\rightarrow$ `.`, `!!!` $\rightarrow$ `!`).
+- **Batch Processing Mechanism**: Because model loading is the primary bottleneck (~15–20s initialization overhead), the service aggregates all non-empty narration jobs into a single execution context:
+  1. Writes a JSON list (`f5_tts_tasks_[rand].json`) containing `{ text, outputPath }` pairs.
+  2. Writes a Python controller script (`f5_tts_batch_[rand].py`) containing task-processing loops.
+  3. Spawns `python3` (or `F5_PYTHON_BIN`) as a sub-process.
+  4. The Python controller instantiates `F5TTS()` **once**, loops through the JSON tasks, calls `tts.infer()`, and saves the results to the respective output paths using `soundfile.write`.
+  5. The Node script monitors process stdout/stderr, handles error signals defensively, deletes temporary json/script files in a `finally` block, uploads the output WAV files to Cloudinary, and removes local audio files from the disk.
 
 ---
 

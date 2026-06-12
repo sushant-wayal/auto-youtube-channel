@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Execution Flow</title>
+    <style>
+        :root {
+            --bg: #F8FAFC;
+            --text-main: #0F172A;
+            --text-mut: #64748B;
+            --surface: #FFFFFF;
+            --border: #E2E8F0;
+
+            --blue: #3B82F6;
+            --purple: #8B5CF6;
+            --red: #EF4444;
+            --green: #10B981;
+            --orange: #F97316;
+
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background: var(--bg);
+            font-family: var(--font);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #app {
+            
+            position: absolute; left: 50%; top: 50%; margin-left: -960px; margin-top: -540px; width: 1920px;
+            height: 1080px;
+            background-image: radial-gradient(circle at center, #E2E8F0 1px, transparent 1px);
+            background-size: 32px 32px;
+            overflow: hidden;
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+        }
+
+        #world {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4000px;
+            height: 1080px;
+            will-change: transform;
+        }
+
+        /* --- Generic Nodes --- */
+        .node {
+            position: absolute;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        .icon-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .icon-box svg {
+            width: 20px;
+            height: 20px;
+            stroke-width: 2;
+            fill: none;
+            stroke: currentColor;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .data-label {
+            font-weight: 600;
+            font-size: 14px;
+            margin-left: 12px;
+            color: var(--text-main);
+        }
+
+        /* --- Connecting Lines --- */
+        svg.wiring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .wire-bg {
+            fill: none;
+            stroke: var(--border);
+            stroke-width: 3;
+            stroke-linecap: round;
+        }
+
+        .wire-flow {
+            fill: none;
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 12 24;
+            opacity: 0;
+        }
+
+        .wire-draw {
+            fill: none;
+            stroke-width: 3;
+            stroke-linecap: round;
+        }
+
+        /* --- Idea Pill --- */
+        .idea-pill {
+            position: absolute;
+            width: 140px;
+            height: 40px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transform: translate(-50%, -50%) scale(0);
+            z-index: 20;
+            will-change: transform, opacity, left, top;
+        }
+
+        .idea-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--purple);
+            margin-right: 10px;
+        }
+
+        .idea-text {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-mut);
+            background: #F1F5F9;
+            border-radius: 4px;
+            padding: 2px 8px;
+            width: 80px;
+            height: 8px;
+        }
+
+        /* --- Scanner --- */
+        .scanner-line {
+            position: absolute;
+            left: 700px;
+            width: 500px;
+            height: 2px;
+            background: var(--red);
+            box-shadow: 0 0 20px 5px rgba(239, 68, 68, 0.4);
+            z-index: 30;
+            opacity: 0;
+            transform: translateY(-50%);
+        }
+
+        .scan-tooltip {
+            position: absolute;
+            right: -140px;
+            top: -15px;
+            background: var(--red);
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 20px;
+            white-space: nowrap;
+            opacity: 0;
+        }
+
+        /* --- Math Overlay --- */
+        .math-bar-container {
+            position: absolute;
+            left: 160px;
+            top: 16px;
+            width: 100px;
+            height: 8px;
+            background: #F1F5F9;
+            border-radius: 4px;
+            overflow: hidden;
+            opacity: 0;
+        }
+
+        .math-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--green);
+            border-radius: 4px;
+        }
+
+        /* --- IR JSON Block --- */
+        .ir-block {
+            position: absolute;
+            width: 240px;
+            background: #1E293B;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+            transform: translate(-50%, -50%) scale(0);
+            color: #E2E8F0;
+            font-family: 'SF Mono', monospace;
+            font-size: 13px;
+            z-index: 25;
+        }
+
+        .ir-head {
+            color: #9CDCFE;
+            font-weight: 700;
+            margin-bottom: 12px;
+            font-size: 15px;
+        }
+
+        .ir-row {
+            display: flex;
+            margin-bottom: 8px;
+        }
+
+        .ir-key {
+            color: #4FC1FF;
+            width: 70px;
+        }
+
+        .ir-val-str {
+            color: #CE9178;
+        }
+
+        .ir-val-num {
+            color: #B5CEA8;
+        }
+
+        .ir-arr {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .ir-shape {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            background: #64748B;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app">
+        <div id="world">
+            <!-- Wiring Layer -->
+            <svg class="wiring" id="wiring">
+                <!-- Data Sources to Agent -->
+                <path class="wire-bg" d="M 250 300 L 400 300 L 500 540" />
+                <path class="wire-bg" d="M 250 460 L 500 540" />
+                <path class="wire-bg" d="M 250 620 L 500 540" />
+                <path class="wire-bg" d="M 250 780 L 400 780 L 500 540" />
+
+                <path class="wire-flow" id="f-ds1" d="M 250 300 L 400 300 L 500 540" stroke="var(--blue)" />
+                <path class="wire-flow" id="f-ds2" d="M 250 460 L 500 540" stroke="var(--blue)" />
+                <path class="wire-flow" id="f-ds3" d="M 250 620 L 500 540" stroke="var(--blue)" />
+                <path class="wire-flow" id="f-ds4" d="M 250 780 L 400 780 L 500 540" stroke="var(--blue)" />
+
+                <!-- Agent to IR / Brain -->
+                <path class="wire-draw" id="w-agent-brain" d="M 1200 540 L 1600 540" stroke="var(--purple)"
+                    stroke-dasharray="400" stroke-dashoffset="400" />
+                <path class="wire-flow" id="f-agent-brain" d="M 1200 540 L 1600 540" stroke="var(--purple)" />
+
+                <!-- Brain to IR blocks (drawn dynamically later via CSS or JS) -->
+                <path class="wire-draw" id="w-ir1" d="M 1600 540 L 1750 540 L 1750 340 L 1900 340"
+                    stroke="var(--border)" stroke-dasharray="400" stroke-dashoffset="400" />
+                <path class="wire-draw" id="w-ir2" d="M 1600 540 L 1900 540" stroke="var(--border)"
+                    stroke-dasharray="300" stroke-dashoffset="300" />
+                <path class="wire-draw" id="w-ir3" d="M 1600 540 L 1750 540 L 1750 740 L 1900 740"
+                    stroke="var(--border)" stroke-dasharray="400" stroke-dashoffset="400" />
+
+                <!-- IR to Parallel Split -->
+                <path class="wire-draw" id="w-spl1" d="M 2050 340 L 2250 340 L 2250 240 L 2450 240"
+                    stroke="var(--border)" stroke-dasharray="500" stroke-dashoffset="500" />
+                <path class="wire-draw" id="w-spl2" d="M 2050 540 L 2450 540" stroke="var(--border)"
+                    stroke-dasharray="400" stroke-dashoffset="400" />
+                <path class="wire-draw" id="w-spl3" d="M 2050 740 L 2250 740 L 2250 840 L 2450 840"
+                    stroke="var(--border)" stroke-dasharray="500" stroke-dashoffset="500" />
+
+                <path class="wire-flow" id="f-spl1" d="M 2050 340 L 2250 340 L 2250 240 L 2450 240"
+                    stroke="var(--orange)" />
+                <path class="wire-flow" id="f-spl2" d="M 2050 540 L 2450 540" stroke="var(--blue)" />
+                <path class="wire-flow" id="f-spl3" d="M 2050 740 L 2250 740 L 2250 840 L 2450 840"
+                    stroke="var(--purple)" />
+            </svg>
+
+            <!-- Data Sources -->
+            <div class="node" id="n-yt" style="left: 200px; top: 300px; width: 180px; height: 60px;">
+                <div class="icon-box" style="background: #FEE2E2; color: #EF4444;"><svg viewBox="0 0 24 24">
+                        <path
+                            d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z" />
+                        <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
+                    </svg></div>
+                <div class="data-label">YouTube API</div>
+            </div>
+            <div class="node" id="n-hn" style="left: 200px; top: 460px; width: 180px; height: 60px;">
+                <div class="icon-box" style="background: #FFEDD5; color: #F97316;"><svg viewBox="0 0 24 24">
+                        <path d="M12 2L2 22h20L12 2z" />
+                    </svg></div>
+                <div class="data-label">Hacker News</div>
+            </div>
+            <div class="node" id="n-red" style="left: 200px; top: 620px; width: 180px; height: 60px;">
+                <div class="icon-box" style="background: #FCE7F3; color: #EC4899;"><svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" />
+                        <circle cx="12" cy="12" r="4" />
+                    </svg></div>
+                <div class="data-label">Reddit</div>
+            </div>
+            <div class="node" id="n-ana" style="left: 200px; top: 780px; width: 180px; height: 60px;">
+                <div class="icon-box" style="background: #E0E7FF; color: #4F46E5;"><svg viewBox="0 0 24 24">
+                        <line x1="18" y1="20" x2="18" y2="10" />
+                        <line x1="12" y1="20" x2="12" y2="4" />
+                        <line x1="6" y1="20" x2="6" y2="14" />
+                    </svg></div>
+                <div class="data-label">90-Day Analytics</div>
+            </div>
+
+            <!-- Idea Selector Core (Gemini) -->
+            <div class="node" id="n-agent"
+                style="left: 500px; top: 540px; width: 220px; height: 80px; border: 2px solid var(--purple); box-shadow: 0 0 30px rgba(139,92,246,0.2);">
+                <div class="icon-box" style="background: var(--purple); color: white;"><svg viewBox="0 0 24 24">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                    </svg></div>
+                <div style="margin-left: 12px;">
+                    <div style="font-weight: 800; color: var(--text-main); font-size: 16px;">Idea Selector</div>
+                    <div style="font-size: 12px; color: var(--purple); font-weight: 600;">Gemini Flash</div>
+                </div>
+            </div>
+
+            <!-- 15 Idea Grid -->
+            <div id="ideas-container"></div>
+
+            <!-- Hard Elimination Scanner -->
+            <div class="scanner-line" id="scanner">
+                <div class="scan-tooltip" id="scan-tt">> 60% Overlap Found</div>
+            </div>
+
+            <!-- Script Generator (Next.js) -->
+            <div class="node" id="n-script" style="left: 1600px; top: 540px; width: 240px; height: 80px; opacity: 0;">
+                <div class="icon-box" style="background: #000; color: white;"><svg viewBox="0 0 24 24">
+                        <path
+                            d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+                    </svg></div>
+                <div style="margin-left: 12px;">
+                    <div style="font-weight: 800; color: var(--text-main); font-size: 16px;">Script Generator</div>
+                    <div style="font-size: 12px; color: var(--text-mut); font-weight: 600;">Next.js Brain</div>
+                </div>
+            </div>
+
+            <!-- IR JSON Blocks -->
+            <div class="ir-block" id="ir-1" style="left: 1900px; top: 340px;">
+                <div class="ir-head">Scene {1}</div>
+                <div class="ir-row"><span class="ir-key">duration:</span><span class="ir-val-num">4.5</span></div>
+                <div class="ir-row"><span class="ir-key">narrate:</span><span class="ir-val-str">"Today we..."</span>
+                </div>
+                <div class="ir-row"><span class="ir-key">primitives:</span>
+                    <div class="ir-arr">
+                        <div class="ir-shape" style="background:#EF4444"></div>
+                        <div class="ir-shape" style="background:#3B82F6"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="ir-block" id="ir-2" style="left: 1900px; top: 540px;">
+                <div class="ir-head">Scene {2}</div>
+                <div class="ir-row"><span class="ir-key">duration:</span><span class="ir-val-num">8.2</span></div>
+                <div class="ir-row"><span class="ir-key">narrate:</span><span class="ir-val-str">"First, it..."</span>
+                </div>
+                <div class="ir-row"><span class="ir-key">primitives:</span>
+                    <div class="ir-arr">
+                        <div class="ir-shape" style="background:#10B981"></div>
+                        <div class="ir-shape" style="background:#8B5CF6"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="ir-block" id="ir-3" style="left: 1900px; top: 740px;">
+                <div class="ir-head">Scene {3}</div>
+                <div class="ir-row"><span class="ir-key">duration:</span><span class="ir-val-num">6.0</span></div>
+                <div class="ir-row"><span class="ir-key">narrate:</span><span class="ir-val-str">"Finally..."</span>
+                </div>
+                <div class="ir-row"><span class="ir-key">primitives:</span>
+                    <div class="ir-arr">
+                        <div class="ir-shape" style="background:#F59E0B"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parallel Compute Nodes -->
+            <div class="node" id="n-thumb"
+                style="left: 2550px; top: 240px; width: 200px; height: 80px; opacity: 0; border: 2px solid var(--orange);">
+                <div class="icon-box" style="background: var(--orange); color: white;"><svg viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
+                    </svg></div>
+                <div class="data-label">Gen Thumbnail</div>
+            </div>
+            <div class="node" id="n-voice"
+                style="left: 2550px; top: 540px; width: 200px; height: 80px; opacity: 0; border: 2px solid var(--blue);">
+                <div class="icon-box" style="background: var(--blue); color: white;"><svg viewBox="0 0 24 24">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                        <line x1="12" y1="19" x2="12" y2="22" />
+                        <line x1="8" y1="22" x2="16" y2="22" />
+                    </svg></div>
+                <div class="data-label">Gen Voiceover</div>
+            </div>
+            <div class="node" id="n-render"
+                style="left: 2550px; top: 840px; width: 200px; height: 80px; opacity: 0; border: 2px solid var(--purple);">
+                <div class="icon-box" style="background: var(--purple); color: white;"><svg viewBox="0 0 24 24">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg></div>
+                <div class="data-label">Render Visuals</div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- Setup & Scaling ---
+        function resize() {
+            const app = document.getElementById('app');
+            const scale = Math.max(window.innerWidth / 1920, window.innerHeight / 1080);
+            app.style.transform = `scale(${scale})`;
+            app.style.transformOrigin = 'center center';
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Math/Interpolation ---
+        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+        function interp(t, tStart, tEnd, vStart, vEnd, ease = 'easeInOutCubic') {
+            if (t <= tStart) return vStart;
+            if (t >= tEnd) return vEnd;
+            let p = (t - tStart) / (tEnd - tStart);
+
+            if (ease === 'easeOutCubic') p = 1 - Math.pow(1 - p, 3);
+            else if (ease === 'easeInOutCubic') p = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+            else if (ease === 'easeOutBack') {
+                const c1 = 1.70158; const c3 = c1 + 1;
+                p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2);
+            }
+            else if (ease === 'easeInCubic') p = p * p * p;
+
+            return vStart + (vEnd - vStart) * p;
+        }
+
+        // --- Generate Idea Grid ---
+        const ideasCont = document.getElementById('ideas-container');
+        const ideas = [];
+        // 3 cols x 5 rows
+        for (let r = 0; r < 5; r++) {
+            for (let c = 0; c < 3; c++) {
+                let i = r * 3 + c;
+                let el = document.createElement('div');
+                el.className = 'idea-pill';
+                el.innerHTML = `<div class="idea-dot" id="dot-${i}"></div><div class="idea-text"><div style="width:${40 + Math.random() * 40}%; height:8px; background:#CBD5E1; border-radius:4px;"></div></div><div class="math-bar-container" id="mbc-${i}"><div class="math-bar" id="mb-${i}"></div></div>`;
+                ideasCont.appendChild(el);
+
+                let startX = 800 + c * 160;
+                let startY = 300 + r * 120;
+
+                ideas.push({
+                    el, idx: i,
+                    startX, startY,
+                    isElim: [1, 3, 4, 6, 7, 9, 10, 12, 13, 14].includes(i),
+                    score: Math.random() // For math step
+                });
+            }
+        }
+
+        // Manually force top scorer to be idx 5
+        ideas[5].score = 0.99;
+        ideas[0].score = 0.6;
+        ideas[2].score = 0.8;
+        ideas[8].score = 0.4;
+        ideas[11].score = 0.7;
+
+        const survivors = ideas.filter(id => !id.isElim).sort((a, b) => b.score - a.score);
+
+        // --- DOM Elements ---
+        const world = document.getElementById('world');
+        const dNodes = [document.getElementById('n-yt'), document.getElementById('n-hn'), document.getElementById('n-red'), document.getElementById('n-ana')];
+        const nAgent = document.getElementById('n-agent');
+        const scanner = document.getElementById('scanner');
+        const scanTt = document.getElementById('scan-tt');
+        const nScript = document.getElementById('n-script');
+
+        const irBlocks = [document.getElementById('ir-1'), document.getElementById('ir-2'), document.getElementById('ir-3')];
+        const parNodes = [document.getElementById('n-thumb'), document.getElementById('n-voice'), document.getElementById('n-render')];
+
+        // Flows
+        const flows = [document.getElementById('f-ds1'), document.getElementById('f-ds2'), document.getElementById('f-ds3'), document.getElementById('f-ds4')];
+        const wAgBr = document.getElementById('w-agent-brain');
+        const fAgBr = document.getElementById('f-agent-brain');
+
+        // --- Render Frame ---
+        // Target duration ~ 55 seconds.
+        window.renderFrame = function (t) {
+
+            // --- 1. Data Gathering (0-6s) ---
+            dNodes.forEach((n, i) => {
+                let tIn = i * 0.5;
+                n.style.transform = `translate(-50%, -50%) scale(${interp(t, tIn, tIn + 1, 0, 1, 'easeOutBack')})`;
+                n.style.opacity = interp(t, tIn, tIn + 0.5, 0, 1);
+            });
+
+            if (t > 2 && t < 10) {
+                flows.forEach(f => {
+                    f.style.opacity = 1;
+                    f.style.strokeDashoffset = -((t - 2) * 100);
+                });
+            } else {
+                flows.forEach(f => f.style.opacity = 0);
+            }
+
+            // Agent pulse
+            let agScale = 1;
+            if (t > 4 && t < 8) agScale = 1 + Math.sin((t - 4) * 10) * 0.05;
+            nAgent.style.transform = `translate(-50%, -50%) scale(${interp(t, 2, 3, 0, 1, 'easeOutBack') * agScale})`;
+
+            // --- 2. Generate Ideas (7-11s) ---
+            ideas.forEach((id, i) => {
+                let tOut = 7 + (i * 0.1);
+                let s = interp(t, tOut, tOut + 0.5, 0, 1, 'easeOutBack');
+                let x = interp(t, tOut, tOut + 1, 500, id.startX, 'easeOutCubic');
+                let y = interp(t, tOut, tOut + 1, 540, id.startY, 'easeOutCubic');
+
+                // Phase 4 overrides positions (16-20s)
+                if (t >= 16 && !id.isElim) {
+                    let rank = survivors.findIndex(s => s.idx === id.idx);
+                    let tgtX = 1000; // Single column
+                    let tgtY = 300 + rank * 120; // Sorted order
+
+                    x = interp(t, 16, 17.5, id.startX, tgtX, 'easeInOutCubic');
+
+                    // Sorting animation
+                    y = interp(t, 16, 17.5, id.startY, tgtY, 'easeInOutCubic');
+
+                    // Math Bars appear
+                    document.getElementById(`mbc-${id.idx}`).style.opacity = interp(t, 17, 18, 0, 1);
+                    document.getElementById(`mb-${id.idx}`).style.width = `${interp(t, 17.5, 19, 0, id.score * 100, 'easeOutCubic')}%`;
+                }
+
+                // Phase 5 Selection (20-24s)
+                let op = 1;
+                if (t >= 20 && !id.isElim) {
+                    let rank = survivors.findIndex(s => s.idx === id.idx);
+                    if (rank === 0) { // Winner (idx 5)
+                        x = interp(t, 21, 23, x, 1200, 'easeInOutCubic');
+                        y = interp(t, 21, 23, y, 540, 'easeInOutCubic');
+                        s = interp(t, 21, 22, 1, 1.2, 'easeOutBack');
+                        document.getElementById(`dot-${id.idx}`).style.background = '#10B981'; // Turns green
+                    } else {
+                        op = interp(t, 20.5, 21.5, 1, 0); // Losers fade
+                    }
+                }
+
+                // Phase 3 Elimination (12-16s)
+                if (t >= 12 && id.isElim) {
+                    // Determine when scanner passes this row
+                    let scanPassT = 12 + ((id.startY - 300) / 400) * 2; // scanner goes 300->700 over 2s
+                    if (t > scanPassT) {
+                        s = interp(t, scanPassT, scanPassT + 0.3, 1, 0, 'easeInCubic');
+                        document.getElementById(`dot-${id.idx}`).style.background = '#EF4444'; // Turns red right before dying
+                    }
+                }
+
+                id.el.style.transform = `translate(-50%, -50%) scale(${s})`;
+                id.el.style.left = `${x}px`;
+                id.el.style.top = `${y}px`;
+                id.el.style.opacity = op;
+            });
+
+            // --- 3. Scanner Animation (12-15s) ---
+            if (t > 11.5 && t < 15.5) {
+                scanner.style.opacity = interp(t, 11.5, 12, 0, 1) * interp(t, 14.5, 15, 1, 0);
+                let scanY = interp(t, 12, 14, 250, 750, 'easeInOutCubic');
+                scanner.style.top = `${scanY}px`;
+
+                // Tooltip flashes
+                if (t > 12.5 && t < 13.5) {
+                    scanTt.style.opacity = 1;
+                    scanTt.innerText = "Last 30 Days";
+                } else if (t > 13.5 && t < 14.5) {
+                    scanTt.style.opacity = 1;
+                    scanTt.innerText = "> 60% Overlap";
+                } else {
+                    scanTt.style.opacity = 0;
+                }
+            } else {
+                scanner.style.opacity = 0;
+            }
+
+            // --- 4. Camera Panning ---
+            // Base is 0. 
+            // 21s-24s: Pan right to focus Script Gen.
+            // 35s-38s: Pan right to focus Parallel split.
+            let camX = interp(t, 21, 24, 0, -800, 'easeInOutCubic');
+            camX = interp(t, 35, 38, camX, -1600, 'easeInOutCubic');
+            world.style.transform = `translateX(${camX}px)`;
+
+            // --- 5. Script Gen & Final Node Connection (24-30s) ---
+            nScript.style.transform = `translate(-50%, -50%) scale(${interp(t, 23, 24, 0, 1, 'easeOutBack')})`;
+            nScript.style.opacity = interp(t, 23, 24, 0, 1);
+
+            wAgBr.style.strokeDashoffset = interp(t, 23.5, 24.5, 400, 0);
+
+            if (t > 24.5 && t < 30) {
+                fAgBr.style.opacity = 1;
+                fAgBr.style.strokeDashoffset = -((t - 24.5) * 150);
+            } else { fAgBr.style.opacity = 0; }
+
+            if (t > 25 && t < 29) {
+                nScript.style.boxShadow = `0 0 ${interp(Math.sin(t * 10), -1, 1, 0, 30)}px rgba(0,0,0,0.2)`;
+            } else { nScript.style.boxShadow = `0 10px 15px -3px rgba(0,0,0,0.05)`; }
+
+            // --- 6. IR Generation (30-36s) ---
+            document.getElementById('w-ir1').style.strokeDashoffset = interp(t, 29, 30.5, 400, 0);
+            document.getElementById('w-ir2').style.strokeDashoffset = interp(t, 29.2, 30.7, 300, 0);
+            document.getElementById('w-ir3').style.strokeDashoffset = interp(t, 29.4, 30.9, 400, 0);
+
+            irBlocks.forEach((ir, i) => {
+                let tIn = 30 + (i * 0.3);
+                ir.style.transform = `translate(-50%, -50%) scale(${interp(t, tIn, tIn + 0.6, 0, 1, 'easeOutBack')})`;
+                if (t > tIn + 0.6) {
+                    // Subtle float
+                    ir.style.transform = `translate(-50%, calc(-50% + ${Math.sin(t * 3 + i) * 5}px)) scale(1)`;
+                }
+            });
+
+            // --- 7. Parallel Splitting (36-45s) ---
+            parNodes.forEach((pn, i) => {
+                let tIn = 37 + (i * 0.2);
+                pn.style.transform = `translate(-50%, -50%) scale(${interp(t, tIn, tIn + 0.5, 0, 1, 'easeOutBack')})`;
+                pn.style.opacity = interp(t, tIn, tIn + 0.2, 0, 1);
+            });
+
+            document.getElementById('w-spl1').style.strokeDashoffset = interp(t, 38, 39.5, 500, 0);
+            document.getElementById('w-spl2').style.strokeDashoffset = interp(t, 38.2, 39.7, 400, 0);
+            document.getElementById('w-spl3').style.strokeDashoffset = interp(t, 38.4, 39.9, 500, 0);
+
+            // Continuous Flow through parallel tracks
+            if (t > 39.5) {
+                document.getElementById('f-spl1').style.opacity = 1;
+                document.getElementById('f-spl2').style.opacity = 1;
+                document.getElementById('f-spl3').style.opacity = 1;
+
+                let flowT = t - 39.5;
+                document.getElementById('f-spl1').style.strokeDashoffset = -(flowT * 200);
+                document.getElementById('f-spl2').style.strokeDashoffset = -(flowT * 200);
+                document.getElementById('f-spl3').style.strokeDashoffset = -(flowT * 200);
+
+                // Parallel nodes pulse
+                parNodes[0].style.boxShadow = `0 0 ${interp(Math.sin(t * 8), -1, 1, 0, 30)}px rgba(249, 115, 22, 0.3)`;
+                parNodes[1].style.boxShadow = `0 0 ${interp(Math.sin(t * 8 + 1), -1, 1, 0, 30)}px rgba(59, 130, 246, 0.3)`;
+                parNodes[2].style.boxShadow = `0 0 ${interp(Math.sin(t * 8 + 2), -1, 1, 0, 30)}px rgba(139, 92, 246, 0.3)`;
+            } else {
+                document.getElementById('f-spl1').style.opacity = 0;
+                document.getElementById('f-spl2').style.opacity = 0;
+                document.getElementById('f-spl3').style.opacity = 0;
+            }
+
+        };
+
+        // --- Development Loop ---
+        // Uncomment below to test animation automatically in browser.
+
+        let start = performance.now();
+        function loop() {
+            let t = (performance.now() - start) / 1000;
+            window.renderFrame(t);
+            if (t < 55) requestAnimationFrame(loop);
+        }
+        loop();
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shorts Generation & Matrix Strategy</title>
+    <style>
+        :root {
+            --bg: #F8FAFC;
+            --surface: #FFFFFF;
+            --grid: #E2E8F0;
+            --border: #CBD5E1;
+            
+            --text-main: #0F172A;
+            --text-mut: #64748B;
+            
+            --blue: #3B82F6;
+            --blue-light: #DBEAFE;
+            --purple: #8B5CF6;
+            --purple-light: #EDE9FE;
+            --green: #10B981;
+            --green-light: #D1FAE5;
+            --red: #EF4444;
+            --orange: #F59E0B;
+            --orange-light: #FEF3C7;
+            
+            --slate: #1E293B;
+
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
+            background-color: var(--bg); font-family: var(--font);
+            overflow: hidden; display: flex; justify-content: center; align-items: center;
+        }
+
+        #app {
+             position: absolute; left: 50%; top: 50%; margin-left: -960px; margin-top: -540px; width: 1920px; height: 1080px;
+            background-color: var(--bg);
+            background-image: radial-gradient(var(--border) 1px, transparent 1px);
+            background-size: 32px 32px; overflow: hidden;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.03);
+        }
+
+        #world {
+            position: absolute; top: 0; left: 0; width: 1920px; height: 1080px;
+            transform-origin: center center; will-change: transform;
+        }
+
+        /* Generic Components */
+        .node {
+            position: absolute; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);
+            display: flex; align-items: center; padding: 20px 24px;
+            transform: translate(-50%, -50%); z-index: 10;
+        }
+        .node-col { flex-direction: column; align-items: flex-start; gap: 4px; }
+        
+        .icon-box {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; justify-content: center; align-items: center;
+            flex-shrink: 0; margin-right: 16px;
+        }
+        .icon-box svg { width: 24px; height: 24px; stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+
+        .node-title { font-weight: 700; font-size: 18px; color: var(--text-main); }
+        .node-sub { font-weight: 600; font-size: 13px; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Wiring */
+        svg.wiring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        .wire-bg { fill: none; stroke: var(--border); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+        .wire-flow { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 12 24; }
+        .wire-draw { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+        /* Master Node */
+        #node-master { left: 250px; top: 540px; border: 2px solid var(--text-main); }
+        
+        /* Matrix Code Badge */
+        .matrix-badge {
+            position: absolute; background: var(--slate); color: #E2E8F0;
+            font-family: var(--font-mono); font-size: 14px; padding: 16px;
+            border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
+            left: 250px; top: 410px; transform: translate(-50%, -50%) scale(0);
+            opacity: 0; line-height: 1.5; z-index: 15; border: 1px solid #334155;
+        }
+        .kw { color: #818CF8; } /* Keyword */
+        .str { color: #34D399; } /* String */
+        .val { color: #F472B6; } /* Array val */
+
+        /* Parallel Runners */
+        .runner-box {
+            position: absolute; width: 500px; height: 160px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+            display: flex; align-items: center; padding: 20px; box-sizing: border-box;
+            transform: translate(-50%, -50%) scale(0); opacity: 0; z-index: 10;
+        }
+        
+        .runner-info { flex-shrink: 0; width: 140px; border-right: 1px solid var(--grid); margin-right: 20px; }
+        .runner-badge { display: inline-block; background: var(--purple-light); color: var(--purple); font-family: var(--font-mono); font-weight: 700; font-size: 12px; padding: 4px 8px; border-radius: 4px; margin-bottom: 8px; }
+        .runner-status { font-weight: 600; font-size: 12px; color: var(--text-mut); margin-top: 8px; transition: color 0.3s; }
+
+        /* Hook Timeline */
+        .timeline-area { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px; position: relative; }
+        .tl-track { width: 100%; height: 16px; background: var(--grid); border-radius: 8px; overflow: hidden; position: relative; }
+        
+        .tl-hook { position: absolute; left: 0; top: 0; height: 100%; width: 15%; background: var(--text-mut); transition: background 0.3s; }
+        .tl-rest { position: absolute; left: 15%; top: 0; height: 100%; width: 85%; background: var(--border); }
+        
+        .tl-label { font-size: 11px; font-weight: 800; color: var(--text-mut); display: flex; justify-content: space-between; text-transform: uppercase; letter-spacing: 0.5px; }
+        .hook-label { color: var(--text-mut); transition: color 0.3s; }
+
+        .scanner {
+            position: absolute; top: -10px; bottom: -10px; width: 4px; background: var(--blue);
+            box-shadow: 0 0 10px var(--blue); border-radius: 2px; left: 0; opacity: 0; z-index: 5;
+        }
+
+        /* Video Canvas Render Area */
+        .render-area {
+            width: 144px; height: 144px; margin-left: 20px;
+            display: flex; justify-content: center; align-items: center; position: relative;
+            flex-shrink: 0;
+        }
+
+        .video-canvas {
+            background: linear-gradient(135deg, #1E293B, #0F172A);
+            border-radius: 8px; position: relative; overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+            /* Starts at 16:9 (144x81) */
+            width: 144px; height: 81px;
+            display: flex; justify-content: center; align-items: center;
+            will-change: width, height, transform, opacity;
+            border: 2px solid #334155;
+            box-sizing: border-box;
+        }
+
+        /* Abstract UI inside video */
+        .vid-ui { position: absolute; width: 60%; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; bottom: 10%; }
+        .vid-play { width: 24px; height: 24px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; justify-content: center; align-items: center; }
+        .vid-play::after { content: ''; width: 0; height: 0; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent #FFF; margin-left: 2px; }
+
+        /* Logo Overlay */
+        .logo-overlay {
+            position: absolute; top: 8px; right: 8px; width: 16px; height: 16px;
+            background: var(--blue); border-radius: 4px; display: flex; justify-content: center; align-items: center;
+            opacity: 0; transform: scale(0); box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 1.5px solid white; box-sizing: border-box;
+        }
+        .logo-overlay svg { width: 10px; height: 10px; fill: white; }
+
+        /* YouTube Node */
+        #node-yt { left: 1650px; top: 540px; border: 2px solid var(--red); opacity: 0; transform: translate(-50%, -50%) scale(0); }
+        .yt-flow { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20;}
+
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="world">
+        
+        <!-- WIRING -->
+        <svg class="wiring" id="wiring">
+            <!-- Master to Runners -->
+            <!-- Drawn via JS so we can perfectly route them -->
+            <g id="wire-group-bg" stroke="var(--border)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"></g>
+            <g id="wire-group-draw" stroke="var(--purple)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"></g>
+            <g id="wire-group-flow" stroke="var(--purple)" stroke-width="4" stroke-dasharray="12 24" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0"></g>
+
+            <!-- Runners to YT -->
+            <g id="wire-yt-bg" stroke="var(--border)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"></g>
+            <g id="wire-yt-flow" stroke="var(--blue)" stroke-width="4" stroke-dasharray="12 24" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0"></g>
+        </svg>
+
+        <!-- MASTER NODE -->
+        <div class="node" id="node-master">
+            <div class="icon-box" style="background: var(--text-main); color: white;">
+                <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="node-col">
+                <div class="node-title">CI Orchestrator</div>
+                <div class="node-sub">Long-Form Processed</div>
+            </div>
+        </div>
+
+        <!-- MATRIX BADGE -->
+        <div class="matrix-badge" id="matrix-badge">
+            <span class="kw">strategy</span>:<br>
+            &nbsp;&nbsp;<span class="kw">matrix</span>:<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;short: [<span class="val">1</span>, <span class="val">2</span>, <span class="val">3</span>, <span class="val">4</span>]
+        </div>
+
+        <!-- RUNNERS (Generated in JS) -->
+        <div id="runners-container"></div>
+
+        <!-- YOUTUBE NODE -->
+        <div class="node" id="node-yt">
+            <div class="icon-box" style="background: var(--red-light); color: var(--red);">
+                <svg viewBox="0 0 24 24"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>
+            </div>
+            <div class="node-col">
+                <div class="node-title">YouTube Shorts</div>
+                <div class="node-sub">Upload Queue</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- UTILS ---
+    function resize() {
+        const app = document.getElementById('app');
+        const scale = Math.max(window.innerWidth / 1920, window.innerHeight / 1080);
+        app.style.transform = `scale(${scale})`;
+        app.style.transformOrigin = 'center center';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function interp(t, tStart, tEnd, vStart, vEnd, ease = 'easeInOutCubic') {
+        if (t <= tStart) return vStart;
+        if (t >= tEnd) return vEnd;
+        let p = (t - tStart) / (tEnd - tStart);
+        if (ease === 'easeOutCubic') p = 1 - Math.pow(1 - p, 3);
+        else if (ease === 'easeInOutCubic') p = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        else if (ease === 'easeOutBack') { const c1 = 1.70158; const c3 = c1 + 1; p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
+        else if (ease === 'easeInCubic') p = p * p * p;
+        return vStart + (vEnd - vStart) * p;
+    }
+
+    // --- SETUP DOM ---
+    const runnersCount = 4;
+    const runnerX = 900;
+    const runnerYs = [240, 440, 640, 840];
+    const masterX = 250;
+    const masterY = 540;
+    const ytX = 1650;
+    const ytY = 540;
+
+    const runnersContainer = document.getElementById('runners-container');
+    const wgBg = document.getElementById('wire-group-bg');
+    const wgDr = document.getElementById('wire-group-draw');
+    const wgFl = document.getElementById('wire-group-flow');
+    const ytBg = document.getElementById('wire-yt-bg');
+    const ytFl = document.getElementById('wire-yt-flow');
+
+    let runnerEls = [];
+
+    for (let i = 0; i < runnersCount; i++) {
+        // DOM Generation
+        let r = document.createElement('div');
+        r.className = 'runner-box';
+        r.id = `runner-${i}`;
+        r.style.left = `${runnerX}px`;
+        r.style.top = `${runnerYs[i]}px`;
+
+        r.innerHTML = `
+            <div class="runner-info">
+                <div class="runner-badge">Job matrix.short=${i+1}</div>
+                <div class="node-title" style="font-size:16px;">Isolated Runner</div>
+                <div class="runner-status" id="status-${i}">Awaiting Task...</div>
+            </div>
+            <div class="timeline-area">
+                <div class="tl-label"><span class="hook-label" id="hl-${i}">1s Hook</span><span>Remaining Scene</span></div>
+                <div class="tl-track">
+                    <div class="tl-hook" id="hook-${i}"></div>
+                    <div class="tl-rest"></div>
+                    <div class="scanner" id="scan-${i}"></div>
+                </div>
+            </div>
+            <div class="render-area">
+                <div class="video-canvas" id="canvas-${i}">
+                    <div class="vid-play"></div>
+                    <div class="vid-ui"></div>
+                    <div class="logo-overlay" id="logo-${i}">
+                        <svg viewBox="0 0 24 24"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/></svg>
+                    </div>
+                </div>
+            </div>
+        `;
+        runnersContainer.appendChild(r);
+        
+        let pathD = `M ${masterX+120} ${masterY} L ${masterX+250} ${masterY} L ${masterX+250} ${runnerYs[i]} L ${runnerX-250} ${runnerYs[i]}`;
+        
+        // Background Path
+        let bgPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        bgPath.setAttribute("d", pathD);
+        wgBg.appendChild(bgPath);
+
+        // Draw Path
+        let drPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        drPath.setAttribute("d", pathD);
+        let len = 1500; // rough approx
+        drPath.setAttribute("stroke-dasharray", len);
+        drPath.setAttribute("stroke-dashoffset", len);
+        drPath.id = `dr-${i}`;
+        wgDr.appendChild(drPath);
+
+        // Flow Path
+        let flPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        flPath.setAttribute("d", pathD);
+        flPath.id = `fl-${i}`;
+        wgFl.appendChild(flPath);
+
+        // YT Paths
+        let ytD = `M ${runnerX+250} ${runnerYs[i]} L ${runnerX+350} ${runnerYs[i]} L ${runnerX+350} ${ytY} L ${ytX-120} ${ytY}`;
+        let ytPbg = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        ytPbg.setAttribute("d", ytD);
+        ytBg.appendChild(ytPbg);
+
+        let ytPfl = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        ytPfl.setAttribute("d", ytD);
+        ytPfl.id = `ytf-${i}`;
+        ytFl.appendChild(ytPfl);
+
+        // Cache elements
+        runnerEls.push({
+            box: r,
+            status: document.getElementById(`status-${i}`),
+            hl: document.getElementById(`hl-${i}`),
+            hook: document.getElementById(`hook-${i}`),
+            scan: document.getElementById(`scan-${i}`),
+            canvas: document.getElementById(`canvas-${i}`),
+            logo: document.getElementById(`logo-${i}`),
+            drPath: drPath,
+            flPath: flPath,
+            ytFlPath: ytPfl
+        });
+    }
+
+    // DOM Caches
+    const masterNode = document.getElementById('node-master');
+    const matrixBadge = document.getElementById('matrix-badge');
+    const ytNode = document.getElementById('node-yt');
+
+    // --- ANIMATION LOGIC (0 to 30s) ---
+    window.renderFrame = function(t) {
+        
+        // 0-2s: Master in
+        masterNode.style.transform = `translate(-50%, -50%) scale(${interp(t, 0, 1, 0, 1, 'easeOutBack')})`;
+        
+        // 2-4s: Matrix Badge
+        matrixBadge.style.opacity = interp(t, 1.5, 2.5, 0, 1);
+        matrixBadge.style.transform = `translate(-50%, -50%) scale(${interp(t, 1.5, 2.5, 0.5, 1, 'easeOutBack')})`;
+
+        // 3-6s: Wires & Runners Spawning
+        runnerEls.forEach((r, i) => {
+            let tSpawn = 3 + (i * 0.2);
+            
+            // Wire drawing
+            r.drPath.setAttribute("stroke-dashoffset", interp(t, tSpawn, tSpawn + 1.5, 1500, 0, 'easeInOutCubic'));
+            
+            // Box pop
+            r.box.style.opacity = interp(t, tSpawn + 1, tSpawn + 1.5, 0, 1);
+            r.box.style.transform = `translate(-50%, -50%) scale(${interp(t, tSpawn + 1, tSpawn + 1.5, 0.5, 1, 'easeOutBack')})`;
+            
+            if (t > tSpawn + 1.5 && t < 18) r.status.innerText = "Initializing...";
+        });
+
+        if (t > 4.5 && t < 18) wgFl.setAttribute("opacity", 1);
+        else wgFl.setAttribute("opacity", 0);
+
+        if (wgFl.getAttribute("opacity") == 1) {
+            runnerEls.forEach((r, i) => {
+                r.flPath.setAttribute("stroke-dashoffset", -(t * 150));
+            });
+        }
+
+        // 6-11s: Hook Validation Phase
+        if (t > 6) {
+            runnerEls.forEach((r, i) => {
+                let tScanStart = 6.5 + (i * 0.1);
+                let tScanEnd = tScanStart + 2;
+                
+                // Scanner movement
+                r.scan.style.opacity = interp(t, tScanStart, tScanStart+0.2, 0, 1) * interp(t, tScanEnd, tScanEnd+0.2, 1, 0);
+                r.scan.style.left = `${interp(t, tScanStart, tScanEnd, 0, 100, 'linear')}%`;
+
+                // Hook glowing logic
+                if (t > tScanStart + 0.3) {
+                    r.hook.style.background = 'var(--orange)';
+                    r.hook.style.boxShadow = `0 0 ${interp(Math.sin(t*15), -1, 1, 5, 15)}px rgba(245, 158, 11, 0.6)`;
+                    r.hl.style.color = 'var(--orange)';
+                    r.status.innerText = "Validating Hook...";
+                    r.status.style.color = 'var(--orange)';
+                }
+
+                // Passed validation
+                if (t > tScanStart + 1.8) {
+                    r.hook.style.background = 'var(--green)';
+                    r.hook.style.boxShadow = `0 0 10px rgba(16, 185, 129, 0.4)`;
+                    r.hl.style.color = 'var(--green)';
+                    r.status.innerText = "Explosive Hook Verified";
+                    r.status.style.color = 'var(--green)';
+                }
+            });
+        }
+
+        // 11-15s: Portrait Render (Morph 16:9 -> 9:16)
+        if (t > 11) {
+            runnerEls.forEach((r, i) => {
+                let tMorph = 11.5 + (i * 0.1);
+                if (t > tMorph && t < 19) {
+                    r.status.innerText = "Rendering Portrait...";
+                    r.status.style.color = 'var(--blue)';
+                }
+                
+                // 144x81 to 81x144
+                let cw = interp(t, tMorph, tMorph+1.5, 144, 81, 'easeInOutCubic');
+                let ch = interp(t, tMorph, tMorph+1.5, 81, 144, 'easeInOutCubic');
+                
+                // If past detach point, control canvas globally
+                if (t < 20) {
+                    r.canvas.style.width = `${cw}px`;
+                    r.canvas.style.height = `${ch}px`;
+                }
+            });
+        }
+
+        // 15-18s: Logo Overlay
+        if (t > 15) {
+            runnerEls.forEach((r, i) => {
+                let tLogo = 15.5 + (i * 0.1);
+                r.logo.style.opacity = interp(t, tLogo, tLogo+0.5, 0, 1);
+                r.logo.style.transform = `scale(${interp(t, tLogo, tLogo+0.5, 0, 1, 'easeOutBack')})`;
+                
+                if (t > tLogo+0.5 && t < 19) {
+                    r.status.innerText = "Overlay Applied. Ready.";
+                    r.status.style.color = 'var(--text-main)';
+                }
+            });
+        }
+
+        // 18-22s: YT Node In, Flows Activate
+        if (t > 18) {
+            ytNode.style.opacity = interp(t, 18, 19, 0, 1);
+            ytNode.style.transform = `translate(-50%, -50%) scale(${interp(t, 18, 19, 0.5, 1, 'easeOutBack')})`;
+        }
+        
+        if (t > 19) ytFl.setAttribute("opacity", 1);
+        else ytFl.setAttribute("opacity", 0);
+
+        if (ytFl.getAttribute("opacity") == 1) {
+            runnerEls.forEach((r, i) => { r.ytFlPath.setAttribute("stroke-dashoffset", -(t * 200)); });
+        }
+
+        // 20-25s: Videos Detach and Flow to YT
+        if (t > 20) {
+            runnerEls.forEach((r, i) => {
+                let tFly = 20 + (i * 0.2);
+                
+                // Change canvas to absolute global positioning on the fly
+                // Initial relative center was in the runner. Runner X = 900.
+                // .render-area is flex right side of 500px runner.
+                // Approx global center of canvas was: 900 + 100 = 1000.
+                let startX = 0; // Relative to render-area
+                let startY = 0;
+
+                // Move 1400 - 1000 = +400 roughly relative space
+                let xShift = interp(t, tFly, tFly+1.5, 0, 600, 'easeInOutCubic');
+                // Target Y converges to ytY (540). Runner Y is runnerYs[i]. Diff = 540 - runnerYs[i].
+                let yShift = interp(t, tFly, tFly+1.5, 0, 540 - runnerYs[i], 'easeInOutCubic');
+                
+                let scale = interp(t, tFly+1.2, tFly+1.6, 1, 0, 'easeInCubic');
+                
+                if (t >= tFly) {
+                    r.canvas.style.position = 'absolute';
+                    r.canvas.style.transform = `translate(${xShift}px, ${yShift}px) scale(${scale})`;
+                    r.status.innerText = "Uploaded.";
+                    r.status.style.color = 'var(--grid)';
+                }
+
+                // YT Node Absorbing Pulse
+                if (t > tFly+1.4 && t < tFly+1.8) {
+                    ytNode.style.boxShadow = `0 0 ${interp(Math.sin(t*30), -1, 1, 10, 40)}px rgba(239, 68, 68, 0.6)`;
+                    ytNode.style.transform = `translate(-50%, -50%) scale(${1 + Math.sin(t*20)*0.05})`;
+                }
+            });
+            
+            // Clean up pulse at end
+            if (t > 22.5) {
+                ytNode.style.boxShadow = `0 10px 25px -5px rgba(0,0,0,0.05)`;
+                ytNode.style.transform = `translate(-50%, -50%) scale(1)`;
+            }
+        }
+    };
+
+    // --- DEV AUTOPLAY ---
+    
+    let start = performance.now();
+    function loop() {
+        let t = (performance.now() - start) / 1000;
+        window.renderFrame(t);
+        if (t < 30) requestAnimationFrame(loop);
+    }
+    loop();
+    
+</script>
+
+</body>
+</html>

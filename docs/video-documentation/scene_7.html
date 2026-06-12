@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worker 5: The Assembler</title>
+    <style>
+        :root {
+            /* Premium Light SaaS Theme */
+            --bg: #F8FAFC;
+            --surface: #FFFFFF;
+            --grid: #E2E8F0;
+            --border: #CBD5E1;
+            
+            --text-main: #0F172A;
+            --text-mut: #64748B;
+            
+            --blue: #3B82F6;
+            --blue-light: #DBEAFE;
+            --blue-stripes: repeating-linear-gradient(45deg, #DBEAFE, #DBEAFE 10px, #EFF6FF 10px, #EFF6FF 20px);
+            
+            --purple: #8B5CF6;
+            --purple-light: #EDE9FE;
+            
+            --green: #10B981;
+            --green-light: #D1FAE5;
+            
+            --red: #EF4444;
+            --red-light: #FEE2E2;
+            
+            --slate: #334155;
+            --slate-light: #F1F5F9;
+
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100vw; height: 100vh;
+            background-color: var(--bg);
+            font-family: var(--font);
+            overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        #app {
+            
+            position: absolute; left: 50%; top: 50%; margin-left: -960px; margin-top: -540px; width: 1920px; height: 1080px;
+            background-color: var(--bg);
+            background-image: radial-gradient(var(--border) 1px, transparent 1px);
+            background-size: 32px 32px;
+            overflow: hidden;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.03);
+        }
+
+        #world {
+            position: absolute;
+            top: 0; left: 0;
+            width: 4000px; height: 1080px;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+
+        /* --- Shared Node Styles --- */
+        .node {
+            position: absolute;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);
+            display: flex; align-items: center; padding: 20px 24px;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        .node-col { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+        .icon-box {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            display: flex; justify-content: center; align-items: center;
+            flex-shrink: 0; margin-right: 16px;
+        }
+        .icon-box svg { width: 24px; height: 24px; stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+
+        .node-title { font-weight: 700; font-size: 18px; color: var(--text-main); line-height: 1.2;}
+        .node-sub { font-weight: 600; font-size: 13px; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* --- Wiring --- */
+        svg.wiring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        .wire-bg { fill: none; stroke: var(--border); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+        .wire-flow { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 12 24; }
+        .wire-draw { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+        /* --- Zone 1: Downloader --- */
+        .file-packet {
+            position: absolute; width: 40px; height: 50px;
+            background: var(--surface); border: 2px solid var(--blue); border-radius: 8px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 10px; font-weight: 800; color: var(--blue);
+            box-shadow: 0 4px 6px rgba(59,130,246,0.1);
+            transform: translate(-50%, -50%); opacity: 0; z-index: 5;
+        }
+        .file-packet.purple { border-color: var(--purple); color: var(--purple); }
+
+        /* --- Zone 2: Freeze Frame (tpad) --- */
+        .timeline-box {
+            position: absolute; width: 600px; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 16px; padding: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05); transform: translate(-50%, -50%);
+        }
+        .tl-header { font-weight: 800; font-size: 16px; color: var(--text-main); margin-bottom: 24px; display: flex; justify-content: space-between; }
+        
+        .track-row { display: flex; align-items: center; margin-bottom: 16px; position: relative; }
+        .track-label { width: 100px; font-weight: 600; font-size: 14px; color: var(--text-mut); }
+        .track-bg { flex-grow: 1; height: 40px; background: var(--slate-light); border-radius: 8px; position: relative; display: flex; }
+        
+        .track-block { height: 100%; border-radius: 8px; display: flex; align-items: center; padding-left: 12px; font-size: 12px; font-weight: 700; color: white; white-space: nowrap; overflow: hidden; }
+        .bg-blue { background: var(--blue); }
+        .bg-purple { background: var(--purple); }
+
+        .clone-block {
+            height: 100%; width: 0px; background: var(--blue-stripes);
+            border: 2px dashed var(--blue); border-left: none;
+            border-top-right-radius: 8px; border-bottom-right-radius: 8px;
+            box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+            color: var(--blue); font-weight: 800; font-size: 12px; overflow: hidden; opacity: 0;
+        }
+
+        .code-badge {
+            position: absolute; background: #1E293B; color: #A78BFA;
+            font-family: var(--font-mono); font-size: 14px; padding: 8px 16px;
+            border-radius: 8px; font-weight: 700; box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+            transform: translate(-50%, -50%) scale(0); opacity: 0;
+        }
+        .code-highlight { color: #38BDF8; }
+
+        /* --- Zone 3: Audio Ducking --- */
+        .duck-box {
+            position: absolute; width: 800px; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 16px; padding: 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05); transform: translate(-50%, -50%);
+        }
+        
+        .v-block { position: absolute; height: 30px; background: var(--purple); border-radius: 6px; top: 0; display:flex; align-items:center; justify-content:center; color:white; font-size:11px; font-weight:700;}
+        .v-track-container { position: relative; height: 40px; width: 100%; margin-bottom: 20px; }
+
+        .m-track-container { position: relative; height: 80px; width: 100%; display: flex; align-items: flex-end; gap: 2px; }
+        .m-bar { flex-grow: 1; background: var(--blue-light); border-radius: 2px 2px 0 0; border-top: 2px solid var(--blue); transform-origin: bottom; }
+        
+        .vol-label {
+            position: absolute; font-family: var(--font-mono); font-weight: 800; font-size: 14px;
+            color: var(--blue); background: white; padding: 4px 8px; border-radius: 4px;
+            border: 1px solid var(--blue); opacity: 0; transform: translateY(10px);
+        }
+
+        /* --- Zone 4: Single Thread Concat --- */
+        .cpu-box {
+            position: absolute; width: 300px; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 16px; padding: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.05); transform: translate(-50%, -50%);
+            display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+        }
+        .core {
+            height: 80px; background: var(--green-light); border: 2px solid var(--green);
+            border-radius: 12px; display: flex; justify-content: center; align-items: center;
+            font-weight: 800; color: var(--green); position: relative;
+        }
+        .core-x {
+            position: absolute; font-size: 48px; color: var(--red); font-weight: 900;
+            opacity: 0; transform: scale(0);
+        }
+
+        .concat-zone {
+            position: absolute; width: 600px; height: 120px;
+            background: var(--slate-light); border: 2px dashed var(--slate); border-radius: 16px;
+            transform: translate(-50%, -50%); display: flex; align-items: center; padding: 10px;
+            box-sizing: border-box; gap: 8px;
+        }
+
+        .c-block {
+            height: 100%; background: var(--blue); border-radius: 8px;
+            display: flex; justify-content: center; align-items: center;
+            color: white; font-weight: 800; font-size: 14px; opacity: 0; position: absolute;
+            box-shadow: 0 4px 10px rgba(59,130,246,0.3);
+        }
+        .c-b1 { width: 100px; }
+        .c-b2 { width: 200px; }
+        .c-b3 { width: 150px; }
+        .c-b4 { width: 100px; }
+
+        .final-file {
+            position: absolute; width: 580px; height: 100px; background: var(--green);
+            border-radius: 12px; display: flex; justify-content: center; align-items: center;
+            color: white; font-weight: 900; font-size: 24px; letter-spacing: 1px;
+            opacity: 0; box-shadow: 0 15px 30px rgba(16,185,129,0.4); z-index: 20;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="world">
+        
+        <!-- WIRING LAYER -->
+        <svg class="wiring">
+            <!-- Zone 1 paths -->
+            <path class="wire-bg" d="M 400 200 L 400 540" />
+            <path class="wire-flow" id="f-dl" d="M 400 200 L 400 540" stroke="var(--blue)" opacity="0" />
+
+            <!-- Worker to Zone 2 -->
+            <path class="wire-draw" id="w-w2z2" d="M 400 540 L 400 700 L 1200 700 L 1200 650" stroke="var(--border)" stroke-dasharray="1000" stroke-dashoffset="1000" />
+            <path class="wire-flow" id="f-w2z2" d="M 400 540 L 400 700 L 1200 700 L 1200 650" stroke="var(--blue)" opacity="0" />
+            
+            <!-- Zone 2 to 3 -->
+            <path class="wire-bg" id="bg-z2z3" d="M 1500 540 L 1700 540" opacity="0" />
+            <path class="wire-flow" id="f-z2z3" d="M 1500 540 L 1700 540" stroke="var(--purple)" opacity="0" />
+
+            <!-- Zone 3 to 4 -->
+            <path class="wire-bg" id="bg-z3z4" d="M 2400 540 L 2600 540" opacity="0" />
+            <path class="wire-flow" id="f-z3z4" d="M 2400 540 L 2600 540" stroke="var(--blue)" opacity="0" />
+        </svg>
+
+
+        <!-- ================= ZONE 1: DOWNLOADER ================= -->
+        <div class="node" id="n-cloud" style="left: 400px; top: 200px; border: 2px solid var(--green);">
+            <div class="icon-box" style="background: var(--green-light); color: var(--green);">
+                <svg viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+            </div>
+            <div>
+                <div class="node-title">Cloudinary</div>
+                <div class="node-sub">Asset Lake</div>
+            </div>
+        </div>
+
+        <div class="file-packet" id="pkt-1" style="left: 400px; top: 200px;">MP4</div>
+        <div class="file-packet purple" id="pkt-2" style="left: 400px; top: 200px;">WAV</div>
+        <div class="file-packet" id="pkt-3" style="left: 400px; top: 200px;">MP4</div>
+
+        <div class="node" id="n-worker" style="left: 400px; top: 540px; width: 260px; border: 2px solid var(--text-main);">
+            <div class="icon-box" style="background: var(--text-main); color: white;">
+                <svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            </div>
+            <div class="node-col">
+                <div class="node-title">Worker 5</div>
+                <div class="node-sub">The Assembler</div>
+            </div>
+        </div>
+
+
+        <!-- ================= ZONE 2: FREEZE FRAME ================= -->
+        <div class="timeline-box" id="z2-box" style="left: 1200px; top: 540px; opacity: 0;">
+            <div class="tl-header">
+                <span>Duration Matching</span>
+                <span style="color: var(--blue);">FFmpeg Visualizer</span>
+            </div>
+            
+            <div class="track-row">
+                <div class="track-label">Video Clip</div>
+                <div class="track-bg">
+                    <div class="track-block bg-blue" id="vid-block" style="width: 250px;">Animation.mp4</div>
+                    <div class="clone-block" id="clone-block">Clone Freeze</div>
+                </div>
+            </div>
+            
+            <div class="track-row">
+                <div class="track-label">Voiceover</div>
+                <div class="track-bg">
+                    <div class="track-block bg-purple" id="aud-block" style="width: 400px;">Narration.wav</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="code-badge" id="tpad-code" style="left: 1200px; top: 700px;">
+            -vf "<span class="code-highlight">tpad=stop_mode=clone</span>:stop_duration=..."
+        </div>
+
+
+        <!-- ================= ZONE 3: AUDIO DUCKING ================= -->
+        <div class="duck-box" id="z3-box" style="left: 2000px; top: 540px; opacity: 0;">
+            <div class="tl-header">
+                <span>Audio Ducking Filter Graph</span>
+                <span style="color: var(--purple);">Dynamic Mixing</span>
+            </div>
+
+            <!-- Voice Track -->
+            <div style="font-weight:600; font-size:12px; color:var(--text-mut); margin-bottom:8px;">Narrator Voice</div>
+            <div class="v-track-container">
+                <div class="v-block" id="vb-1" style="left: 50px; width: 200px; opacity: 0;">Speaking</div>
+                <div class="v-block" id="vb-2" style="left: 400px; width: 250px; opacity: 0;">Speaking</div>
+            </div>
+
+            <!-- Music Track -->
+            <div style="font-weight:600; font-size:12px; color:var(--text-mut); margin-bottom:8px;">Background Music (Swell & Duck)</div>
+            <div class="m-track-container" id="music-track">
+                <!-- Bars generated in JS -->
+            </div>
+            
+            <div class="vol-label" id="vol-swell1" style="left: 32px; top: 120px;">15%</div>
+            <div class="vol-label" id="vol-duck1" style="left: 150px; top: 200px;">5%</div>
+            <div class="vol-label" id="vol-swell2" style="left: 320px; top: 120px;">15%</div>
+            <div class="vol-label" id="vol-duck2" style="left: 520px; top: 200px;">5%</div>
+            <div class="vol-label" id="vol-swell3" style="left: 680px; top: 120px;">15%</div>
+        </div>
+
+
+        <!-- ================= ZONE 4: CONCAT & CPU ================= -->
+        <div class="cpu-box" id="cpu-box" style="left: 2900px; top: 350px; opacity: 0;">
+            <div style="grid-column: 1 / -1; font-weight:800; color:var(--text-main); display:flex; justify-content:space-between;">
+                Worker CPU
+                <span style="color:var(--red); font-size:12px; background:var(--red-light); padding:2px 8px; border-radius:4px;" id="oom-tag">Prevent OOM</span>
+            </div>
+            <div class="core" id="core-1">Core 1<div class="core-x" id="cx-1">×</div></div>
+            <div class="core" id="core-2">Core 2<div class="core-x" id="cx-2">×</div></div>
+            <div class="core" id="core-3">Core 3<div class="core-x" id="cx-3">×</div></div>
+            <div class="core" id="core-4">Core 4<div class="core-x" id="cx-4">×</div></div>
+            
+            <div class="code-badge" id="cpu-code" style="grid-column: 1 / -1; position:relative; transform:none; opacity:1; left:0; top:0; width:100%; box-sizing:border-box; text-align:center;">
+                -threads <span class="code-highlight">1</span>
+            </div>
+        </div>
+
+        <div style="position:absolute; left:2900px; top:540px; transform:translate(-50%,-50%); text-align:center; font-weight:800; color:var(--text-main); font-size:18px; z-index:10; opacity:0;" id="concat-title">
+            Sequential Concatenation
+        </div>
+
+        <div class="concat-zone" id="concat-zone" style="left: 2900px; top: 650px; opacity: 0;">
+            <!-- Blocks start scattered -->
+            <div class="c-block c-b1" id="cb-1" style="left: 20px; top: -100px;">Intro</div>
+            <div class="c-block c-b2" id="cb-2" style="left: 200px; top: 100px; background:var(--purple);">Scene 1</div>
+            <div class="c-block c-b3" id="cb-3" style="left: 450px; top: -80px; background:var(--green);">Scene 2</div>
+            <div class="c-block c-b4" id="cb-4" style="left: 300px; top: 120px; background:var(--orange);">Outro</div>
+
+            <div class="final-file" id="final-video">final_video.mp4</div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- UTILS ---
+    function resize() {
+        const app = document.getElementById('app');
+        const scale = Math.max(window.innerWidth / 1920, window.innerHeight / 1080);
+        app.style.transform = `scale(${scale})`;
+        app.style.transformOrigin = 'center center';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function interp(t, tStart, tEnd, vStart, vEnd, ease = 'easeInOutCubic') {
+        if (t <= tStart) return vStart;
+        if (t >= tEnd) return vEnd;
+        let p = (t - tStart) / (tEnd - tStart);
+        if (ease === 'easeOutCubic') p = 1 - Math.pow(1 - p, 3);
+        else if (ease === 'easeInOutCubic') p = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        else if (ease === 'easeOutBack') { const c1 = 1.70158; const c3 = c1 + 1; p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
+        else if (ease === 'easeInCubic') p = p * p * p;
+        return vStart + (vEnd - vStart) * p;
+    }
+
+    // --- SETUP DOM DYNAMICS ---
+    // Generate Music Bars for ducking visual (80 bars)
+    const mTrack = document.getElementById('music-track');
+    const mBars = [];
+    for(let i=0; i<80; i++) {
+        let b = document.createElement('div');
+        b.className = 'm-bar';
+        // Give them a slight natural wave variation
+        let noise = Math.sin(i * 0.5) * 10;
+        b.dataset.baseH = 70 + noise; // base height (15%)
+        b.dataset.duckH = 15 + noise*0.2; // ducked height (5%)
+        mTrack.appendChild(b);
+        mBars.push(b);
+    }
+
+    // --- CACHE DOM ---
+    const world = document.getElementById('world');
+    const pkt1 = document.getElementById('pkt-1');
+    const pkt2 = document.getElementById('pkt-2');
+    const pkt3 = document.getElementById('pkt-3');
+    const fDl = document.getElementById('f-dl');
+    const wW2Z2 = document.getElementById('w-w2z2');
+    const fW2Z2 = document.getElementById('f-w2z2');
+
+    const z2Box = document.getElementById('z2-box');
+    const cloneBlock = document.getElementById('clone-block');
+    const tpadCode = document.getElementById('tpad-code');
+
+    const bgZ2Z3 = document.getElementById('bg-z2z3');
+    const fZ2Z3 = document.getElementById('f-z2z3');
+    
+    const z3Box = document.getElementById('z3-box');
+    const vb1 = document.getElementById('vb-1');
+    const vb2 = document.getElementById('vb-2');
+    const vSw1 = document.getElementById('vol-swell1');
+    const vDk1 = document.getElementById('vol-duck1');
+    const vSw2 = document.getElementById('vol-swell2');
+    const vDk2 = document.getElementById('vol-duck2');
+    const vSw3 = document.getElementById('vol-swell3');
+
+    const bgZ3Z4 = document.getElementById('bg-z3Z4');
+    const fZ3Z4 = document.getElementById('f-z3z4');
+
+    const cpuBox = document.getElementById('cpu-box');
+    const concatZone = document.getElementById('concat-zone');
+    const concatTitle = document.getElementById('concat-title');
+    const cores = [document.getElementById('core-2'), document.getElementById('core-3'), document.getElementById('core-4')];
+    const cXs = [document.getElementById('cx-2'), document.getElementById('cx-3'), document.getElementById('cx-4')];
+    
+    const cBlocks = [
+        { el: document.getElementById('cb-1'), sX: 20, sY: -100, tX: 10, tY: 10, w: 100 },
+        { el: document.getElementById('cb-2'), sX: 200, sY: 100, tX: 118, tY: 10, w: 200 },
+        { el: document.getElementById('cb-3'), sX: 450, sY: -80, tX: 326, tY: 10, w: 150 },
+        { el: document.getElementById('cb-4'), sX: 300, sY: 120, tX: 484, tY: 10, w: 100 }
+    ];
+    const finalVideo = document.getElementById('final-video');
+
+
+    // --- RENDER LOGIC (0 to 55 seconds) ---
+    window.renderFrame = function(t) {
+        
+        // --- CAMERA PANNING ---
+        // Z1: 400
+        // Z2: 1200
+        // Z3: 2000
+        // Z4: 2900
+        let cx = 400;
+        cx = interp(t, 8, 12, cx, 1200, 'easeInOutCubic');
+        cx = interp(t, 22, 26, cx, 2000, 'easeInOutCubic');
+        cx = interp(t, 36, 40, cx, 2900, 'easeInOutCubic');
+
+        // Center vertically on 540
+        world.style.transform = `translate(${960 - cx}px, ${540 - 540}px)`;
+
+        // --- ZONE 1: DOWNLOADER (0 - 10s) ---
+        if (t > 1 && t < 6) {
+            fDl.style.opacity = 1; fDl.style.strokeDashoffset = -(t * 100);
+            
+            // Packets falling
+            let p1T = clamp(t, 1, 2.5);
+            pkt1.style.opacity = interp(p1T, 1, 1.2, 0, 1) * interp(p1T, 2.3, 2.5, 1, 0);
+            pkt1.style.top = `${interp(p1T, 1, 2.5, 200, 540, 'easeInCubic')}px`;
+
+            let p2T = clamp(t, 2, 3.5);
+            pkt2.style.opacity = interp(p2T, 2, 2.2, 0, 1) * interp(p2T, 3.3, 3.5, 1, 0);
+            pkt2.style.top = `${interp(p2T, 2, 3.5, 200, 540, 'easeInCubic')}px`;
+
+            let p3T = clamp(t, 3, 4.5);
+            pkt3.style.opacity = interp(p3T, 3, 3.2, 0, 1) * interp(p3T, 4.3, 4.5, 1, 0);
+            pkt3.style.top = `${interp(p3T, 3, 4.5, 200, 540, 'easeInCubic')}px`;
+        } else {
+            fDl.style.opacity = 0;
+            pkt1.style.opacity = 0; pkt2.style.opacity = 0; pkt3.style.opacity = 0;
+        }
+
+        // Draw wire to next zone
+        wW2Z2.style.strokeDashoffset = interp(t, 5, 8, 1000, 0, 'easeInOutCubic');
+        if (t > 7 && t < 12) {
+            fW2Z2.style.opacity = 1;
+            fW2Z2.style.strokeDashoffset = -(t * 200);
+        } else { fW2Z2.style.opacity = 0; }
+
+
+        // --- ZONE 2: FREEZE FRAME (10 - 24s) ---
+        if (t > 10) {
+            z2Box.style.opacity = interp(t, 10, 11, 0, 1);
+            z2Box.style.transform = `translate(-50%, -50%) scale(${interp(t, 10, 11, 0.8, 1, 'easeOutBack')})`;
+        } else { z2Box.style.opacity = 0; }
+
+        // Clone stretch
+        if (t > 13) {
+            let cloneW = interp(t, 13, 15, 0, 150, 'easeInOutCubic');
+            cloneBlock.style.width = `${cloneW}px`;
+            cloneBlock.style.borderLeft = cloneW > 0 ? '2px dashed var(--blue)' : 'none';
+            cloneBlock.style.opacity = interp(t, 13, 13.5, 0, 1);
+        } else {
+            cloneBlock.style.width = '0px'; cloneBlock.style.opacity = 0;
+        }
+
+        // Code Badge pops up
+        if (t > 15) {
+            tpadCode.style.opacity = interp(t, 15, 16, 0, 1);
+            tpadCode.style.transform = `translate(-50%, -50%) scale(${interp(t, 15, 16, 0.5, 1, 'easeOutBack')})`;
+        }
+
+        // Flow to Z3
+        if (t > 18) bgZ2Z3.style.opacity = 1;
+        if (t > 20 && t < 26) {
+            fZ2Z3.style.opacity = 1;
+            fZ2Z3.style.strokeDashoffset = -(t * 200);
+        } else { fZ2Z3.style.opacity = 0; }
+
+
+        // --- ZONE 3: AUDIO DUCKING (24 - 38s) ---
+        if (t > 24) {
+            z3Box.style.opacity = interp(t, 24, 25, 0, 1);
+            z3Box.style.transform = `translate(-50%, -50%) scale(${interp(t, 24, 25, 0.8, 1, 'easeOutBack')})`;
+        } else { z3Box.style.opacity = 0; }
+
+        // Voice blocks drop in
+        if (t > 26) {
+            vb1.style.opacity = interp(t, 26, 26.5, 0, 1);
+            vb1.style.transform = `translateY(${interp(t, 26, 26.5, -20, 0, 'easeOutBack')}px)`;
+            vb2.style.opacity = interp(t, 26.5, 27, 0, 1);
+            vb2.style.transform = `translateY(${interp(t, 26.5, 27, -20, 0, 'easeOutBack')}px)`;
+        }
+
+        // Music Envelope Animation
+        // Voice 1 spans roughly 50px to 250px. (Bar indexes ~ 5 to 25)
+        // Voice 2 spans roughly 400px to 650px. (Bar indexes ~ 40 to 65)
+        let duckFactor = interp(t, 28, 30, 0, 1, 'easeInOutCubic'); // 0 = flat 15%, 1 = fully ducked
+        
+        mBars.forEach((bar, i) => {
+            let isUnderVoice = (i >= 5 && i <= 25) || (i >= 40 && i <= 65);
+            let targetH = parseFloat(bar.dataset.baseH);
+            
+            if (isUnderVoice) {
+                targetH = targetH - ((targetH - parseFloat(bar.dataset.duckH)) * duckFactor);
+            }
+            
+            // Add subtle playing ripple
+            let ripple = (t > 25) ? Math.sin(t*10 + i)*2 : 0;
+            bar.style.height = `${targetH + ripple}px`;
+        });
+
+        // Tags fade in
+        if (t > 28.5) vSw1.style.opacity = interp(t, 28.5, 29, 0, 1);
+        if (t > 29.0) vDk1.style.opacity = interp(t, 29.0, 29.5, 0, 1);
+        if (t > 29.5) vSw2.style.opacity = interp(t, 29.5, 30, 0, 1);
+        if (t > 30.0) vDk2.style.opacity = interp(t, 30.0, 30.5, 0, 1);
+        if (t > 30.5) vSw3.style.opacity = interp(t, 30.5, 31, 0, 1);
+
+        // Flow to Z4
+        const fZ3Z4el = document.getElementById('f-z3z4');
+        const bgZ3Z4el = document.getElementById('bg-z3z4'); // corrected id grab
+        if (t > 34) { if(document.getElementById('bg-z3z4')) document.getElementById('bg-z3z4').style.opacity = 1; }
+        if (t > 34 && t < 40) {
+            if(fZ3Z4el) {
+                fZ3Z4el.style.opacity = 1;
+                fZ3Z4el.style.strokeDashoffset = -(t * 200);
+            }
+        } else {
+            if(fZ3Z4el) fZ3Z4el.style.opacity = 0;
+        }
+
+
+        // --- ZONE 4: CONCAT & CPU (38 - 55s) ---
+        if (t > 38) {
+            cpuBox.style.opacity = interp(t, 38, 39, 0, 1);
+            cpuBox.style.transform = `translate(-50%, -50%) scale(${interp(t, 38, 39, 0.8, 1, 'easeOutBack')})`;
+            
+            concatZone.style.opacity = interp(t, 38.5, 39.5, 0, 1);
+            concatTitle.style.opacity = interp(t, 38.5, 39.5, 0, 1);
+        }
+
+        // Disable CPU cores
+        if (t > 40) {
+            cores.forEach((c, i) => {
+                let ct = 40 + i*0.3;
+                c.style.background = interp(t, ct, ct+0.5, 209, 241); // pseudo color transition
+                c.style.borderColor = `rgba(203, 213, 225, ${interp(t, ct, ct+0.5, 1, 1)})`; // slate border
+                c.style.color = `rgba(100, 116, 139, ${interp(t, ct, ct+0.5, 1, 1)})`; // slate text
+                cXs[i].style.opacity = interp(t, ct+0.2, ct+0.5, 0, 1);
+                cXs[i].style.transform = `scale(${interp(t, ct+0.2, ct+0.5, 0, 1, 'easeOutBack')})`;
+            });
+        }
+
+        // Blocks fade in scattered
+        if (t > 42) {
+            cBlocks.forEach((cb, i) => {
+                cb.el.style.opacity = interp(t, 42, 43, 0, 1);
+            });
+        }
+
+        // Blocks snap together
+        if (t > 44) {
+            cBlocks.forEach((cb, i) => {
+                let x = interp(t, 44, 46, cb.sX, cb.tX, 'easeInOutCubic');
+                let y = interp(t, 44, 46, cb.sY, cb.tY, 'easeInOutCubic');
+                cb.el.style.left = `${x}px`;
+                cb.el.style.top = `${y}px`;
+            });
+        }
+
+        // Merge into final video
+        if (t > 48) {
+            cBlocks.forEach(cb => { cb.el.style.opacity = interp(t, 48, 48.5, 1, 0); });
+            finalVideo.style.opacity = interp(t, 48.5, 49, 0, 1);
+            finalVideo.style.transform = `scale(${interp(t, 48.5, 49.5, 0.8, 1, 'easeOutBack')})`;
+            
+            // Success pulse
+            if (t > 49) {
+                finalVideo.style.boxShadow = `0 0 ${interp(Math.sin(t*5),-1,1,20,50)}px rgba(16,185,129,0.5)`;
+            }
+        }
+    };
+
+    // --- DEVELOPER PLAYBACK ---
+    
+    let start = performance.now();
+    function loop() {
+        let t = (performance.now() - start) / 1000;
+        window.renderFrame(t);
+        if (t < 55) requestAnimationFrame(loop);
+    }
+    loop();
+    
+</script>
+
+</body>
+</html>

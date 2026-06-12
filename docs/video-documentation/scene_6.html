@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voiceover Architecture</title>
+    <style>
+        :root {
+            /* Linear/Stripe inspired premium light palette */
+            --bg: #F8FAFC;
+            --surface: #FFFFFF;
+            --surface-alt: #F1F5F9;
+            --border: #E2E8F0;
+            --text-main: #0F172A;
+            --text-mut: #64748B;
+            
+            --blue: #3B82F6;
+            --blue-light: #DBEAFE;
+            --purple: #8B5CF6;
+            --purple-light: #EDE9FE;
+            --green: #10B981;
+            --green-light: #D1FAE5;
+            --red: #EF4444;
+            --red-light: #FEE2E2;
+            --orange: #F59E0B;
+            --orange-light: #FEF3C7;
+            
+            --shadow-sm: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+            --shadow-md: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025);
+            --shadow-lg: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
+            background-color: var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden; display: flex; justify-content: center; align-items: center;
+        }
+
+        #app {
+            position: absolute;
+            left: 50%; top: 50%;
+            margin-left: -960px; margin-top: -540px;
+            width: 1920px; height: 1080px;
+            background-color: var(--bg);
+            background-image: radial-gradient(var(--border) 1px, transparent 1px);
+            background-size: 40px 40px;
+            overflow: hidden;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.02);
+        }
+
+        #world {
+            position: absolute; top: 0; left: 0;
+            width: 4000px; height: 3000px;
+            transform-origin: 0 0; will-change: transform;
+        }
+
+        /* Generic Nodes */
+        .node {
+            position: absolute; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 16px;
+            box-shadow: var(--shadow-md);
+            display: flex; align-items: center; padding: 20px 24px; gap: 16px;
+            transform: translate(-50%, -50%); z-index: 10;
+        }
+        .node-col { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+        .icon-box {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; justify-content: center; align-items: center; flex-shrink: 0;
+        }
+        .icon-box svg { width: 24px; height: 24px; stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+
+        .node-title { font-weight: 700; font-size: 18px; color: var(--text-main); margin-bottom: 2px; }
+        .node-sub { font-weight: 600; font-size: 13px; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Wiring */
+        svg.wiring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        .wire-bg { fill: none; stroke: var(--border); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+        .wire-flow { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 12 24; }
+        .wire-solid { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+        
+        /* Packets */
+        .packet {
+            position: absolute; width: 16px; height: 16px; border-radius: 50%;
+            background: var(--blue); box-shadow: 0 0 15px var(--blue);
+            transform: translate(-50%, -50%); z-index: 5; opacity: 0;
+        }
+
+        /* Config Block */
+        .config-box {
+            font-family: "SF Mono", ui-monospace, Monaco, monospace;
+            background: #1E293B; color: #E2E8F0; padding: 16px; border-radius: 12px;
+            font-size: 14px; box-shadow: var(--shadow-lg); line-height: 1.5;
+        }
+        .cfg-key { color: #7DD3FC; }
+        .cfg-str { color: #FCA5A5; }
+
+        /* Audio Wave Visual */
+        .audio-wave { display: flex; gap: 4px; align-items: center; height: 24px; }
+        .bar { width: 4px; background: var(--blue); border-radius: 2px; height: 100%; transform-origin: bottom; }
+
+        /* Bad Timeline Visual */
+        .timeline-container { position: absolute; display: flex; flex-direction: column; gap: 12px; transform: translate(-50%, -50%); z-index: 10; width: 800px; }
+        .tl-row { display: flex; align-items: center; gap: 8px; opacity: 0; }
+        .tl-task { width: 80px; font-weight: 700; font-size: 14px; color: var(--text-mut); }
+        .tl-pt-load { height: 24px; background: var(--red-light); border: 1px solid var(--red); border-radius: 6px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--red); font-size: 12px; font-weight: 700; overflow: hidden; white-space: nowrap; }
+        .tl-gen { width: 30px; height: 24px; background: var(--blue-light); border: 1px solid var(--blue); border-radius: 6px; }
+        
+        .big-cross {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
+            color: var(--red); opacity: 0; z-index: 20;
+            filter: drop-shadow(0 10px 15px rgba(239,68,68,0.3));
+        }
+
+        /* Sanitization Visual */
+        .san-container { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; gap: 16px; z-index: 10;}
+        .san-row { display: flex; align-items: center; gap: 24px; font-family: "SF Mono", monospace; font-size: 16px; font-weight: 600; }
+        .san-messy { color: var(--red); background: var(--red-light); padding: 8px 16px; border-radius: 8px; text-decoration: line-through; }
+        .san-clean { color: var(--green); background: var(--green-light); padding: 8px 16px; border-radius: 8px; }
+        
+        .batch-json {
+            position: absolute; background: #1E293B; border-radius: 12px; padding: 20px;
+            color: #A78BFA; font-family: "SF Mono", monospace; font-size: 14px;
+            box-shadow: var(--shadow-lg); text-align: center; font-weight: 700; z-index: 15; opacity: 0;
+        }
+
+        /* WAV Files Array */
+        .wav-grid { position: absolute; display: flex; gap: 12px; transform: translate(-50%, -50%); z-index: 15; }
+        .wav-file {
+            width: 60px; height: 70px; background: var(--surface); border: 2px solid var(--blue);
+            border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: var(--shadow-sm); opacity: 0;
+        }
+        .wav-icon { color: var(--blue); margin-bottom: 4px; }
+        .wav-icon svg { width: 24px; height: 24px; stroke-width: 2; fill: none; stroke: currentColor; }
+
+        /* Buffer / Header visual */
+        .bypass-gate { position: absolute; transform: translate(-50%, -50%); padding: 8px 16px; background: var(--red); color: white; font-weight: 800; border-radius: 20px; opacity: 0; z-index: 20; }
+        
+        .buffer-container { position: absolute; transform: translate(-50%, -50%); display: flex; align-items: center; background: var(--surface-alt); border: 2px dashed var(--border); padding: 12px; border-radius: 12px; z-index: 10; opacity: 0; }
+        .buffer-box { width: 40px; height: 40px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: "SF Mono", monospace; font-size: 14px; color: var(--text-mut); margin-right: 4px; border-radius: 4px; }
+        
+        .wav-header { position: absolute; height: 42px; background: var(--blue); color: white; display: flex; align-items: center; justify-content: center; font-family: "SF Mono", monospace; font-weight: 700; border-radius: 6px; opacity: 0; box-shadow: 0 0 20px rgba(59,130,246,0.4); z-index: 11;}
+
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="world">
+        
+        <svg class="wiring" id="wiring">
+            <!-- Zone 1: Router -->
+            <path class="wire-bg" d="M 300 540 L 450 540" />
+            <path class="wire-bg" d="M 450 540 L 500 540" />
+            <path class="wire-bg" id="bg-gem" d="M 850 540 L 950 540 L 950 350 L 1050 350" />
+            <path class="wire-bg" id="bg-f5" d="M 850 540 L 950 540 L 950 730 L 1050 730" />
+            
+            <path class="wire-flow" id="flow-gem" d="M 850 540 L 950 540 L 950 350 L 1050 350" stroke="var(--blue)" opacity="0" />
+            <path class="wire-flow" id="flow-f5" d="M 850 540 L 950 540 L 950 730 L 1050 730" stroke="var(--purple)" opacity="0" />
+
+            <!-- Zone 3: Batch Flow -->
+            <path class="wire-bg" d="M 480 1600 L 750 1600" />
+            <path class="wire-flow" id="flow-batch" d="M 480 1600 L 750 1600" stroke="var(--purple)" opacity="0" />
+
+            <!-- Zone 4: Silence Hack -->
+            <path class="wire-bg" id="bg-h1" d="M 2100 1600 L 2300 1600" />
+            <path class="wire-solid" id="path-block" d="M 2100 1600 L 2300 1600" stroke="var(--red)" stroke-dasharray="200" stroke-dashoffset="200" />
+            <path class="wire-bg" id="bg-h2" d="M 2000 1640 L 2000 1800 L 2400 1800" />
+            <path class="wire-flow" id="flow-bypass" d="M 2000 1640 L 2000 1800 L 2400 1800" stroke="var(--green)" opacity="0" />
+        </svg>
+
+        <!-- ================= ZONE 1: ROUTER ================= -->
+        <div class="config-box node" id="n-cfg" style="left: 300px; top: 540px;">
+            <div>{<br>&nbsp;&nbsp;<span class="cfg-key">"voiceover_provider"</span>: <span class="cfg-str" id="cfg-val">"gemini"</span><br>}</div>
+        </div>
+
+        <div class="node" id="n-router" style="left: 650px; top: 540px; width: 280px; border: 2px solid var(--text-main);">
+            <div class="icon-box" style="background: var(--text-main); color: white;"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+            <div class="node-col">
+                <div class="node-title">Node.js Worker</div>
+                <div class="node-sub">Pipeline Router</div>
+            </div>
+        </div>
+
+        <div class="node" id="n-gemini" style="left: 1200px; top: 350px; border: 2px solid var(--blue); width: 200px;">
+            <div class="icon-box" style="background: var(--blue-light); color: var(--blue);"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            <div class="node-col">
+                <div class="node-title">Gemini TTS</div>
+                <div class="node-sub">Cloud API</div>
+            </div>
+            <!-- Audio Out indicator -->
+            <div class="audio-wave" id="gem-aw" style="position:absolute; right:-60px; opacity:0;">
+                <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+            </div>
+        </div>
+
+        <div class="node" id="n-f5" style="left: 1200px; top: 730px; border: 2px solid var(--purple); width: 200px; opacity:0; transform: translate(-50%,-50%) scale(0);">
+            <div class="icon-box" style="background: var(--purple-light); color: var(--purple);"><svg viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            <div class="node-col">
+                <div class="node-title">F5-TTS</div>
+                <div class="node-sub">Local PyTorch</div>
+            </div>
+        </div>
+
+
+        <!-- ================= ZONE 2: BAD TIMELINE ================= -->
+        <div class="timeline-container" id="bad-tl" style="left: 2000px; top: 540px;">
+            <!-- Generated dynamically in JS -->
+        </div>
+        <svg class="big-cross" id="big-cross" viewBox="0 0 24 24" style="width:200px; height:200px; stroke:currentColor; stroke-width:3; fill:none; stroke-linecap:round;">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+
+
+        <!-- ================= ZONE 3: BATCH SOLUTION ================= -->
+        <div class="san-container" id="san-box" style="left: 300px; top: 1600px;">
+            <div class="san-row" id="san-1"><div class="san-messy">**Scene 1**</div> ➔ <div class="san-clean">Scene 1</div></div>
+            <div class="san-row" id="san-2"><div class="san-messy">--Hello--</div> ➔ <div class="san-clean">Hello</div></div>
+            <div class="san-row" id="san-3"><div class="san-messy">_World_!</div> ➔ <div class="san-clean">World!</div></div>
+        </div>
+
+        <div class="batch-json" id="batch-file" style="left: 480px; top: 1600px;">batch_tasks.json</div>
+
+        <div class="node node-col" id="n-py-batch" style="left: 900px; top: 1600px; width: 300px; border: 2px solid var(--purple); padding: 32px; opacity: 0; transform: translate(-50%,-50%) scale(0);">
+            <div style="display:flex; align-items:center; gap:16px;">
+                <div class="icon-box" style="background: var(--purple-light); color: var(--purple);"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+                <div>
+                    <div class="node-title">Python Environment</div>
+                    <div class="node-sub">Spawned Once</div>
+                </div>
+            </div>
+            <div style="width:100%; margin-top:20px; background:var(--surface-alt); border-radius:8px; padding:4px;">
+                <div id="py-load-bar" style="height:24px; background:var(--red); border-radius:4px; width:0%; display:flex; align-items:center; padding-left:8px; color:white; font-size:12px; font-weight:700; white-space:nowrap; overflow:hidden;">Loading PyTorch Model (20s)</div>
+            </div>
+        </div>
+
+        <div class="wav-grid" id="wav-grid" style="left: 1300px; top: 1600px;">
+            <!-- Generated dynamically -->
+        </div>
+
+
+        <!-- ================= ZONE 4: SILENCE HACK ================= -->
+        <div class="node" id="n-router-2" style="left: 2000px; top: 1600px; width: 220px; border: 2px solid var(--text-main);">
+            <div class="icon-box" style="background: var(--text-main); color: white;"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+            <div class="node-col">
+                <div class="node-title">Node.js Worker</div>
+                <div class="node-sub">Task: "" (Empty)</div>
+            </div>
+        </div>
+
+        <div class="node" id="n-py-blocked" style="left: 2400px; top: 1600px; border: 2px solid var(--border); opacity: 0.5;">
+            <div class="icon-box" style="background: var(--surface-alt); color: var(--text-mut);"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            <div class="node-col"><div class="node-title">Python F5</div></div>
+        </div>
+        <div class="bypass-gate" id="bypass-gate" style="left: 2200px; top: 1600px;">BLOCKED: Avoid 20s Boot</div>
+
+        <div class="buffer-container" id="pcm-buf" style="left: 2400px; top: 1800px;">
+            <div class="buffer-box">00</div><div class="buffer-box">00</div><div class="buffer-box">00</div>
+            <div class="buffer-box">00</div><div class="buffer-box">00</div><div class="buffer-box">00</div>
+            <div style="font-weight:700; color:var(--text-mut); margin-left:8px;">Raw PCM Zeros</div>
+        </div>
+
+        <div class="wav-header" id="wav-hdr" style="left: 2200px; top: 1720px; width: 140px;">[44-Byte WAV]</div>
+
+        <div class="wav-file" id="final-wav" style="position:absolute; left: 2400px; top: 1800px; opacity:0; z-index:20; background:var(--blue-light); border-color:var(--blue);">
+            <div class="wav-icon"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <div style="font-size:10px; font-weight:700; color:var(--blue);">hook.wav</div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- UTILS ---
+    function resize() {
+        const app = document.getElementById('app');
+        const scale = Math.max(window.innerWidth / 1920, window.innerHeight / 1080);
+        app.style.transform = `scale(${scale})`;
+        app.style.transformOrigin = 'center center';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function interp(t, tStart, tEnd, vStart, vEnd, ease = 'easeInOutCubic') {
+        if (t <= tStart) return vStart;
+        if (t >= tEnd) return vEnd;
+        let p = (t - tStart) / (tEnd - tStart);
+        if (ease === 'easeOutCubic') p = 1 - Math.pow(1 - p, 3);
+        else if (ease === 'easeInOutCubic') p = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        else if (ease === 'easeOutBack') { const c1 = 1.70158; const c3 = c1 + 1; p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
+        else if (ease === 'easeInCubic') p = p * p * p;
+        return vStart + (vEnd - vStart) * p;
+    }
+
+    // --- SETUP DOM DYNAMICS ---
+    const badTl = document.getElementById('bad-tl');
+    for(let i=1; i<=6; i++) {
+        let row = document.createElement('div');
+        row.className = 'tl-row';
+        row.id = `tl-r-${i}`;
+        row.innerHTML = `<div class="tl-task">Scene ${i}</div><div class="tl-pt-load" id="tl-pt-${i}">Load Model</div><div class="tl-gen" id="tl-gn-${i}"></div>`;
+        badTl.appendChild(row);
+    }
+
+    const wavGrid = document.getElementById('wav-grid');
+    for(let i=1; i<=5; i++) {
+        let w = document.createElement('div');
+        w.className = 'wav-file';
+        w.id = `wav-${i}`;
+        w.innerHTML = `<div class="wav-icon"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><div style="font-size:10px; font-weight:700; color:var(--text-main);">s${i}.wav</div>`;
+        wavGrid.appendChild(w);
+    }
+
+    // --- DOM CACHE ---
+    const world = document.getElementById('world');
+    const cfgVal = document.getElementById('cfg-val');
+    const flowGem = document.getElementById('flow-gem');
+    const flowF5 = document.getElementById('flow-f5');
+    const nF5 = document.getElementById('n-f5');
+    const gemAw = document.getElementById('gem-aw');
+    const gemBars = gemAw.querySelectorAll('.bar');
+    
+    const bigCross = document.getElementById('big-cross');
+    
+    const sanRows = [document.getElementById('san-1'), document.getElementById('san-2'), document.getElementById('san-3')];
+    const batchFile = document.getElementById('batch-file');
+    const flowBatch = document.getElementById('flow-batch');
+    const nPyBatch = document.getElementById('n-py-batch');
+    const pyLoadBar = document.getElementById('py-load-bar');
+    
+    const pathBlock = document.getElementById('path-block');
+    const bypassGate = document.getElementById('bypass-gate');
+    const flowBypass = document.getElementById('flow-bypass');
+    const pcmBuf = document.getElementById('pcm-buf');
+    const wavHdr = document.getElementById('wav-hdr');
+    const finalWav = document.getElementById('final-wav');
+
+    // --- RENDER LOGIC ---
+    window.renderFrame = function(t) {
+        
+        // --- CAMERA PANNING ---
+        // Centers for 4 zones:
+        // Z1: (750, 540)
+        // Z2: (2000, 540)
+        // Z3: (800, 1600)
+        // Z4: (2200, 1600)
+        let cx = 750; let cy = 540;
+        
+        cx = interp(t, 8, 11, cx, 2000, 'easeInOutCubic');
+        cy = interp(t, 8, 11, cy, 540, 'easeInOutCubic');
+        
+        cx = interp(t, 22, 25, cx, 800, 'easeInOutCubic');
+        cy = interp(t, 22, 25, cy, 1600, 'easeInOutCubic');
+        
+        cx = interp(t, 42, 45, cx, 2200, 'easeInOutCubic');
+        cy = interp(t, 42, 45, cy, 1600, 'easeInOutCubic');
+
+        world.style.transform = `translate(${960 - cx}px, ${540 - cy}px)`;
+
+        // --- ZONE 1: ROUTING (0-10s) ---
+        if (t < 4.5) {
+            cfgVal.innerText = '"gemini"';
+            cfgVal.style.color = '#7DD3FC';
+            
+            if (t > 1) {
+                flowGem.style.opacity = 1;
+                flowGem.style.strokeDashoffset = -(t * 100);
+            }
+            if (t > 2.5) {
+                gemAw.style.opacity = 1;
+                gemBars[0].style.transform = `scaleY(${1 + Math.sin(t*20)*0.5})`;
+                gemBars[1].style.transform = `scaleY(${1 + Math.sin(t*15+1)*0.8})`;
+                gemBars[2].style.transform = `scaleY(${1 + Math.sin(t*25+2)*0.4})`;
+                gemBars[3].style.transform = `scaleY(${1 + Math.sin(t*10+3)*0.6})`;
+            }
+        } else {
+            cfgVal.innerText = '"f5"';
+            cfgVal.style.color = '#C084FC';
+            flowGem.style.opacity = 0; gemAw.style.opacity = 0;
+            
+            // F5 Node pops in
+            nF5.style.opacity = interp(t, 4.5, 5, 0, 1);
+            nF5.style.transform = `translate(-50%, -50%) scale(${interp(t, 4.5, 5, 0, 1, 'easeOutBack')})`;
+            
+            if (t > 5.5) {
+                flowF5.style.opacity = 1;
+                flowF5.style.strokeDashoffset = -(t * 100);
+            }
+        }
+
+        // --- ZONE 2: SEQUENTIAL PROBLEM (10-25s) ---
+        // Build the bad timeline
+        for(let i=1; i<=6; i++) {
+            let row = document.getElementById(`tl-r-${i}`);
+            let load = document.getElementById(`tl-pt-${i}`);
+            let gen = document.getElementById(`tl-gn-${i}`);
+            
+            let tStart = 11 + (i-1)*1.2;
+            row.style.opacity = interp(t, tStart, tStart+0.2, 0, 1);
+            
+            let wLoad = interp(t, tStart+0.2, tStart+1.0, 0, 600, 'linear');
+            load.style.width = `${wLoad}px`;
+            
+            let wGen = interp(t, tStart+1.0, tStart+1.1, 0, 30, 'linear');
+            gen.style.width = `${wGen}px`;
+            gen.style.opacity = t > tStart+1.0 ? 1 : 0;
+        }
+
+        if (t > 19) {
+            bigCross.style.opacity = interp(t, 19, 19.5, 0, 1);
+            bigCross.style.transform = `translate(-50%, -50%) scale(${interp(t, 19, 19.5, 0, 1, 'easeOutBack')})`;
+            document.getElementById('bad-tl').style.filter = `grayscale(${interp(t, 19, 20, 0, 100)}%) opacity(${interp(t, 19, 20, 1, 0.4)})`;
+        }
+
+        // --- ZONE 3: BATCH SOLUTION (25-45s) ---
+        // Sanitization
+        sanRows.forEach((r, i) => {
+            let tIn = 25 + i*0.5;
+            r.style.opacity = interp(t, tIn, tIn+0.5, 0, 1);
+            r.style.transform = `translateX(${interp(t, tIn, tIn+0.5, -20, 0, 'easeOutCubic')}px)`;
+            
+            // Folds into batch JSON
+            if (t > 28) {
+                r.style.transform = `translateX(${interp(t, 28, 29, 0, 200, 'easeInCubic')}px) scale(${interp(t, 28, 29, 1, 0, 'easeInCubic')})`;
+                r.style.opacity = interp(t, 28, 29, 1, 0);
+            }
+        });
+
+        // JSON File
+        if (t > 28.5) {
+            batchFile.style.opacity = interp(t, 28.5, 29, 0, 1);
+            batchFile.style.transform = `scale(${interp(t, 28.5, 29, 0.5, 1, 'easeOutBack')})`;
+        }
+        
+        // JSON flows to Python
+        if (t > 29.5 && t < 31.5) {
+            batchFile.style.left = `${interp(t, 29.5, 30.5, 480, 800, 'easeInOutCubic')}px`;
+            if(t > 30.5) batchFile.style.opacity = interp(t, 30.5, 31, 1, 0);
+            
+            flowBatch.style.opacity = interp(t, 29.5, 30, 0, 1) * interp(t, 31, 31.5, 1, 0);
+            flowBatch.style.strokeDashoffset = -(t * 150);
+        }
+
+        // Python Spawn & Load
+        if (t > 30.5) {
+            nPyBatch.style.opacity = 1;
+            nPyBatch.style.transform = `translate(-50%, -50%) scale(${interp(t, 30.5, 31, 0, 1, 'easeOutBack')})`;
+            pyLoadBar.style.width = `${interp(t, 31, 34, 0, 100, 'linear')}%`;
+            
+            if (t > 34) {
+                pyLoadBar.style.background = 'var(--green)';
+                pyLoadBar.innerText = "Loaded. Generating Batch...";
+            } else {
+                pyLoadBar.style.background = 'var(--red)';
+                pyLoadBar.innerText = "Loading PyTorch Model (20s)";
+            }
+        }
+
+        // Rapid Output
+        for(let i=1; i<=5; i++) {
+            let w = document.getElementById(`wav-${i}`);
+            let tOut = 34.5 + i*0.2;
+            w.style.opacity = interp(t, tOut, tOut+0.2, 0, 1);
+            w.style.transform = `translateY(${interp(t, tOut, tOut+0.5, -20, 0, 'easeOutBack')}px) scale(${interp(t, tOut, tOut+0.3, 0.5, 1, 'easeOutBack')})`;
+        }
+
+
+        // --- ZONE 4: SILENCE HACK (45-60s) ---
+        // Path blocked
+        if (t > 46) {
+            pathBlock.style.strokeDashoffset = interp(t, 46, 47, 200, 0);
+            bypassGate.style.opacity = interp(t, 46.5, 47, 0, 1);
+            bypassGate.style.transform = `translate(-50%, -50%) scale(${interp(t, 46.5, 47, 0, 1, 'easeOutBack')})`;
+        }
+
+        // Bypass flow
+        if (t > 47.5) {
+            flowBypass.style.opacity = 1;
+            flowBypass.style.strokeDashoffset = -(t * 150);
+        }
+
+        // Buffer appears
+        if (t > 48) {
+            pcmBuf.style.opacity = interp(t, 48, 48.5, 0, 1);
+            pcmBuf.style.transform = `translate(-50%, -50%) scale(${interp(t, 48, 48.5, 0.5, 1, 'easeOutBack')})`;
+        }
+
+        // Header slam
+        if (t > 49.5) {
+            wavHdr.style.opacity = interp(t, 49.5, 50, 0, 1);
+            // Drops down and left slightly to attach to array
+            wavHdr.style.top = `${interp(t, 49.5, 50, 1720, 1780, 'easeInCubic')}px`;
+            wavHdr.style.left = `${interp(t, 49.5, 50, 2200, 2240, 'easeInCubic')}px`;
+        }
+
+        // Transform into file
+        if (t > 51) {
+            pcmBuf.style.opacity = interp(t, 51, 51.5, 1, 0);
+            wavHdr.style.opacity = interp(t, 51, 51.5, 1, 0);
+            
+            finalWav.style.opacity = interp(t, 51, 51.5, 0, 1);
+            finalWav.style.transform = `translate(-50%, -50%) scale(${interp(t, 51, 51.5, 0.5, 1.2, 'easeOutBack')})`;
+            
+            if (t > 52) {
+                finalWav.style.transform = `translate(-50%, -50%) scale(1) translateY(${Math.sin(t*3)*5}px)`; // subtle float
+                finalWav.style.boxShadow = `0 0 30px rgba(59,130,246,0.5)`;
+            }
+        }
+    };
+
+    // --- DEVELOPER PLAYBACK ---
+    
+    let start = performance.now();
+    function loop() {
+        let t = (performance.now() - start) / 1000;
+        window.renderFrame(t);
+        if (t < 60) requestAnimationFrame(loop);
+    }
+    loop();
+    
+</script>
+
+</body>
+</html>

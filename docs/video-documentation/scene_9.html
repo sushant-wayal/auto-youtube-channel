@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Uploader & Creator OS</title>
+    <style>
+        :root {
+            /* Premium SaaS Light Theme */
+            --bg: #F8FAFC;
+            --surface: #FFFFFF;
+            --surface-alt: #F1F5F9;
+            --grid: #E2E8F0;
+            --border: #CBD5E1;
+            
+            --text-main: #0F172A;
+            --text-mut: #64748B;
+            
+            --blue: #3B82F6;
+            --blue-light: #DBEAFE;
+            --purple: #8B5CF6;
+            --purple-light: #EDE9FE;
+            --green: #10B981;
+            --green-light: #D1FAE5;
+            --red: #EF4444;
+            --red-light: #FEE2E2;
+            --orange: #F59E0B;
+            --slate: #1E293B;
+
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
+            background-color: var(--bg); font-family: var(--font);
+            overflow: hidden; display: flex; justify-content: center; align-items: center;
+        }
+
+        #app {
+             position: absolute; left: 50%; top: 50%; margin-left: -960px; margin-top: -540px; width: 1920px; height: 1080px;
+            background-color: var(--bg);
+            background-image: radial-gradient(var(--border) 1px, transparent 1px);
+            background-size: 32px 32px; overflow: hidden;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.03);
+        }
+
+        #world {
+            position: absolute; top: 0; left: 0; width: 4000px; height: 2000px;
+            transform-origin: 0 0; will-change: transform;
+        }
+
+        /* --- NODES --- */
+        .node {
+            position: absolute; background: var(--surface);
+            border: 1px solid var(--border); border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);
+            display: flex; align-items: center; padding: 20px 24px;
+            transform: translate(-50%, -50%); z-index: 10;
+        }
+        .node-col { flex-direction: column; align-items: flex-start; gap: 4px; }
+        
+        .icon-box {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; justify-content: center; align-items: center;
+            flex-shrink: 0; margin-right: 16px;
+        }
+        .icon-box svg { width: 24px; height: 24px; stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+
+        .node-title { font-weight: 700; font-size: 18px; color: var(--text-main); line-height:1.2;}
+        .node-sub { font-weight: 600; font-size: 13px; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* --- WIRING --- */
+        svg.wiring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        .wire-bg { fill: none; stroke: var(--border); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+        .wire-flow { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 12 24; }
+        .wire-expo { fill: none; stroke: var(--purple); stroke-width: 4; stroke-dasharray: 20 40; stroke-linecap: round; }
+
+        /* --- PACKETS & DATA --- */
+        .packet {
+            position: absolute; padding: 6px 12px; background: var(--surface);
+            border: 2px solid var(--blue); border-radius: 20px; font-weight: 800; font-size: 12px;
+            color: var(--blue); box-shadow: 0 4px 6px rgba(59,130,246,0.1);
+            transform: translate(-50%, -50%); z-index: 15; opacity: 0;
+            white-space: nowrap;
+        }
+        
+        /* Math Box */
+        .math-box {
+            position: absolute; background: var(--slate); color: white;
+            border-radius: 12px; padding: 16px; width: 300px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15); transform: translate(-50%, -50%) scale(0);
+            z-index: 20; opacity: 0; border: 1px solid #334155;
+        }
+        .math-title { font-weight: 700; font-size: 14px; color: #94A3B8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;}
+        .math-eq { font-family: var(--font-mono); font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
+        .ist-time { color: #F87171; background: rgba(248,113,113,0.1); padding: 4px 8px; border-radius: 6px;}
+        .utc-time { color: #34D399; background: rgba(52,211,153,0.1); padding: 4px 8px; border-radius: 6px;}
+        
+        /* Payload JSON */
+        .json-box {
+            position: absolute; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 16px; font-family: var(--font-mono); font-size: 13px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.05); transform: translate(-50%, -50%) scale(0);
+            z-index: 20; opacity: 0; line-height: 1.6; color: var(--text-mut);
+        }
+        .j-key { color: var(--purple); font-weight: 600; }
+        .j-str { color: var(--green); }
+
+        /* --- CREATOR OS (PHONE) --- */
+        .phone-container {
+            position: absolute; width: 380px; height: 800px;
+            background: #0F172A; border-radius: 50px; padding: 12px;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.1), inset 0 0 0 2px #334155;
+            transform: translate(-50%, -50%); z-index: 30; opacity: 0;
+            box-sizing: border-box;
+        }
+        .phone-screen {
+            width: 100%; height: 100%; background: var(--bg);
+            border-radius: 38px; position: relative; overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+        .dynamic-island {
+            position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+            width: 120px; height: 30px; background: #000; border-radius: 20px; z-index: 50;
+        }
+
+        /* Push Notification */
+        .push-toast {
+            position: absolute; top: 50px; left: 50%; transform: translate(-50%, -150%);
+            width: 90%; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+            border-radius: 20px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: flex; align-items: center; gap: 12px; z-index: 45; opacity: 0;
+        }
+        .push-icon { width: 36px; height: 36px; background: var(--purple); border-radius: 10px; display: flex; justify-content: center; align-items: center; color: white; }
+        .push-title { font-weight: 700; font-size: 15px; color: var(--text-main); }
+        .push-desc { font-weight: 500; font-size: 13px; color: var(--text-mut); }
+
+        /* App UI */
+        .app-view { width: 100%; height: 100%; padding: 60px 24px 24px; box-sizing: border-box; opacity: 0; transform: translateY(20px); }
+        .app-header { font-size: 28px; font-weight: 800; color: var(--text-main); margin-bottom: 24px; letter-spacing: -0.5px;}
+        
+        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .stat-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--green-light); color: var(--green); padding: 4px 10px; border-radius: 20px; font-weight: 700; font-size: 12px; margin-bottom: 12px;}
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 600; font-size: 14px;}
+        
+        .queue-title { font-size: 18px; font-weight: 700; color: var(--text-main); margin-bottom: 16px; }
+        .q-list { display: flex; flex-direction: column; gap: 12px; position: relative;}
+        .q-item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: transform 0.3s, box-shadow 0.3s; position: absolute; width: 100%; box-sizing: border-box;}
+        
+        .q-drag { color: var(--border); }
+        .q-info { flex-grow: 1; }
+        .q-name { font-weight: 700; font-size: 14px; color: var(--text-main); }
+        .q-date { font-weight: 600; font-size: 12px; color: var(--blue); margin-top: 4px; }
+        .q-switch { width: 40px; height: 24px; background: var(--green); border-radius: 12px; position: relative; }
+        .q-knob { position: absolute; width: 20px; height: 20px; background: white; border-radius: 50%; top: 2px; right: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        /* Cursor Interaction */
+        .cursor {
+            position: absolute; width: 40px; height: 40px; background: rgba(0,0,0,0.1);
+            border-radius: 50%; border: 2px solid rgba(0,0,0,0.2);
+            transform: translate(-50%, -50%) scale(0); opacity: 0; z-index: 100;
+            pointer-events: none;
+        }
+        .ripple {
+            position: absolute; border: 2px solid var(--purple); border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0); opacity: 0; z-index: 99;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="world">
+        
+        <!-- WIRING -->
+        <svg class="wiring">
+            <!-- Worker to YT -->
+            <path class="wire-bg" d="M 500 540 L 1100 540" />
+            <path class="wire-flow" id="f-w-yt" d="M 500 540 L 1100 540" stroke="var(--blue)" opacity="0" />
+
+            <!-- Redis to Worker -->
+            <path class="wire-bg" d="M 1100 250 L 500 250 L 500 540" />
+            <path class="wire-flow" id="f-r-w" d="M 1100 250 L 500 250 L 500 540" stroke="var(--purple)" opacity="0" />
+
+            <!-- Worker to Next.js -->
+            <path class="wire-bg" d="M 500 540 L 500 850 L 1100 850" />
+            <path class="wire-flow" id="f-w-n" d="M 500 540 L 500 850 L 1100 850" stroke="var(--green)" opacity="0" />
+
+            <!-- Next.js to Redis -->
+            <path class="wire-bg" d="M 1100 850 L 1250 850 L 1250 250 L 1100 250" />
+            <path class="wire-flow" id="f-n-r" d="M 1100 850 L 1250 850 L 1250 250 L 1100 250" stroke="var(--orange)" opacity="0" />
+
+            <!-- Next.js to Expo (Phone) -->
+            <path class="wire-expo" id="f-expo" d="M 1100 850 L 2200 850 L 2200 540" opacity="0" />
+        </svg>
+
+        <!-- NODES -->
+        <!-- Worker -->
+        <div class="node" id="n-worker" style="left: 500px; top: 540px; border: 2px solid var(--text-main);">
+            <div class="icon-box" style="background: var(--text-main); color: white;">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="node-col">
+                <div class="node-title">Worker 6</div>
+                <div class="node-sub">YouTube Uploader</div>
+            </div>
+        </div>
+
+        <!-- Redis -->
+        <div class="node" id="n-redis" style="left: 1100px; top: 250px; border: 2px solid var(--purple);">
+            <div class="icon-box" style="background: var(--purple-light); color: var(--purple);">
+                <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+            </div>
+            <div class="node-col">
+                <div class="node-title">Redis KV</div>
+                <div class="node-sub">Schedule & Tokens</div>
+            </div>
+        </div>
+
+        <!-- YouTube -->
+        <div class="node" id="n-yt" style="left: 1100px; top: 540px; border: 2px solid var(--red);">
+            <div class="icon-box" style="background: var(--red-light); color: var(--red);">
+                <svg viewBox="0 0 24 24"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>
+            </div>
+            <div class="node-col">
+                <div class="node-title">YouTube API</div>
+                <div class="node-sub">Global Publish</div>
+            </div>
+        </div>
+
+        <!-- Next.js -->
+        <div class="node" id="n-next" style="left: 1100px; top: 850px; border: 2px solid var(--text-main);">
+            <div class="icon-box" style="background: var(--text-main); color: white;">
+                <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <div class="node-col">
+                <div class="node-title">Next.js Brain</div>
+                <div class="node-sub">Control Plane API</div>
+            </div>
+        </div>
+
+        <!-- PACKETS & VISUALS -->
+        <div class="packet" id="pkt-sched" style="left: 1100px; top: 250px;">{ schedule: "06:45" }</div>
+        <div class="packet" id="pkt-token" style="left: 1100px; top: 250px;">ExpoToken[xxx]</div>
+        <div class="packet" id="pkt-webhook" style="left: 500px; top: 540px; background:var(--green-light); color:var(--green); border-color:var(--green);">POST /webhook/success</div>
+
+        <div class="math-box" id="math-box" style="left: 450px; top: 350px;">
+            <div class="math-title">Millisecond Arithmetic</div>
+            <div class="math-eq">
+                <div class="ist-time">06:45 IST</div>
+                <div>➔</div>
+                <div class="utc-time">01:15 UTC</div>
+            </div>
+        </div>
+
+        <div class="json-box" id="json-box" style="left: 800px; top: 430px;">
+            {<br>
+            &nbsp;&nbsp;<span class="j-key">"publishAt"</span>: <span class="j-str">"2024-05-12T01:15:00Z"</span>,<br>
+            &nbsp;&nbsp;<span class="j-key">"chapters"</span>: [<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="j-str">"0:00 Intro"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="j-str">"1:24 The Problem"</span><br>
+            &nbsp;&nbsp;]<br>
+            }
+        </div>
+
+        <!-- CREATOR OS (PHONE) -->
+        <div class="phone-container" id="phone" style="left: 2200px; top: 540px;">
+            <div class="phone-screen">
+                <div class="dynamic-island"></div>
+                
+                <!-- Push Notification -->
+                <div class="push-toast" id="push-toast">
+                    <div class="push-icon"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
+                    <div>
+                        <div class="push-title">Autonomous Pipeline</div>
+                        <div class="push-desc">✅ 1 Long-form & 4 Shorts scheduled!</div>
+                    </div>
+                </div>
+
+                <!-- App UI -->
+                <div class="app-view" id="app-ui">
+                    <div class="app-header">Creator OS</div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-badge"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;"><polyline points="20 6 9 17 4 12"/></svg> Pipeline Successful</div>
+                        <div class="stat-row"><span style="color:var(--text-mut);">Next Publish:</span><span>Today, 01:15 UTC</span></div>
+                        <div class="stat-row"><span style="color:var(--text-mut);">Generated:</span><span>Master + 4 Shorts</span></div>
+                    </div>
+
+                    <div class="queue-title">Tomorrow's Queue</div>
+                    <div class="q-list">
+                        <div class="q-item" id="qi-1" style="top: 0px;">
+                            <div class="q-drag"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+                            <div class="q-info">
+                                <div class="q-name">System Design: Kafka</div>
+                                <div class="q-date">AI Selected</div>
+                            </div>
+                            <div class="q-switch"><div class="q-knob"></div></div>
+                        </div>
+                        <div class="q-item" id="qi-2" style="top: 85px;">
+                            <div class="q-drag"><svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+                            <div class="q-info">
+                                <div class="q-name">React vs HTMX</div>
+                                <div class="q-date">Manual Override</div>
+                            </div>
+                            <div class="q-switch" style="background:var(--grid);"><div class="q-knob" style="left:2px;"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="cursor" id="cursor"></div>
+            <div class="ripple" id="ripple"></div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- UTILS ---
+    function resize() {
+        const app = document.getElementById('app');
+        const scale = Math.max(window.innerWidth / 1920, window.innerHeight / 1080);
+        app.style.transform = `scale(${scale})`;
+        app.style.transformOrigin = 'center center';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function interp(t, tStart, tEnd, vStart, vEnd, ease = 'easeInOutCubic') {
+        if (t <= tStart) return vStart;
+        if (t >= tEnd) return vEnd;
+        let p = (t - tStart) / (tEnd - tStart);
+        if (ease === 'easeOutCubic') p = 1 - Math.pow(1 - p, 3);
+        else if (ease === 'easeInOutCubic') p = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        else if (ease === 'easeOutBack') { const c1 = 1.70158; const c3 = c1 + 1; p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
+        else if (ease === 'easeInCubic') p = p * p * p;
+        return vStart + (vEnd - vStart) * p;
+    }
+
+    // --- DOM CACHE ---
+    const world = document.getElementById('world');
+    const fRw = document.getElementById('f-r-w');
+    const pktSched = document.getElementById('pkt-sched');
+    const mathBox = document.getElementById('math-box');
+    const jsonBox = document.getElementById('json-box');
+    const fWyt = document.getElementById('f-w-yt');
+    const ytNode = document.getElementById('n-yt');
+    
+    const fWn = document.getElementById('f-w-n');
+    const pktWebhook = document.getElementById('pkt-webhook');
+    const nextNode = document.getElementById('n-next');
+    
+    const fNr = document.getElementById('f-n-r');
+    const pktToken = document.getElementById('pkt-token');
+    
+    const fExpo = document.getElementById('f-expo');
+    const phone = document.getElementById('phone');
+    const pushToast = document.getElementById('push-toast');
+    const appUi = document.getElementById('app-ui');
+    
+    const cursor = document.getElementById('cursor');
+    const ripple = document.getElementById('ripple');
+    const qi1 = document.getElementById('qi-1');
+    const qi2 = document.getElementById('qi-2');
+
+    // --- ANIMATION LOGIC (0 to ~45s) ---
+    window.renderFrame = function(t) {
+        
+        // --- CAMERA PANNING ---
+        // 0-25s: Center on Backend Pipeline (Focus ~ 850, 540)
+        // 25-30s: Pan to Phone (Focus ~ 2200, 540)
+        let cx = interp(t, 22, 26, 850, 2200, 'easeInOutCubic');
+        let cy = 540; // stay level
+        world.style.transform = `translate(${960 - cx}px, ${540 - cy}px)`;
+
+        // 1. Initial State
+        if (t < 1) {
+            [document.getElementById('n-worker'), document.getElementById('n-redis'), ytNode, nextNode].forEach(n => n.style.opacity = 0);
+        }
+
+        // 2. Nodes Appear (1s - 3s)
+        if (t > 1) {
+            document.getElementById('n-worker').style.opacity = interp(t, 1, 1.5, 0, 1);
+            document.getElementById('n-redis').style.opacity = interp(t, 1.2, 1.7, 0, 1);
+            ytNode.style.opacity = interp(t, 1.4, 1.9, 0, 1);
+            nextNode.style.opacity = interp(t, 1.6, 2.1, 0, 1);
+        }
+
+        // 3. Fetch Schedule from Redis (3s - 5s)
+        if (t > 3 && t < 5) {
+            fRw.style.opacity = 1;
+            fRw.style.strokeDashoffset = -(t * 150);
+            
+            pktSched.style.opacity = interp(t, 3, 3.2, 0, 1) * interp(t, 4.8, 5, 1, 0);
+            // Path logic: 1100,250 -> 500,250 -> 500,540
+            let pProg = clamp((t - 3) / 2, 0, 1); // 0 to 1
+            if (pProg < 0.5) {
+                // Horizontal
+                pktSched.style.left = `${interp(pProg, 0, 0.5, 1100, 500)}px`;
+                pktSched.style.top = `250px`;
+            } else {
+                // Vertical
+                pktSched.style.left = `500px`;
+                pktSched.style.top = `${interp(pProg, 0.5, 1.0, 250, 540)}px`;
+            }
+        } else { fRw.style.opacity = 0; pktSched.style.opacity = 0; }
+
+        // 4. Math Box Pops Up (5s - 9s)
+        if (t > 5) {
+            mathBox.style.opacity = interp(t, 5, 5.5, 0, 1) * interp(t, 8.5, 9, 1, 0);
+            mathBox.style.transform = `translate(-50%, -50%) scale(${interp(t, 5, 5.5, 0.5, 1, 'easeOutBack')})`;
+        }
+
+        // 5. Payload Assembly & Upload (9s - 14s)
+        if (t > 8.5) {
+            jsonBox.style.opacity = interp(t, 8.5, 9, 0, 1) * interp(t, 13.5, 14, 1, 0);
+            jsonBox.style.transform = `translate(-50%, -50%) scale(${interp(t, 8.5, 9, 0.5, 1, 'easeOutBack')})`;
+        }
+
+        if (t > 9.5 && t < 14) {
+            fWyt.style.opacity = 1;
+            fWyt.style.strokeDashoffset = -(t * 150);
+            // Move JSON along path
+            jsonBox.style.left = `${interp(t, 9.5, 13, 550, 1050, 'easeInOutCubic')}px`;
+        } else { fWyt.style.opacity = 0; }
+
+        // YT Success Pulse
+        if (t > 13.5 && t < 16) {
+            ytNode.style.borderColor = 'var(--green)';
+            ytNode.querySelector('.icon-box').style.background = 'var(--green-light)';
+            ytNode.querySelector('.icon-box').style.color = 'var(--green)';
+            ytNode.style.boxShadow = `0 0 ${interp(Math.sin(t*15), -1, 1, 10, 40)}px rgba(16,185,129,0.5)`;
+        } else if (t > 1) {
+            ytNode.style.borderColor = 'var(--red)';
+            ytNode.querySelector('.icon-box').style.background = 'var(--red-light)';
+            ytNode.querySelector('.icon-box').style.color = 'var(--red)';
+            ytNode.style.boxShadow = `0 10px 25px -5px rgba(0,0,0,0.05)`;
+        }
+
+        // 6. Webhook to Next.js (15s - 18s)
+        if (t > 15 && t < 18) {
+            fWn.style.opacity = 1;
+            fWn.style.strokeDashoffset = -(t * 150);
+            
+            pktWebhook.style.opacity = interp(t, 15, 15.2, 0, 1) * interp(t, 17.8, 18, 1, 0);
+            let wProg = clamp((t - 15) / 3, 0, 1);
+            if (wProg < 0.5) {
+                pktWebhook.style.left = `500px`;
+                pktWebhook.style.top = `${interp(wProg, 0, 0.5, 540, 850)}px`;
+            } else {
+                pktWebhook.style.left = `${interp(wProg, 0.5, 1.0, 500, 1100)}px`;
+                pktWebhook.style.top = `850px`;
+            }
+        } else { fWn.style.opacity = 0; pktWebhook.style.opacity = 0; }
+
+        // 7. Next.js fetches Expo Token from Redis (18s - 21s)
+        if (t > 18 && t < 21) {
+            fNr.style.opacity = 1;
+            fNr.style.strokeDashoffset = -(t * 150);
+            
+            pktToken.style.opacity = interp(t, 19, 19.2, 0, 1) * interp(t, 20.8, 21, 1, 0);
+            let tProg = clamp((t - 19) / 2, 0, 1);
+            if (tProg < 0.5) {
+                pktToken.style.left = `${interp(tProg, 0, 0.5, 1100, 1250)}px`;
+                pktToken.style.top = `250px`;
+            } else {
+                pktToken.style.left = `1250px`;
+                pktToken.style.top = `${interp(tProg, 0.5, 1.0, 250, 850)}px`;
+            }
+        } else { fNr.style.opacity = 0; pktToken.style.opacity = 0; }
+
+        // 8. Fire Push Notification! (21s - 24s)
+        if (t > 21.5 && t < 25) {
+            fExpo.style.opacity = 1;
+            fExpo.style.strokeDashoffset = -(t * 300); // Very fast
+        } else { fExpo.style.opacity = 0; }
+
+        // 9. Phone appears & Receives Push (24s - 29s)
+        if (t > 23) {
+            phone.style.opacity = interp(t, 23, 24, 0, 1);
+            phone.style.transform = `translate(-50%, -50%) scale(${interp(t, 23, 24, 0.9, 1, 'easeOutBack')})`;
+        }
+        
+        if (t > 25) {
+            // Drop down
+            pushToast.style.opacity = interp(t, 25, 25.5, 0, 1) * interp(t, 29, 29.5, 1, 0);
+            pushToast.style.transform = `translate(-50%, ${interp(t, 25, 25.5, -150, 0, 'easeOutBack')}%)`;
+        }
+
+        // 10. Open App UI (29s - 45s)
+        if (t > 29) {
+            appUi.style.opacity = interp(t, 29, 30, 0, 1);
+            appUi.style.transform = `translateY(${interp(t, 29, 30, 20, 0, 'easeOutCubic')}px)`;
+        }
+
+        // Interaction Simulation (32s - 40s)
+        if (t > 32 && t < 45) {
+            cursor.style.opacity = interp(t, 32, 32.5, 0, 1) * interp(t, 43, 44, 1, 0);
+            
+            // Move cursor to bottom item drag handle
+            // Container center is 2200, 540. Top left of screen is roughly 2200-190, 540-400
+            // App UI padding 60 top, 24 side. Queue list is somewhat down.
+            // Absolute positioning cursor over the phone element.
+            let curX = interp(t, 32, 33.5, 2300, 2240, 'easeInOutCubic'); // start right, move to drag handle
+            let curY = interp(t, 32, 33.5, 900, 680, 'easeInOutCubic');
+            
+            // Hold and drag up
+            if (t > 34) {
+                curY = interp(t, 34, 35.5, 680, 595, 'easeInOutCubic');
+            }
+
+            // Click scale
+            let cScale = 1;
+            if (t > 33.5 && t < 36) cScale = 0.8;
+            cursor.style.transform = `translate(-50%, -50%) scale(${cScale})`;
+            cursor.style.left = `${curX}px`;
+            cursor.style.top = `${curY}px`;
+
+            // Ripple
+            if (t > 33.5 && t < 34.5) {
+                ripple.style.opacity = interp(t, 33.5, 34, 1, 0);
+                ripple.style.transform = `translate(-50%, -50%) scale(${interp(t, 33.5, 34, 0.5, 2)})`;
+                ripple.style.left = `${curX}px`;
+                ripple.style.top = `${curY}px`;
+            }
+
+            // Logic for the list item swapping
+            if (t > 34) {
+                qi2.style.boxShadow = `0 15px 25px rgba(0,0,0,0.1)`;
+                qi2.style.zIndex = 5;
+                qi2.style.top = `${interp(t, 34, 35.5, 85, 0, 'easeInOutCubic')}px`;
+                
+                qi1.style.top = `${interp(t, 34, 35.5, 0, 85, 'easeInOutCubic')}px`;
+            } else {
+                qi2.style.boxShadow = `0 2px 4px rgba(0,0,0,0.02)`;
+                qi2.style.zIndex = 1;
+            }
+
+            // Toggle switch on the moved item
+            if (t > 37) {
+                curX = interp(t, 36.5, 37.5, 2240, 2350, 'easeInOutCubic');
+                curY = interp(t, 36.5, 37.5, 595, 615, 'easeInOutCubic'); // target switch
+                cursor.style.left = `${curX}px`;
+                cursor.style.top = `${curY}px`;
+            }
+
+            if (t > 38 && t < 39) {
+                cursor.style.transform = `translate(-50%, -50%) scale(0.8)`; // tap
+                
+                // Toggle visually
+                qi2.querySelector('.q-switch').style.background = 'var(--green)';
+                qi2.querySelector('.q-knob').style.left = 'auto';
+                qi2.querySelector('.q-knob').style.right = '2px';
+                qi2.querySelector('.q-date').innerText = "AI Selected";
+            } else if (t > 39) {
+                cursor.style.transform = `translate(-50%, -50%) scale(1)`; // untap
+            }
+
+        } else { cursor.style.opacity = 0; }
+
+    };
+
+    // --- DEV AUTOPLAY ---
+    
+    let start = performance.now();
+    function loop() {
+        let t = (performance.now() - start) / 1000;
+        window.renderFrame(t);
+        if (t < 50) requestAnimationFrame(loop);
+    }
+    loop();
+    
+</script>
+
+</body>
+</html>
