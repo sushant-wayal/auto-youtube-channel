@@ -1,6 +1,6 @@
 # Mobile Dashboard App
 
-> React Native + Expo mobile app for on-the-go pipeline management
+> React Native + Expo companion app for on-the-go pipeline management and push notifications
 
 This document covers the mobile dashboard app structure and features.
 
@@ -21,11 +21,12 @@ The mobile app (`/mobile-app/dashboard-app`) provides:
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| React Native | 0.76 | Mobile framework |
-| Expo | 54 | Development platform |
+| React Native | 0.76+ | Mobile framework |
+| Expo | 54+ | Development platform |
 | TypeScript | 5.x | Type safety |
 | React Navigation | 7.x | Navigation |
-| Expo Notifications | 0.29 | Push notifications |
+| Expo Notifications | — | Push notifications (Expo Push API) |
+| Google Services | `google-services.json` | Firebase for Android notifications |
 
 ---
 
@@ -33,21 +34,26 @@ The mobile app (`/mobile-app/dashboard-app`) provides:
 
 ```
 mobile-app/dashboard-app/
-├── App.tsx               # Main app entry
-├── config.ts             # API configuration
-├── theme.ts              # Styling theme
+├── App.tsx                         # Main app entry (14 KB — all screens in one file)
+├── config.ts                       # API base URL configuration
+├── theme.ts                        # Styling theme (dark, 3 KB)
+├── index.js                        # Expo entry point
 ├── services/
-│   └── api.ts            # API client
+│   └── api.ts                      # API client (ideasApi, scheduleTimesApi, pipelineApi)
 ├── screens/
-│   ├── IdeasScreen.tsx           # Ideas queue management
-│   ├── ScheduleTimesScreen.tsx   # Schedule management
-│   ├── ShortsScheduleScreen.tsx  # Shorts scheduling
-│   └── PipelineStatusScreen.tsx  # Pipeline status
-├── components/           # Shared UI components
+│   ├── IdeasScreen.tsx             # Ideas queue management
+│   ├── ScheduleTimesScreen.tsx     # Schedule management (5 ranked slots + long-form)
+│   ├── ShortsScheduleScreen.tsx    # Legacy single shorts time
+│   └── PipelineStatusScreen.tsx    # Pipeline status viewer
+├── components/                     # Shared UI components
+├── android/                        # Android native files
+├── assets/                         # App icons and splash screen
+├── get-local-ip.js                 # Utility: find local IP for dev config
+├── google-services.json            # Firebase config for Android push notifications
 ├── package.json
 ├── tsconfig.json
-├── app.json              # Expo config
-└── eas.json              # EAS Build config
+├── app.json                        # Expo config
+└── eas.json                        # EAS Build config
 ```
 
 ---
@@ -113,7 +119,7 @@ View latest pipeline run:
 ### Exported Objects
 
 ```typescript
-// Ideas queue management
+// Ideas queue management → calls /api/ideas-queue
 export const ideasApi = {
   getIdeas(): Promise<IdeasQueueResponse>,
   addIdea(idea: string): Promise<IdeasQueueResponse>,
@@ -123,13 +129,13 @@ export const ideasApi = {
   clearIdeas(): Promise<IdeasQueueResponse>,
 };
 
-// Legacy single shorts time
+// Legacy single shorts time → calls /api/shorts-publish-time
 export const shortsApi = {
   getPublishTime(): Promise<ShortsPublishTimeResponse>,
   updatePublishTime(time: string): Promise<ShortsPublishTimeResponse>,
 };
 
-// Schedule times (shorts + long-form)
+// Schedule times (5 shorts slots + long-form) → calls /api/schedule-times
 export const scheduleTimesApi = {
   getScheduleTimes(): Promise<ScheduleTimesResponse>,
   updateShortsTimes(shortsTimes: string[]): Promise<ScheduleTimesResponse>,
@@ -137,7 +143,7 @@ export const scheduleTimesApi = {
   updateAllScheduleTimes(shortsTimes: string[], longFormTime: string): Promise<ScheduleTimesResponse>,
 };
 
-// Pipeline status
+// Pipeline status + push tokens → calls /api/pipeline-status and /api/push-token
 export const pipelineApi = {
   savePushToken(token: string): Promise<SavePushTokenResponse>,
   getPipelineStatus(): Promise<PipelineStatusResponse>,
@@ -180,8 +186,8 @@ export type IdeasQueueResponse = {
 
 export type ScheduleTimesResponse = {
   ok: boolean;
-  shortsTimes?: string[];
-  longFormTime?: string;
+  shortsTimes?: string[];    // ["06:45", "07:45", "08:45", "12:00", "14:00"] — IST
+  longFormTime?: string;     // "18:30" — IST
   error?: string;
 };
 ```

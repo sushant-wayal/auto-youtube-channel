@@ -1,6 +1,6 @@
 # AI Integrations
 
-> Gemini AI for content generation, idea selection, and text-to-speech
+> Gemini AI for content generation, idea selection, scene rendering, and text-to-speech. F5-TTS for open-source voice cloning.
 
 This document covers all AI integrations in the video generation pipeline.
 
@@ -8,32 +8,31 @@ This document covers all AI integrations in the video generation pipeline.
 
 ## Overview
 
-The pipeline uses **Google Gemini AI** for three main purposes:
+The pipeline uses two AI systems:
 
-1. **Idea Generation** - Analyze channel performance and generate video topics
-2. **Script Generation** - Create video scripts with scenes and narration
-3. **Text-to-Speech** - Generate voice-over narration audio
+1. **Google Gemini AI** — script generation, idea analysis, TTS voice-over, and (optionally) scene HTML
+2. **F5-TTS** — open-source voice clone TTS (alternative to Gemini TTS)
 
-### Models Used
+### Gemini Models Used
 
-| Purpose | Model | Notes |
-|---------|-------|-------|
-| Channel Analysis | `gemini-3-flash-preview` | Temperature: 0.7 |
-| Idea Generation | `gemini-3-flash-preview` | Temperature: 0.8, JSON output |
-| Topic Selection | `gemini-3-flash-preview` | Temperature: 0.3 (decisive) |
-| Script Generation | `gemini-3-flash-preview` | Temperature: 1.0, structured output |
-| Text-to-Speech | `gemini-2.5-flash-preview-tts` | Temperature: 1.0, audio output |
+| Purpose | Model | Temperature | Notes |
+|---------|-------|-------------|-------|
+| Channel analysis | `gemini-3-flash-preview` | 0.7 | Balanced creativity |
+| Idea generation | `gemini-3-flash-preview` | 0.8 | JSON output |
+| Topic selection | `gemini-3-flash-preview` | 0.3 | Decisive |
+| Script generation | `gemini-3-flash-preview` | 1.0 | Max creativity, JSON |
+| AI scene HTML | `gemini-3-flash-preview` | — | Full HTML generation |
+| Text-to-Speech | `gemini-2.5-flash-preview-tts` | 1.0 | Audio output modality |
 
 ---
 
-## API Key Rotation
+## API Key Rotation (Gemini)
 
-The system uses **dual API key rotation** to double rate limits:
+The system supports **dual API key rotation** to double effective rate limits:
 
-```typescript
-// Environment variables
+```bash
 GEMINI_API_KEY_1=your_first_key
-GEMINI_API_KEY_2=your_second_key
+GEMINI_API_KEY_2=your_second_key   # Optional
 ```
 
 ### Rotation Logic
@@ -41,316 +40,311 @@ GEMINI_API_KEY_2=your_second_key
 ```typescript
 class GeminiClient {
   private currentKeyIndex = 0;
-  private apiKeys: string[];
+  private apiKeys: string[];  // [key1, key2] or [key1]
 
   getGenAI(): GoogleGenAI {
-    // Round-robin between keys
     const key = this.apiKeys[this.currentKeyIndex];
     this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
-
-    console.error(`Using Gemini API Key ${this.currentKeyIndex + 1}`);
     return new GoogleGenAI({ apiKey: key });
   }
 }
 ```
 
-### Benefits
-
-- Doubles effective rate limit
-- Automatic failover if one key is exhausted
-- Falls back to single key if only one provided
+Benefits:
+- Doubles effective RPM (requests per minute) for TTS-heavy workloads
+- Automatic fallover if one key is exhausted
+- Falls back gracefully to a single key
 
 ---
 
-## Text-to-Speech (TTS)
+## Text-to-Speech: Gemini TTS
 
-### Service Location
+**Service:** `workers/voice-over-generation/src/lib/gemini/gemini-tts-service.ts`
 
-`workers/voice-over-generation/src/lib/ai/gemini-tts-service.ts`
+### Configuration
+
+```typescript
+{
+  model: "gemini-2.5-flash-preview-tts",
+  config: {
+    responseModalities: ["AUDIO"],
+    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } } },
+    temperature: 1,
+    maxOutputTokens: 32000,
+  }
+}
+```
 
 ### Available Voices
 
 | Voice | Characteristics |
 |-------|-----------------|
-| `Puck` | Friendly, warm (default) |
+| `Puck` | Friendly, warm — **default** |
 | `Charon` | Deep, authoritative |
 | `Kore` | Clear, professional |
 | `Fenrir` | Strong, confident |
 | `Aoede` | Soft, pleasant |
 
-### Usage
-
-```typescript
-const ttsService = new GeminiTTSService();
-
-// Generate single audio
-const audioBuffer = await ttsService.generateSpeech(
-  "Hello, welcome to our video about HTTP protocols.",
-  { voice: "Puck", speed: 1.0 }
-);
-
-// Generate per-scene narrations
-const urls = await ttsService.generateNarrationAudios(
-  jobId,
-  ["Scene 1 narration...", "Scene 2 narration...", ""],
-  outputDir,
-  { voice: "Puck" }
-);
-```
-
 ### Audio Format
 
 | Property | Value |
 |----------|-------|
-| Sample Rate | 24 kHz |
-| Bit Depth | 16-bit |
+| Sample Rate | 24,000 Hz |
+| Bit Depth | 16-bit signed PCM |
 | Channels | Mono |
-| Format | WAV (PCM) |
+| Container | WAV (44-byte header added manually) |
 
-### WAV Header Generation
+### WAV Header Construction
 
-Gemini TTS returns raw PCM data. The service adds proper WAV headers:
+Gemini returns raw base64-encoded PCM bytes. The service adds the WAV container:
 
 ```typescript
 private addWavHeader(audioData: Buffer): Buffer {
   const sampleRate = 24000;
   const numChannels = 1;
   const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
 
-  // Create 44-byte WAV header
   const header = Buffer.alloc(44);
+  // RIFF chunk
   header.write('RIFF', 0);
-  header.writeUInt32LE(36 + audioData.length, 4);
+  header.writeUInt32LE(36 + audioData.length, 4);  // File size - 8
   header.write('WAVE', 8);
-  // ... fmt and data chunks
+  // fmt chunk
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);               // Chunk size
+  header.writeUInt16LE(1, 20);                // PCM format
+  header.writeUInt16LE(numChannels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  // data chunk
+  header.write('data', 36);
+  header.writeUInt32LE(audioData.length, 40);
 
   return Buffer.concat([header, audioData]);
 }
 ```
 
-### Silent Audio Generation
+### Silent Audio (Empty Narration)
 
-For scenes with empty narration (e.g., hook scenes):
+Hook scenes and scenes with `narration = ""` get 1-second silence:
 
 ```typescript
-private async createSilenceAudio(outputPath: string, durationSeconds: number) {
+private createSilenceAudio(outputPath: string, durationSeconds: number = 1.0): void {
   const numSamples = Math.floor(24000 * durationSeconds);
-  const silentData = Buffer.alloc(numSamples * 2, 0); // 16-bit = 2 bytes
-  const wavBuffer = this.addWavHeader(silentData);
+  const silentPCM = Buffer.alloc(numSamples * 2, 0); // 16-bit = 2 bytes per sample
+  const wavBuffer = this.addWavHeader(silentPCM);
   fs.writeFileSync(outputPath, wavBuffer);
 }
 ```
 
-### Long-Form Narration
+---
 
-Gemini 2.5 Flash TTS handles 5-10 minute narrations in a single request:
+## Text-to-Speech: F5-TTS (Voice Clone)
 
-```typescript
-// No chunking needed
-const audioPath = await ttsService.generateNarrationAudio(
-  fullNarrationText, // Can be thousands of words
-  outputPath,
-  { voice: "Puck" }
-);
+**Service:** `workers/voice-over-generation/src/lib/f5/f5-tts-service.ts`
+
+F5-TTS is an open-source neural TTS system that clones a reference voice.
+
+### Requirements
+
+- Python 3.11+
+- `pip install git+https://github.com/SWivid/F5-TTS.git`
+- Bundled reference audio: `assets/shorter-better-reference-audio.wav`
+- Default reference text: `"Sounds simple, right? Not quite. There's one detail most people miss..."`
+
+### Batch Processing (Critical for Performance)
+
+**All non-empty narrations are processed in a single Python invocation** to avoid loading the large F5-TTS model for every scene:
+
+```python
+# Generated Python script (written to disk, then executed)
+from f5_tts.api import F5TTS
+import soundfile as sf
+
+tts = F5TTS()  # Model loaded ONCE
+
+tasks = [
+  {"text": "Scene 1 narration...", "output": "/tmp/scene_0.wav"},
+  {"text": "Scene 2 narration...", "output": "/tmp/scene_1.wav"},
+  # ...
+]
+
+for task in tasks:
+    wav, sr = tts.infer(
+        ref_file="/path/to/reference.wav",
+        ref_text="Sounds simple, right?...",
+        gen_text=task["text"]
+    )
+    sf.write(task["output"], wav, sr)
 ```
+
+### Text Sanitization (F5-TTS)
+
+F5-TTS does not handle all text formats well. The service sanitizes:
+
+| Pattern | Replacement |
+|---------|-------------|
+| `[PAUSE...]` tags | removed |
+| `[...]` bracket tags | removed |
+| `<...>` SSML-like tags | removed |
+| `hyphenated-words` | `hyphenated words` (spaces) |
+| `–`, `—`, `_`, `*`, `~`, `\``, `` ` `` | removed |
+| Repeated punctuation `!!`, `...` | collapsed |
+| Leading/trailing whitespace | trimmed |
 
 ---
 
-## Idea Generation
+## Provider Selection and Fallback
 
-### Service Location
-
-`workers/idea-selector/src/lib/gemini-idea-generator.ts`
-
-### Topic Idea Structure
+The voiceover worker automatically handles provider failover:
 
 ```typescript
-interface TopicIdea {
-  topic: string;              // Clear, specific topic
-  reasoning: string;          // Why it will perform well
-  targetFormats: {
-    longForm: boolean;        // Always true
-    shorts: number;           // 3-5 shorts
-  };
-  suggestedAngles: string[];  // Specific content angles
-  estimatedPerformance: {
-    score: number;            // 0-100
-    confidence: 'low' | 'medium' | 'high';
-  };
-}
-```
+// Configured via VOICEOVER_PROVIDER = 'gemini' | 'f5'
+const primary = config.voiceover.provider;           // 'gemini'
+const fallback = primary === 'gemini' ? 'f5' : 'gemini'; // 'f5'
 
-### Channel Analysis Flow
-
-```typescript
-const generator = new GeminiIdeaGenerator();
-
-// Step 1: Analyze channel performance
-const insights = await generator.analyzeChannelPerformance(analytics);
-
-// Step 2: Generate topic ideas (with optional trending signals)
-const ideas = await generator.generateTopicIdeas(
-  insights,
-  analytics,
-  15, // Generate 15 ideas
-  trendingSignals
-);
-
-// Step 3: Select best topic
-const best = await generator.selectBestTopic(ideas);
-```
-
-### Analysis Prompt
-
-```
-You are an expert YouTube content strategist. Analyze this channel's performance data...
-
-1. Content patterns that perform well (topics, themes, keywords)
-2. Performance trends (shorts vs long-form, engagement patterns)
-3. Audience preferences and retention signals
-4. Gaps or opportunities in current content
-5. Emerging patterns that could be leveraged
-```
-
-### Idea Generation Prompt
-
-```
-Generate {count} high-potential video topic ideas.
-
-REQUIREMENTS:
-- Each topic should be GENERIC enough to produce 1 long-form (8-15 min) AND 3-5 shorts
-- Topics should leverage identified successful patterns
-- Avoid topics too similar to recent videos
-- Balance evergreen content with trending opportunities
-- Consider audience retention signals
-```
-
-### Topic Selection
-
-The final selection uses lower temperature (0.3) for decisive choices:
-
-```typescript
-const selection = await genAI.models.generateContent({
-  model: "gemini-3-flash-preview",
-  contents: selectionPrompt,
-  config: {
-    temperature: 0.3, // Low for decisive selection
-    responseMimeType: "application/json",
-  }
-});
-```
-
----
-
-## Hybrid Validation
-
-The idea selector implements a hybrid AI + rules system:
-
-### Hard Elimination Rules
-
-Applied **after** AI generation to catch hallucinations:
-
-```typescript
-class HybridValidator {
-  applyHardElimination(
-    ideas: TopicIdea[],
-    history: VideoHistory[],
-    queueIdeas: string[]
-  ): TopicIdea[] {
-    return ideas.filter(idea => {
-      // Too similar to recent video
-      if (this.isTooSimilar(idea.topic, history)) return false;
-
-      // Already in queue
-      if (queueIdeas.some(q => this.isSimilar(idea.topic, q))) return false;
-
-      // Invalid format count
-      if (idea.targetFormats.shorts < 3 || idea.targetFormats.shorts > 5) return false;
-
-      return true;
-    });
-  }
-}
-```
-
-### Formula-Based Ranking
-
-Deterministic scoring applied to validated ideas:
-
-```typescript
-applyFormulaRanking(ideas: TopicIdea[], history: VideoHistory[]): HybridScore[] {
-  return ideas.map(idea => {
-    const noveltyScore = this.calculateNovelty(idea.topic, history);
-    const trendScore = this.calculateTrendAlignment(idea);
-    const aiScore = idea.estimatedPerformance.score;
-
-    // Hybrid score = weighted combination
-    const hybrid = (aiScore * 0.4) + (noveltyScore * 0.3) + (trendScore * 0.3);
-
-    return { idea, aiScore, formulaScore: noveltyScore + trendScore, hybrid };
-  }).sort((a, b) => b.hybrid - a.hybrid);
+try {
+  return await runWithProvider(primary, narrations, videoId, voice);
+} catch (primaryError) {
+  console.error(`Primary provider (${primary}) failed, trying fallback...`);
+  cleanupTempDir();
+  return await runWithProvider(fallback, narrations, videoId, voice);
 }
 ```
 
 ---
 
-## Error Handling
+## Exponential Backoff (All Gemini Calls)
 
-### Exponential Backoff
-
-All Gemini calls implement retry with exponential backoff:
+Every Gemini API call (ideas, scripts, TTS) uses this retry pattern:
 
 ```typescript
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 2_000;
 const MAX_DELAY_MS = 30_000;
 
-let attempt = 0;
-while (attempt < MAX_RETRIES) {
-  attempt++;
-
+for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   try {
     const result = await genAI.models.generateContent(...);
     return result;
   } catch (error) {
     const isRetryable =
-      statusCode === 429 ||  // Rate limited
-      statusCode === 500 ||  // Server error
-      statusCode === 503 ||  // Service unavailable
-      message.includes("overloaded");
+      statusCode === 429 ||         // Rate limited
+      statusCode === 500 ||         // Internal server error
+      statusCode === 503 ||         // Service unavailable
+      message.includes('overloaded') ||
+      message.includes('unavailable') ||
+      message.includes('internal') ||
+      message.includes('fetch failed') ||
+      error.code === 'ECONNRESET' ||
+      error.code === 'ECONNREFUSED' ||
+      error.code === 'ETIMEDOUT' ||
+      message.includes('socket hang up');
 
     if (!isRetryable || attempt >= MAX_RETRIES) throw error;
 
     const delay = Math.min(
-      BASE_DELAY_MS * 2 ** (attempt - 1),
+      BASE_DELAY_MS * Math.pow(2, attempt - 1),
       MAX_DELAY_MS
     ) + Math.floor(Math.random() * 1_000); // jitter
 
+    console.error(`Attempt ${attempt} failed. Retrying in ${delay}ms...`);
     await sleep(delay);
   }
 }
 ```
 
-### Retryable Errors
+---
 
-| Error | Retryable |
-|-------|-----------|
-| 429 Rate Limited | Yes |
-| 500 Internal Error | Yes |
-| 503 Service Unavailable | Yes |
-| "overloaded" message | Yes |
-| "unavailable" message | Yes |
-| Network errors | Yes |
-| JSON parse errors | No |
-| Invalid response | No |
+## Idea Generation
+
+**Service:** `workers/idea-selector/src/lib/gemini-idea-generator.ts`
+
+### TopicIdea Structure (Full)
+
+```typescript
+interface TopicIdea {
+  topic: string;
+  reasoning: string;
+  curiosityAngle:
+    | 'Myth' | 'Hidden Cost' | 'Surprising Truth'
+    | 'Counterintuitive Behavior' | 'Tradeoff'
+    | 'Failure Mode' | 'Common Mistake';
+  audienceBreadthScore: number;    // 0–100
+  titlePotentialScore: number;     // 0–100
+  performanceScore: number;        // 0–100 (AI estimate)
+  targetFormats: {
+    longForm: boolean;             // Always true
+    shorts: number;                // 3–5
+  };
+  suggestedAngles: string[];
+  estimatedPerformance: {
+    score: number;
+    confidence: 'low' | 'medium' | 'high';
+  };
+}
+```
+
+### Hybrid Validation & Scoring
+
+After AI generates 15 raw ideas, deterministic rules are applied:
+
+**Hard Elimination:**
+```typescript
+function hardEliminate(ideas: TopicIdea[], history: VideoHistory[], queueIdeas: string[]) {
+  return ideas.filter(idea => {
+    // Block if uploaded in last 30 days
+    const recentMatch = history.find(v =>
+      isSimilar(idea.topic, v.title) && daysSince(v.uploadedAt) < 30
+    );
+    if (recentMatch) return false;
+
+    // Block if overused (same domain > 2x threshold)
+    const domainCount = history.filter(v => sameDomain(v.title, idea.topic)).length;
+    if (domainCount > OVERUSE_THRESHOLD * 2) return false;
+
+    // Block if > 60% word overlap with queued ideas
+    const queueDupe = queueIdeas.some(q => wordOverlap(idea.topic, q) > 0.6);
+    if (queueDupe) return false;
+
+    return true;
+  });
+}
+```
+
+**Formula-Based Ranking:**
+```typescript
+function rankIdeas(ideas: TopicIdea[], history: VideoHistory[]): HybridScore[] {
+  return ideas.map(idea => {
+    const aiScore = idea.performanceScore;
+    const formulaScore = calculateFormula(idea, history);  // CTR, retention, views
+    const audienceBreadth = idea.audienceBreadthScore;
+    const titlePotential = idea.titlePotentialScore;
+
+    // Weighted composite score
+    const hybrid = (aiScore * 0.34) + (formulaScore * 0.18) +
+                   (audienceBreadth * 0.28) + (titlePotential * 0.20);
+
+    return { idea, hybrid };
+  }).sort((a, b) => b.hybrid - a.hybrid);
+}
+```
+
+**Final Selection:**
+- Gemini picks the single best topic from top 5 by hybrid score
+- Temperature 0.3 for decisive, consistent choices
+- Returns `{ index: number, justification: string }`
+- Falls back to rank #1 formula pick on any Gemini error
 
 ---
 
 ## Script Generation
 
-### Service Location
-
-`website/lib/pipeline/script-generation.ts`
+**API Route:** `website/app/api/generate-script/`
 
 ### Script Structure
 
@@ -359,52 +353,157 @@ interface VideoScript {
   title: string;
   description: string;
   tags: string[];
-  narration: string;  // Full script narration
-  scenes: SceneIR[];  // Visual scenes with actions
-  shorts: ShortScript[]; // 5 shorts with hooks
+  narration: string;      // Full concatenated narration text
+  scenes: SceneIR[];      // Visual scenes with ActionIR
+  shorts: ShortScript[];  // 3–5 shorts with hook + content scenes
+}
+
+interface ShortScript {
+  id: string;             // "short-0", "short-1", etc.
+  hook: string;           // The attention-grabbing hook text
+  scenes: [
+    SceneIR,             // Hook scene: id="hook", empty narration, 0.8–1.5s duration
+    SceneIR              // Content scene: has narration and actions
+  ];
 }
 ```
 
-### Generation Process
+### Script Generation Process
 
-1. **Topic Input** - Video idea/topic
-2. **Research Phase** - AI gathers relevant information
-3. **Script Writing** - Full narration with educational content
-4. **Scene Breakdown** - Divide into 5-10 visual scenes
-5. **Action Design** - Visual primitives for each scene
-6. **Shorts Extraction** - Create 5 shorts with hooks
-
-### Temperature Settings
-
-| Phase | Temperature | Reason |
-|-------|-------------|--------|
-| Research | 0.7 | Balanced creativity |
-| Script Writing | 1.0 | Maximum creativity |
-| Scene Actions | 0.8 | Creative but structured |
-| Shorts Hooks | 1.0 | Catchy, attention-grabbing |
+```
+1. VideoIdea string → prompt Gemini
+2. Gemini generates:
+   - Title, description (with chapter placeholders), tags
+   - Full narration text for entire video
+   - 5–10 scenes, each with:
+       sceneTitle (for YouTube chapters)
+       baseDuration + holdDuration
+       narration (per-scene text)
+       actions[] (ActionIR primitives)
+   - 3–5 shorts, each with:
+       hook text
+       hook scene (id="hook", narration="", baseDuration 0.8–1.5)
+       content scene (with narration + actions)
+3. Parsed JSON validated and returned
+```
 
 ---
 
-## Rate Limits and Usage
+## AI Scene HTML (ai render mode)
 
-### Gemini API Quotas
+**API Route:** `website/app/api/generate-scene-html/`
 
-| Model | RPM (Requests/Min) | TPM (Tokens/Min) |
-|-------|-------------------|------------------|
-| gemini-3-flash-preview | 15 | 1,000,000 |
-| gemini-2.5-flash-preview-tts | 15 | 32,000 |
+When `SCENE_RENDER_METHOD=ai`, each scene's HTML is generated by Gemini instead of by `SceneHtmlRenderer`.
 
-### Pipeline Usage
+### Rate-Limit Queue
+
+To prevent hitting Gemini's per-minute request quota during batch scene rendering, the API uses a Redis-based serialized queue:
+
+```typescript
+// Redis keys
+'html_queue:turn'         // Integer: current turn number
+'html_queue:processing'   // String: 'true' when a request is active
+'html_queue:last_enquiry' // Timestamp: when last request was made
+
+// API endpoint logic
+async function generateSceneHtml(narration: string) {
+  // Wait for our turn
+  while (redis.get('html_queue:processing') === 'true') {
+    await sleep(500);
+  }
+
+  // Mark as processing
+  await redis.set('html_queue:processing', 'true');
+
+  // Generate HTML with Gemini
+  const html = await gemini.generateContent({ prompt: narration });
+
+  // Schedule 22-second cooldown before next request can proceed
+  setTimeout(async () => {
+    await redis.del('html_queue:processing');
+    await redis.incr('html_queue:turn');
+  }, 22_000);
+
+  return html;
+}
+```
+
+The `generate-script.ts` CI script initializes these keys at the start of each pipeline run:
+```typescript
+await redis.set('html_queue:turn', '1');
+await redis.set('html_queue:last_enquiry', '0');
+```
+
+---
+
+## Trend Detection
+
+**Service:** `workers/idea-selector/src/lib/trend-detector.ts`
+
+All three sources run **concurrently** (`Promise.allSettled`). Individual failures are non-fatal.
+
+### Source 1: YouTube Trending
+
+```typescript
+// YouTube Data API v3
+GET https://www.googleapis.com/youtube/v3/videos?
+  part=snippet,statistics&
+  chart=mostPopular&
+  videoCategoryId=28&   // Science & Technology
+  regionCode=IN&        // India
+  maxResults=15&
+  key={YT_API_KEY}
+
+// Returns top 15 S&T trending videos in India
+// → Used to identify currently popular tech topics
+```
+
+### Source 2: Hacker News
+
+```typescript
+// HN Algolia API
+GET https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30
+
+// Filter by tech keywords: ['javascript', 'typescript', 'python', 'ai', 'llm',
+//   'database', 'api', 'cloud', 'devops', 'backend', 'frontend', ...]
+// → Returns HN posts matching tech topics from today's front page
+```
+
+### Source 3: Reddit
+
+```typescript
+// Reddit JSON API (no auth required)
+GET https://www.reddit.com/r/programming+webdev+javascript+typescript+
+    node+ExperiencedDevs+devops+learnprogramming/top.json?
+    t=day&
+    limit=20
+
+// → Top posts from tech subreddits in the last 24 hours
+```
+
+---
+
+## Rate Limits and Quotas
+
+### Gemini API (Approximate Free Tier)
+
+| Model | RPM | TPD |
+|-------|-----|-----|
+| `gemini-3-flash-preview` | 15 | 1,500,000 |
+| `gemini-2.5-flash-preview-tts` | 15 | Varies |
+
+### Pipeline Usage Per Run
 
 | Step | Model | Approx Tokens |
-|------|-------|--------------|
-| Channel Analysis | gemini-3-flash | ~2,000 |
-| Idea Generation | gemini-3-flash | ~5,000 |
-| Topic Selection | gemini-3-flash | ~1,000 |
-| Script Generation | gemini-3-flash | ~10,000 |
-| TTS (per scene) | gemini-2.5-flash-tts | ~1,000 |
+|------|-------|---------------|
+| Channel analysis | gemini-3-flash | ~2,000 |
+| Idea generation (15 ideas) | gemini-3-flash | ~5,000 |
+| Topic selection | gemini-3-flash | ~1,000 |
+| Script generation | gemini-3-flash | ~10,000–20,000 |
+| TTS per scene (~8 scenes) | gemini-2.5-flash-tts | ~1,000 per scene |
+| TTS per short (~3–5 shorts) | gemini-2.5-flash-tts | ~500 per short scene |
 
-With key rotation, the pipeline comfortably fits within quotas.
+With key rotation, the pipeline comfortably fits within free tier quotas.
 
 ---
 
@@ -412,24 +511,24 @@ With key rotation, the pipeline comfortably fits within quotas.
 
 ### Prompt Engineering
 
-1. **Be specific** - Clear instructions reduce hallucinations
-2. **Provide context** - Include relevant data (analytics, history)
-3. **Request JSON** - Use `responseMimeType: "application/json"` for structured output
-4. **Set temperature** - Lower for factual, higher for creative
+1. **Be specific** — Clear instructions reduce hallucinations and off-format responses
+2. **Provide context** — Include channel analytics, history, and queue state
+3. **Request JSON** — Use `responseMimeType: "application/json"` for structured output
+4. **Lower temperature for selection** — 0.3 for decisive topic selection, 1.0 for creative script writing
 
 ### Error Handling
 
-1. **Always retry** - Transient errors are common
-2. **Add jitter** - Prevents thundering herd
-3. **Fallback gracefully** - Use default values on failure
-4. **Log extensively** - Debug information is crucial
+1. **Always retry with backoff** — Transient errors (429, 503, overloaded) are common
+2. **Add random jitter** — Prevents thundering herd on rate limit resets
+3. **Fallback gracefully** — Formula ranking if AI topic selection fails; silence if TTS fails
+4. **Log to stderr** — All progress logs via `console.error()`, only structured output to stdout
 
-### Performance
+### F5-TTS Performance
 
-1. **Batch requests** - Group similar operations
-2. **Rotate keys** - Double effective rate limit
-3. **Cache results** - Reuse unchanged analytics
-4. **Stream when possible** - Reduce latency for long responses
+1. **Batch all narrations** — Load model once, process all scenes sequentially
+2. **Sanitize text** — Remove SSML/markdown that confuses the TTS model
+3. **Use shorter reference audio** — Shorter clips improve prosody matching
+4. **Cache model on CI** — Current setup downloads fresh each run (no caching)
 
 ---
 

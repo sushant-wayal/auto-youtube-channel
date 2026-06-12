@@ -8,16 +8,25 @@ This document explains how scenes are defined, rendered, and converted to video 
 
 ## Overview
 
-The scene rendering system converts declarative scene definitions (`SceneIR`) into video clips by:
+The scene rendering system converts declarative scene definitions (`SceneIR`) into MP4 video clips by:
 
-1. **Parsing scene actions** - Extract visual primitives from scene definition
-2. **Generating HTML** - Create HTML page with Canvas-based animations
-3. **Capturing frames** - Use Puppeteer to screenshot each frame
-4. **Encoding video** - Use FFmpeg to convert frames to MP4
+1. **Parsing scene actions** — Extract visual primitives (ActionIR) from scene definition
+2. **Generating HTML** — Create self-contained HTML page with Canvas 2D animations
+3. **Capturing frames** — Use Puppeteer to call `window.renderFrame(t)` for each frame
+4. **Encoding video** — Use FFmpeg to convert PNG frames → H.264 MP4
 
 ```
-SceneIR → HTML+JS → Puppeteer → Frames → FFmpeg → MP4 → Cloudinary URL
+SceneIR → HTML+JS (Canvas 2D) → Puppeteer frames → FFmpeg → MP4 → Cloudinary URL
 ```
+
+### Two Rendering Modes
+
+| Mode | How HTML is Generated | When to Use |
+|------|-----------------------|-------------|
+| `code` | `SceneHtmlRenderer` converts ActionIR locally | Default; fast, deterministic |
+| `ai` | Gemini via `/api/generate-scene-html` | Richer/freer visuals; slower, rate-limited |
+
+Set via `SCENE_RENDER_METHOD` env var.
 
 ---
 
@@ -27,379 +36,209 @@ Each scene is defined with:
 
 ```typescript
 interface SceneIR {
-  id: string;               // Unique scene identifier
+  id: string;               // Unique scene identifier (e.g., "scene-1", "hook")
+  sceneTitle?: string;      // Title for YouTube chapters
   sceneTheme?: "light" | "dark" | "auto";  // Visual theme
   baseDuration: number;     // Animation duration in seconds
   holdDuration: number;     // Hold time after animations complete
+  narration?: string;       // Per-scene narration text (empty = silence for hook)
   actions: ActionIR[];      // Visual primitives to render
 }
 ```
 
 ### Duration Calculation
 
-- **Total Duration** = `baseDuration + holdDuration`
-- Actions are scheduled using their `t` (time) property
-- Actions animate at their `t` time offset
-- After all animations complete, the scene "holds" for `holdDuration`
+- **Total scene duration** = `baseDuration + holdDuration`
+- Actions animate at their `t` property (time offset from scene start)
+- The renderer calculates `animationStopTime` (when the last animation finishes)
+- The assembler uses `max(animationStop + 0.5s, narrationDuration)` as final clip length
 
 ---
 
 ## Visual Primitives (ActionIR)
 
-All visual elements are defined as **ActionIR** objects. Each has:
-- `t` - Time offset (seconds from scene start)
-- `op` - Operation type (primitive name)
-- Position/size properties
-- Style properties
+All visual elements are defined as **ActionIR** objects. The current implementation in
+`action-flow-to-html.ts` handles these `op` values:
 
-### Primitive Reference
+### `text` — Text Label
 
-#### Line
 ```typescript
 {
-  t: number;          // Start time
-  op: "line";
-  x1: number;         // Start X
-  y1: number;         // Start Y
-  x2: number;         // End X
-  y2: number;         // End Y
-  stroke?: string;    // Line color
-  strokeWidth?: number;
-  dashed?: boolean;   // Dashed line
-  dashLength?: number;
-  dashGap?: number;
-  arrow?: boolean;    // Arrow head at end
-  curve?: number;     // Curve amount (0 = straight)
-}
-```
-
-#### Rectangle
-```typescript
-{
-  t: number;
-  op: "rect";
-  x: number;          // Top-left X
-  y: number;          // Top-left Y
-  w: number;          // Width
-  h: number;          // Height
-  r?: number;         // Border radius
-  stroke?: string | false;
-  strokeWidth?: number;
-  fill?: string | false;
-}
-```
-
-#### Ellipse
-```typescript
-{
-  t: number;
-  op: "ellipse";
-  cx: number;         // Center X
-  cy: number;         // Center Y
-  rx: number;         // Radius X
-  ry: number;         // Radius Y
-  stroke?: string | false;
-  strokeWidth?: number;
-  fill?: string | false;
-}
-```
-
-#### Path (SVG-style)
-```typescript
-{
-  t: number;
-  op: "path";
-  d: string;          // SVG path data (M, L, C, etc.)
-  stroke?: string;
-  strokeWidth?: number;
-  fill?: string;
-  dashed?: boolean;
-  dashLength?: number;
-  dashGap?: number;
-}
-```
-
-#### Text
-```typescript
-{
-  t: number;
+  t: number;          // Start time (seconds from scene start)
   op: "text";
-  x: number;
-  y: number;
+  x: number;          // X position (0–width)
+  y: number;          // Y position (0–height)
   value: string;      // Text content
-  fontSize?: number;
-  size?: "title" | "subtitle" | "body" | "label";  // Preset sizes
+  size?: "title" | "subtitle" | "body" | "label";  // Preset scale
+  fontSize?: number;  // Override px size
   fontWeight?: number;
-  fill?: string;      // Text color
+  fill?: string;      // Text color (defaults to theme textPrimary)
   align?: "left" | "center" | "right";
   baseline?: "top" | "middle" | "bottom";
-  typewriter?: boolean;  // Typewriter animation effect
-  monospace?: boolean;   // Use monospace font
+  monospace?: boolean; // Use JetBrains Mono instead of Inter
 }
 ```
 
-**Size Presets (Landscape):**
-| Size | Font Size |
-|------|-----------|
-| `title` | 72px |
-| `subtitle` | 48px |
-| `body` | 32px |
-| `label` | 24px |
+**Responsive Size Presets:**
 
-**Size Presets (Portrait/Shorts):**
-| Size | Font Size |
-|------|-----------|
-| `title` | 96px |
-| `subtitle` | 64px |
-| `body` | 48px |
-| `label` | 36px |
+| Size | Long-form Landscape | Short Portrait |
+|------|--------------------|-----------------------|
+| `title` | ~H×0.067 | ~W×0.070 |
+| `subtitle` | ~H×0.045 | ~W×0.047 |
+| `body` | ~H×0.030 | ~W×0.032 |
+| `label` | ~H×0.022 | ~W×0.024 |
 
-#### Code Block
+### `code` — Syntax-Highlighted Code Block
+
 ```typescript
 {
   t: number;
-  op: "codeBlock";
+  op: "code";           // ← Note: the op is "code", not "codeBlock"
   x: number;
   y: number;
-  w: number;          // Width
-  h: number;          // Height
-  lines: string[];    // Code lines
-  language: string;   // Programming language
-  theme?: "light" | "dark";
+  w?: number;           // Width (defaults to auto)
+  h?: number;           // Height (defaults to auto)
+  code: string;         // Code content (newline-separated lines)
+  language: string;     // js, ts, py, go, rs, sql, javascript, typescript, python, golang, rust
   fontSize?: number;
-  showLineNumbers?: boolean;
-  highlightLine?: number;  // Line to highlight
-  maxVisibleLines?: number;
-  cursor?: boolean;   // Show blinking cursor
 }
 ```
 
-**Supported Languages:**
-- JavaScript / TypeScript
-- Python
-- Java
-- Go
-- Rust
-- C / C++
-- PHP
-- Ruby
-- SQL
+Code blocks are revealed line-by-line with a fade-in animation. Each line is tokenized and color-coded.
 
-#### Progress Bar
+### `line` — Animated Connector
+
 ```typescript
 {
   t: number;
-  op: "progressBar";
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  value: number;      // Current value
-  max?: number;       // Max value (default: 100)
-  label?: string;
-  r?: number;         // Border radius
-  fill?: string;      // Bar fill color
-  trackFill?: string; // Track background color
-  stroke?: string;
-  strokeWidth?: number;
+  op: "line";
+  x1: number; y1: number; // Start point
+  x2: number; y2: number; // End point
+  stroke?: string;        // Color (defaults to theme accent)
+  strokeWidth?: number;   // Default: 2
+  dashed?: boolean;
+  arrow?: boolean;        // Arrow head at end point
+  curve?: "none" | "arc-up" | "arc-down" | "s-curve" | "wave";
 }
 ```
 
-#### Badge
-```typescript
-{
-  t: number;
-  op: "badge";
-  x: number;
-  y: number;
-  value: string;      // Badge text
-  style?: "neutral" | "accent" | "warning" | "success" | "danger";
-  fontSize?: number;
-  fontWeight?: number;
-  paddingX?: number;
-  paddingY?: number;
-  fill?: string;
-  stroke?: string;
-  textColor?: string;
-  icon?: string;      // Icon name to include
-}
-```
+Lines draw from start to end point over their animation duration. Curve shapes use seeded Bézier curves for consistency across frames.
 
-#### Icon
+### `icon` — Named SVG Icon
+
 ```typescript
 {
   t: number;
   op: "icon";
   x: number;
   y: number;
-  name: string;       // Icon identifier
-  size?: number;
-  stroke?: string;
+  name: string;     // One of the 18 built-in icon names (see table below)
+  size?: number;    // Icon size in pixels (default: 48)
+  stroke?: string;  // Stroke color
+  fill?: string;    // Fill color (false = no fill)
   strokeWidth?: number;
-  fill?: string | false;
 }
 ```
 
-**Available Icons:**
+**Available Icons (18 total):**
+
 | Name | Description |
 |------|-------------|
-| `check` | Checkmark |
+| `check` | Checkmark circle |
 | `cross` | X mark |
 | `warning` | Warning triangle |
 | `info` | Information circle |
-| `database` | Database icon |
-| `server` | Server icon |
-| `cloud` | Cloud icon |
-| `lock` | Lock/security |
-| `user` | User icon |
-| `code` | Code brackets |
-| `api` | API icon |
-| `arrow-right` | Right arrow |
-| `arrow-left` | Left arrow |
+| `arrowRight` | Right arrow |
+| `arrowLeft` | Left arrow |
+| `arrowUp` | Up arrow |
+| `arrowDown` | Down arrow |
+| `plus` | Plus sign |
+| `minus` | Minus sign |
+| `clock` | Clock |
+| `database` | Database cylinder |
+| `server` | Server rack |
+| `cpu` | CPU chip |
+| `lock` | Padlock |
+| `unlock` | Open padlock |
+| `cloud` | Cloud |
+| `bug` | Bug |
+| `chartUp` | Upward chart arrow |
+| `chartDown` | Downward chart arrow |
 
-#### Table
-```typescript
-{
-  t: number;
-  op: "table";
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  headers: string[];  // Column headers
-  rows: string[][];   // Row data
-  striped?: boolean;  // Alternating row colors
-  headerFill?: string;
-  gridStroke?: string;
-  textColor?: string;
-  fontSize?: number;
-  align?: "left" | "center" | "right";
-}
-```
-
-#### Number Counter
-```typescript
-{
-  t: number;
-  op: "numberCounter";
-  x: number;
-  y: number;
-  from: number;       // Starting value
-  to: number;         // Ending value
-  prefix?: string;    // e.g., "$"
-  suffix?: string;    // e.g., "%"
-  decimals?: number;  // Decimal places
-  fontSize?: number;
-  size?: "title" | "subtitle" | "body" | "label";
-  fontWeight?: number;
-  fill?: string;
-  align?: "left" | "center" | "right";
-}
-```
-
-#### Highlight
-```typescript
-{
-  t: number;
-  op: "highlight";
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  style?: "underline" | "box";
-  r?: number;         // Border radius (for box)
-  fill?: string;
-  opacity?: number;
-}
-```
-
-#### Group
-```typescript
-{
-  t: number;
-  op: "group";
-  children: ActionIR[];  // Nested actions
-}
-```
-
-#### Transform
-```typescript
-{
-  t: number;
-  op: "transform";
-  translate?: [number, number];  // [x, y] offset
-  children: ActionIR[];
-}
-```
+> **Note:** The older docs listed many additional primitives (`rect`, `ellipse`, `path`, `progressBar`, `badge`, `table`, `numberCounter`, `highlight`, `group`, `transform`). These may be defined in the TypeScript types (`src/types/index.ts`) for use by the script-generation Gemini prompt, but **only `text`, `code`, `line`, and `icon` are actively rendered** in `action-flow-to-html.ts`. Other ops are gracefully ignored.
 
 ---
 
-## Themes
+## Theme System
+
+Themes alternate automatically: even-indexed scenes get `light`, odd-indexed scenes get `dark`.
 
 ### Light Theme
+
 ```javascript
 {
-  bg: "#FAFAF9",          // Background
-  surface: "#F5F5F4",     // Card surfaces
-  textPrimary: "#18181B", // Primary text
-  textSecondary: "#52525B", // Secondary text
-  accent: "#6366F1",      // Accent color (indigo)
-  accentSoft: "#E0E7FF",  // Soft accent
-  warning: "#F59E0B",     // Warning (amber)
-  success: "#10B981",     // Success (emerald)
-  danger: "#EF4444",      // Danger (red)
-  border: "#E5E5E5",      // Borders
+  bg: "#FAFAF9",             // Warm white (Zinc-50)
+  surface: "#F5F5F4",        // Zinc-100
+  textPrimary: "#18181B",    // Zinc-900
+  textSecondary: "#52525B",  // Zinc-600
+  accent: "#6366F1",         // Indigo-500
+  accentSoft: "#E0E7FF",     // Indigo-100
+  warning: "#F59E0B",        // Amber-500
+  success: "#10B981",        // Emerald-500
+  danger: "#EF4444",         // Red-500
+  border: "#E5E5E5",
 }
 ```
 
 ### Dark Theme
+
 ```javascript
 {
-  bg: "#0F172A",          // Background (slate-900)
-  surface: "#1E293B",     // Card surfaces
-  textPrimary: "#F1F5F9", // Primary text
-  textSecondary: "#CBD5E1", // Secondary text
-  accent: "#818CF8",      // Accent (indigo-400)
+  bg: "#0F172A",             // Slate-900
+  surface: "#1E293B",        // Slate-800
+  textPrimary: "#F1F5F9",    // Slate-100
+  textSecondary: "#CBD5E1",  // Slate-300
+  accent: "#818CF8",         // Indigo-400
   accentSoft: "rgba(129, 140, 248, 0.2)",
-  warning: "#FBBF24",     // Warning (amber-400)
-  success: "#34D399",     // Success (emerald-400)
-  danger: "#F87171",      // Danger (red-400)
-  border: "#334155",      // Borders
+  warning: "#FBBF24",        // Amber-400
+  success: "#34D399",        // Emerald-400
+  danger: "#F87171",         // Red-400
+  border: "#334155",         // Slate-700
 }
 ```
+
+### Background Decorations
+
+Every scene canvas has these layered behind the actions:
+- Engineering-paper grid (very subtle)
+- Circuit node dots at grid intersections
+- Corner bracket accents (all 4 corners)
+- Floating tech symbols: `{}` `<>` `[]` `=>` `//` `&&` `( )` `**` (semi-transparent)
+- Circuit trace lines (thin L-shaped decorations)
+- Soft radial vignette (darkens edges slightly)
 
 ---
 
 ## Syntax Highlighting
 
-Code blocks are tokenized and colored based on language:
+The built-in tokenizer in `action-flow-to-html.ts` supports:
 
-### Token Types
+**Languages:** `javascript` / `js`, `typescript` / `ts`, `python` / `py`, `go` / `golang`, `rust` / `rs`, `sql`
+
+**Token types and colors:**
 
 | Type | Dark Theme | Light Theme |
 |------|------------|-------------|
-| `keyword` | Purple (#C084FC) | Purple (#7C3AED) |
-| `string` | Green (#86EFAC) | Green (#15803D) |
-| `number` | Orange (#FDBA74) | Orange (#EA580C) |
-| `comment` | Gray (#64748B) | Gray (#64748B) |
-| `function` | Blue (#60A5FA) | Blue (#2563EB) |
-| `operator` | Orange (#FB923C) | Dark orange (#C2410C) |
-| `punctuation` | Light gray (#94A3B8) | Dark gray (#475569) |
-| `type` | Emerald (#34D399) | Emerald (#059669) |
-| `builtin` | Yellow (#FCD34D) | Yellow (#CA8A04) |
-| `variable` | Off-white (#E2E8F0) | Dark slate (#0F172A) |
-
-### Language Aliases
-
-| Alias | Language |
-|-------|----------|
-| `js` | JavaScript |
-| `ts` | TypeScript |
-| `py` | Python |
-| `rb` | Ruby |
-| `cpp`, `c++` | C++ |
-| `golang` | Go |
-| `rs` | Rust |
+| `keyword` | `#C084FC` (purple) | `#7C3AED` (purple) |
+| `string` | `#86EFAC` (green) | `#15803D` (green) |
+| `number` | `#FDBA74` (orange) | `#EA580C` (orange) |
+| `comment` | `#64748B` (gray) | `#64748B` (gray) |
+| `function` | `#60A5FA` (blue) | `#2563EB` (blue) |
+| `operator` | `#FB923C` (orange) | `#C2410C` (dark orange) |
+| `punctuation` | `#94A3B8` (gray) | `#475569` (gray) |
+| `type` | `#34D399` (emerald) | `#059669` (emerald) |
+| `builtin` | `#FCD34D` (yellow) | `#CA8A04` (yellow) |
+| `variable` | `#E2E8F0` (white) | `#0F172A` (dark) |
 
 ---
 
@@ -407,88 +246,111 @@ Code blocks are tokenized and colored based on language:
 
 ### Duration Assignment
 
-Actions are assigned durations based on:
-
-1. **Time until next action** - Default behavior
-2. **Type-specific defaults**:
-   - Text: 0.3s base
-   - Code blocks: 0.5s per line
-   - Progress bars: 0.8s
-   - Number counters: 1.0s
+Each action's animation duration is determined by the **gap-window algorithm**:
+- Duration = gap between this action's `t` and the next action's `t`
+- Last action gets the remaining `baseDuration - t` as its duration
 
 ### Easing Functions
 
 | Easing | Description |
 |--------|-------------|
 | `linear` | Constant speed |
-| `easeIn` | Slow start |
-| `easeOut` | Slow end |
+| `easeIn` | Accelerates from slow |
+| `easeOut` | Decelerates to stop |
 | `easeInOut` | Slow start and end |
 
-### Animation Effects
+### Animation Effects per Primitive
 
-- **Fade in** - Default for most primitives
-- **Draw** - Lines draw from start to end
-- **Typewriter** - Text appears character by character
-- **Count up** - Number counters animate value
-- **Fill** - Progress bars fill to target value
+| Primitive | Effect |
+|-----------|--------|
+| `text` | Fade in (opacity 0→1) |
+| `code` | Line-by-line fade in (sequential) |
+| `line` | Progressive draw (start→end) |
+| `icon` | Fade in (opacity 0→1) |
 
 ---
 
-## Rendering Pipeline
+## Rendering Pipeline (Technical)
 
-### 1. HTML Generation
+### 1. HTML Generation (`SceneHtmlRenderer`)
 
-`SceneHtmlRenderer` class generates HTML with:
+`action-flow-to-html.ts` generates a complete self-contained HTML document:
 
 ```html
 <!DOCTYPE html>
 <html>
 <head>
-  <style>
-    /* Theme-aware styles */
-    /* Font loading (Inter, JetBrains Mono) */
-    /* Animation keyframes */
-  </style>
+  <style>/* Google Fonts: Inter + JetBrains Mono */</style>
 </head>
-<body>
-  <canvas id="canvas"></canvas>
+<body style="margin:0;overflow:hidden;">
+  <canvas id="canvas" width="{W}" height="{H}"></canvas>
   <script>
-    // Canvas setup
-    // Action rendering functions
-    // Animation loop with requestAnimationFrame
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Theme + color constants
+    // Background drawing functions (grid, nodes, symbols, vignette)
+    // Per-action draw functions (drawText, drawCode, drawLine, drawIcon)
+    // Easing functions
+
+    window.renderFrame = function(t) {
+      // t = current time in seconds
+      // Draws everything at time t in one synchronous pass
+      drawBackground(ctx);
+      actions.forEach(action => {
+        if (t >= action.t) drawAction(ctx, action, t - action.t);
+      });
+    };
+
+    // Called immediately to ensure first frame is visible
+    window.renderFrame(0);
   </script>
 </body>
 </html>
 ```
 
-### 2. Frame Capture
+Key property: `window.renderFrame(t)` is a **pure, synchronous** function that draws the entire scene state at time `t`. Puppeteer calls this once per frame.
 
-`HtmlToVideoService` uses Puppeteer:
+### 2. Frame Capture (`HtmlToVideoService`)
+
+`htmlToVideoService.ts`:
 
 ```typescript
-const browser = await puppeteer.launch({ headless: true });
+const browser = await puppeteer.launch({
+  headless: true,
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
 const page = await browser.newPage();
 await page.setViewport({ width, height });
 await page.setContent(html);
+// Wait for fonts to load
+await page.evaluate(() => document.fonts.ready);
 
-// Capture frames at target FPS
+const totalFrames = Math.ceil(duration * fps);
 for (let frame = 0; frame < totalFrames; frame++) {
-  const time = frame / fps;
-  await page.evaluate((t) => window.setTime(t), time);
-  await page.screenshot({ path: `frame-${frame}.png` });
+  const t = frame / fps;
+  await page.evaluate((time) => window.renderFrame(time), t);
+  await page.screenshot({ path: `frames/frame-${frame.toString().padStart(6,'0')}.png` });
 }
+
+await browser.close();
 ```
 
 ### 3. FFmpeg Encoding
 
-Frames are encoded to MP4:
-
 ```bash
-ffmpeg -framerate 30 -i frame-%04d.png \
-  -c:v libx264 -preset fast -crf 22 \
-  -pix_fmt yuv420p output.mp4
+ffmpeg \
+  -framerate 30 \
+  -i frames/frame-%06d.png \
+  -c:v libx264 \
+  -preset medium \
+  -crf 16 \
+  -pix_fmt yuv420p \
+  -threads 1 \
+  output.mp4
 ```
+
+CRF 16 = high quality (lower is better). `threads 1` = CI memory constraint.
 
 ---
 
@@ -501,65 +363,84 @@ ffmpeg -framerate 30 -i frame-%04d.png \
 
 ---
 
-## Example Scene
+## AI Scene Mode (Rate-Limit Queue)
+
+When `SCENE_RENDER_METHOD=ai`, the system uses a Redis-based queue to serialize Gemini calls:
+
+```
+Redis keys:
+  html_queue:turn         — ticket counter (INCR atomically)
+  html_queue:processing   — lease key (deleted after 22s cooldown)
+  html_queue:last_enquiry — timestamp of last request
+
+Flow for each scene:
+  1. Worker acquires a ticket (waits if another scene is processing)
+  2. POST /api/generate-scene-html with scene narration
+  3. Website calls Gemini → returns animated HTML
+  4. Worker starts 22-second background cooldown timer
+  5. When cooldown ends: INCR turn + DEL processing (next scene can proceed)
+  6. Worker renders the received HTML with Puppeteer → FFmpeg
+```
+
+The 22-second cooldown prevents rate-limit errors from Gemini's per-minute request quota.
+
+---
+
+## Example Scene Definition
 
 ```typescript
 const scene: SceneIR = {
-  id: "http-intro",
-  sceneTheme: "dark",
-  baseDuration: 5,
-  holdDuration: 2,
+  id: "caching-intro",
+  sceneTitle: "Why Caching Breaks",
+  baseDuration: 6,
+  holdDuration: 1,
+  narration: "Caching seems simple, but there's one detail most developers miss.",
   actions: [
-    // Title at 0s
+    // Title fades in at 0s
     {
       t: 0,
       op: "text",
       x: 960, y: 200,
-      value: "Understanding HTTP",
+      value: "The Caching Problem",
       size: "title",
       align: "center",
     },
-    // Subtitle at 0.5s
+    // Subtitle at 0.8s
     {
-      t: 0.5,
+      t: 0.8,
       op: "text",
-      x: 960, y: 280,
-      value: "The Foundation of Web Communication",
+      x: 960, y: 300,
+      value: "Why your cache keeps lying to you",
       size: "subtitle",
       align: "center",
     },
-    // Code block at 1s
+    // Code block at 1.5s
     {
-      t: 1,
-      op: "codeBlock",
-      x: 200, y: 400,
-      w: 700, h: 300,
-      language: "javascript",
-      lines: [
-        "fetch('https://api.example.com/data')",
-        "  .then(response => response.json())",
-        "  .then(data => console.log(data));",
-      ],
-      showLineNumbers: true,
+      t: 1.5,
+      op: "code",
+      x: 200, y: 380,
+      code: "const cached = cache.get(key);\nif (cached) return cached;\nconst fresh = await db.query(key);\ncache.set(key, fresh, TTL);\nreturn fresh;",
+      language: "typescript",
     },
-    // Arrow at 2s
+    // Warning icon at 3.5s
     {
-      t: 2,
-      op: "line",
-      x1: 950, y1: 500,
-      x2: 1100, y2: 500,
-      stroke: "#818CF8",
-      strokeWidth: 4,
-      arrow: true,
-    },
-    // Server icon at 2.5s
-    {
-      t: 2.5,
+      t: 3.5,
       op: "icon",
-      x: 1150, y: 470,
-      name: "server",
-      size: 60,
-      stroke: "#34D399",
+      x: 860, y: 650,
+      name: "warning",
+      size: 64,
+      stroke: "#FBBF24",
+    },
+    // Connector at 4s
+    {
+      t: 4,
+      op: "line",
+      x1: 960, y1: 640,
+      x2: 1200, y2: 640,
+      stroke: "#818CF8",
+      strokeWidth: 3,
+      arrow: true,
+      curve: "arc-up",
     },
   ],
 };
