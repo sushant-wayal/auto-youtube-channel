@@ -44,6 +44,7 @@ async function assembleMainVideo(
         clipTimings: timings,
         animationStopTimes: stopTimes,
         isShort: false,
+        voiceoverProvider: process.env.VOICEOVER_PROVIDER,
     });
 
     console.error(`✅ Video assembled: ${result.outputUrl}`);

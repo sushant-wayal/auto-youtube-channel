@@ -259,6 +259,7 @@ jobs:
           CLIPS_TIMINGS: ${{ needs.render-scenes.outputs.clips_timings }}
           ANIMATION_STOP_TIMES: ${{ needs.render-scenes.outputs.animation_stop_times }}
           VOICEOVER_URLS: ${{ needs.generate-voiceover.outputs.voiceover_data }}
+          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
         run: |
           RESULT=$(npx tsx .github/scripts/assemble-video.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT

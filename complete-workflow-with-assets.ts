@@ -379,6 +379,7 @@ async function main() {
                     clipTimings: renderResult.timings,
                     animationStopTimes: renderResult.animationStopTimes,
                     isShort: false,
+                    voiceoverProvider: config.voiceover.provider,
                 });
                 console.log(`✅ Video assembled: ${assembled.duration}s`);
             }
@@ -579,6 +580,7 @@ async function main() {
                     clipTimings: shortRenderResult.timings,
                     animationStopTimes: shortRenderResult.animationStopTimes,
                     isShort: true,
+                    voiceoverProvider: config.voiceover.provider,
                 });
 
                 // 4. Upload short to YouTube

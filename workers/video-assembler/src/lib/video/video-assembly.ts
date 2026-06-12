@@ -27,6 +27,7 @@ export interface VideoAssemblyInput {
         outro?: string;
     };
     isShort?: boolean;           // If true, output vertical 9:16 format for YouTube Shorts
+    voiceoverProvider?: string;  // Voiceover provider (gemini or f5)
 }
 
 export interface VideoAssemblyResult {
@@ -210,7 +211,8 @@ export class VideoAssemblyService {
                 combinedPath,
                 input.music,
                 combinedDuration,
-                outputDir
+                outputDir,
+                input.voiceoverProvider
             );
         } else {
             console.error(`  🔇 No music provided, generating silence...`);
@@ -523,7 +525,8 @@ export class VideoAssemblyService {
         narrationPath: string,
         musicPath: string,
         videoDuration: number,
-        outputDir: string
+        outputDir: string,
+        voiceoverProvider?: string
     ): Promise<string> {
         const outputPath = path.join(outputDir, 'final_audio.mp3');
 
@@ -540,21 +543,32 @@ export class VideoAssemblyService {
         const outroDuration = Math.max(0, videoDuration - narrationDuration);
         console.error(`  Outro duration: ${outroDuration.toFixed(2)}s`);
 
+        // Determine if voiceover provider is F5
+        const isF5 = (voiceoverProvider || process.env.VOICEOVER_PROVIDER || 'gemini').toLowerCase() === 'f5';
+
+        // Choose volume settings: lower music and boost narration for 'f5' mode
+        const musicNarrationVolume = isF5 ? '0.05' : '0.15';
+        const musicOutroVolume = isF5 ? '0.15' : '0.30';
+
+        const narrationFilter = isF5 ? `[0:a]volume=1.5[narration_boosted];` : ``;
+        const narrationInput = isF5 ? `[narration_boosted]` : `[0:a]`;
+
         // Create filter complex for proper audio mixing:
         // 1. Loop music throughout entire video
-        // 2. BGM at 15% during narration
-        // 3. BGM at 30% during outro (after narration ends)
+        // 2. BGM at different volume during narration and outro
         const filterComplex = outroDuration > 0
-            ? `[1:a]aloop=loop=-1:size=2e+09,atrim=0:${videoDuration}[music];` +
+            ? narrationFilter +
+            `[1:a]aloop=loop=-1:size=2e+09,atrim=0:${videoDuration}[music];` +
             `anullsrc=r=48000:cl=stereo,atrim=0:${outroDuration}[silence];` +
-            `[0:a][silence]concat=n=2:v=0:a=1[narration_padded];` +
+            `${narrationInput}[silence]concat=n=2:v=0:a=1[narration_padded];` +
             `[music]asplit=2[music1][music2];` +
-            `[music1]volume=0.15,atrim=0:${narrationDuration}[bgm_narration];` +
-            `[music2]volume=0.30,atrim=${narrationDuration}:${videoDuration},asetpts=PTS-STARTPTS[bgm_outro];` +
+            `[music1]volume=${musicNarrationVolume},atrim=0:${narrationDuration}[bgm_narration];` +
+            `[music2]volume=${musicOutroVolume},atrim=${narrationDuration}:${videoDuration},asetpts=PTS-STARTPTS[bgm_outro];` +
             `[narration_padded][bgm_narration]amix=inputs=2:duration=first[main];` +
             `[main][bgm_outro]concat=n=2:v=0:a=1[out]`
-            : `[1:a]aloop=loop=-1:size=2e+09,atrim=0:${videoDuration},volume=0.15[music];` +
-            `[0:a][music]amix=inputs=2:duration=first[out]`;
+            : narrationFilter +
+            `[1:a]aloop=loop=-1:size=2e+09,atrim=0:${videoDuration},volume=${musicNarrationVolume}[music];` +
+            `${narrationInput}[music]amix=inputs=2:duration=first[out]`;
 
         await runFFmpeg({
             inputs: [narrationPath, musicPath],

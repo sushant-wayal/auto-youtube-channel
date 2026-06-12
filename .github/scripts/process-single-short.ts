@@ -136,6 +136,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         clipTimings: timings,
         animationStopTimes,
         isShort: true,
+        voiceoverProvider: process.env.VOICEOVER_PROVIDER,
     });
 
     // ── 4. Upload to YouTube with ranked schedule time ────────────────────────
