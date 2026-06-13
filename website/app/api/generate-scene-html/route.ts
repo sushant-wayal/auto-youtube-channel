@@ -66,16 +66,42 @@ export async function POST(request: NextRequest) {
     await redis.set("html_queue:processing", String(ticket), "EX", 90);
     console.log(`[Queue] Ticket ${ticket} created processing lease.`);
 
+    let keepLeaseAlive = true;
+    const leaseInterval = setInterval(async () => {
+      if (!keepLeaseAlive) return;
+      try {
+        const ttl = await redis.ttl("html_queue:processing");
+        if (ttl > 0 && ttl <= 10) {
+          await redis.expire("html_queue:processing", ttl + 30);
+          console.log(`[Queue] Ticket ${ticket} extended processing lease. New TTL: ${ttl + 30}`);
+        }
+      } catch (err) {
+        console.error(`[Queue] Ticket ${ticket} failed to extend lease:`, err);
+      }
+    }, 5000);
+
     // 4. Call Gemini
     const service = new SceneHtmlGenerationService();
     console.log(`[Queue] Ticket ${ticket} invoking Gemini html generation...`);
-    const html = await service.generateSceneHtml({
-      narration,
-      isShort: body.isShort === true,
-      sceneId: typeof body.sceneId === "string" ? body.sceneId : undefined,
-      duration: typeof body.duration === "number" ? body.duration : undefined,
-    });
+    let html;
+    try {
+      html = await service.generateSceneHtml({
+        narration,
+        isShort: body.isShort === true,
+        sceneId: typeof body.sceneId === "string" ? body.sceneId : undefined,
+        duration: typeof body.duration === "number" ? body.duration : undefined,
+      });
+    } finally {
+      keepLeaseAlive = false;
+      clearInterval(leaseInterval);
+    }
     console.log(`[Queue] Ticket ${ticket} Gemini html generation completed.`);
+
+    const finalTtl = await redis.ttl("html_queue:processing");
+    if (finalTtl > 0 && finalTtl < 30) {
+      await redis.expire("html_queue:processing", 30);
+      console.log(`[Queue] Ticket ${ticket} ensured final lease is at least 30 seconds.`);
+    }
 
     // Return HTML and ticket immediately (let worker handle cooldown/advancement)
     return NextResponse.json({ html, ticket });
