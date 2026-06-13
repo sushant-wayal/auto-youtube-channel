@@ -68,7 +68,12 @@ async function processAllShorts(videoId: string, scriptData: string) {
         const short = shorts[i];
         const shortId = `${videoId}-short-${i}`;
 
-        console.error(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook}`);
+        console.error(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook || '(no hook)'}`);
+
+        // Derive title: use hook field if present, otherwise fall back to first scene narration or shortId
+        const shortTitle = short.hook
+            || short.scenes.find(s => s.narration)?.narration.slice(0, 60)
+            || shortId;
 
         // 1. Render all scenes for short (hook + content)
         console.error(`🎬 Rendering ${short.scenes.length} scenes for short ${i + 1}...`);
@@ -145,7 +150,7 @@ async function processAllShorts(videoId: string, scriptData: string) {
         const { videoId: youtubeId } = await uploadToYouTube({
             videoUrl: assembled.outputUrl,
             isShort: true,
-            title: short.hook,
+            title: shortTitle,
             description: data.script.description,
             tags: data.script.tags,
             privacyStatus: 'private', // Required for scheduled publishing

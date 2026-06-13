@@ -431,7 +431,12 @@ async function main() {
                 const short = shorts[i];
                 const shortId = `${videoId}-short-${i}`;
 
-                console.log(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook}`);
+                console.log(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook || '(no hook)'}`);
+
+                // Derive title: use hook field if present, otherwise fall back to first scene narration or shortId
+                const shortTitle = short.hook
+                    || short.scenes.find(s => s.narration)?.narration.slice(0, 60)
+                    || shortId;
 
                 const isAiRender = config.sceneRendering.method === 'ai';
 
@@ -592,7 +597,7 @@ async function main() {
                 const shortYoutube = await uploadToYouTube({
                     videoUrl: assembledShort.outputUrl,
                     isShort: true,
-                    title: short.hook,
+                    title: shortTitle,
                     description,
                     tags,
                     privacyStatus: 'private', // Required for scheduled publishing

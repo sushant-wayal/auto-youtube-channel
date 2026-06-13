@@ -58,6 +58,8 @@ For every long-form scene:
 
 For YouTube Shorts when SCENE_RENDER_METHOD=ai:
 - Do NOT generate a silent hook scene (id: "hook") followed by a content scene.
+  NOTE: This refers to removing the HOOK SCENE object inside the "scenes" array — do NOT confuse this with the "hook" field on the short object.
+  The "hook" field on each short (e.g., "Why databases round-trip on every read?") is the YouTube video TITLE and MUST always be present.
 - Instead, each short MUST contain only a SINGLE scene in the "scenes" array (e.g., exactly 1 scene total per short).
 - This single scene should have:
   - "id": "content"

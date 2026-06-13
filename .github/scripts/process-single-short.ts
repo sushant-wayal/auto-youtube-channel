@@ -78,7 +78,12 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
     const short = shorts[shortIndex];
     const shortId = `${videoId}-short-${shortIndex}`;
 
-    console.error(`\n📱 Processing short ${shortIndex + 1}/${shorts.length}: ${short.hook}`);
+    console.error(`\n📱 Processing short ${shortIndex + 1}/${shorts.length}: ${short.hook || '(no hook)'}`);
+
+    // Derive title: use hook field if present, otherwise fall back to first scene narration or short id
+    const shortTitle = short.hook
+        || short.scenes.find(s => s.narration)?.narration.slice(0, 60)
+        || shortId;
 
     const isAiRender = (process.env.SCENE_RENDER_METHOD || '').toLowerCase() === 'ai';
 
@@ -148,7 +153,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
     const { videoId: youtubeId } = await uploadToYouTube({
         videoUrl: assembled.outputUrl,
         isShort: true,
-        title: short.hook,
+        title: shortTitle,
         description: data.script.description,
         tags: data.script.tags,
         privacyStatus: 'private', // required for scheduled publishing
