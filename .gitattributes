@@ -1,2 +1,1 @@
 *.mp4 filter=lfs diff=lfs merge=lfs -text
-docs/video-documentation/video_explainer_compressed.mp4 -text -filter -merge -diff
