@@ -4,11 +4,7 @@
 
 ## 📺 Video Explainer
 
-<div align="center">
-  <a href="https://drive.google.com/file/d/1CEMlFWAZHlSRn7wEbvAN7zhIqZXnYirt/view?usp=sharing">
-    <img src="https://img.shields.io/badge/Watch_Video_Explainer-Google_Drive-blue?style=for-the-badge&logo=googledrive" alt="Watch Video Explainer" />
-  </a>
-</div>
+<video src="docs/video-documentation/video_explainer_compressed.mp4" width="100%" controls></video>
 <br/>
 
 
