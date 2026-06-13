@@ -2,18 +2,24 @@
 
 🎬 Fully automated video generation pipeline powered by GitHub Actions.
 
+## 📺 Video Explainer
+
+<video src="docs/video-documentation/video_explainer.mp4" width="100%" controls></video>
+<br/>
+*[View Video Explainer directly](docs/video-documentation/video_explainer.mp4)*
+
 ## 🌟 Features
 
 - ✅ **Automated Script Generation** - AI-powered video scripts with chapter timestamps
-- ✅ **Parallel Scene Rendering** - Fast video scene creation
-- ✅ **AI Voice-Over** - Natural text-to-speech narration with Gemini API key rotation
-- ✅ **Video Assembly** - Professional video editing pipeline with intro/outro
+- ✅ **Parallel Scene Rendering** - Supports multiple render modes: `code` (deterministic HTML canvas) and `ai` (generative visuals with queue synchronization)
+- ✅ **Advanced Voice-Overs** - Supports `gemini` (API-based) and `f5` (F5-TTS local batch inference with zero-overhead WAV injection)
+- ✅ **Video Assembly** - Professional video editing pipeline with intro/outro (FFmpeg filter graphs)
 - ✅ **YouTube Upload** - Automatic publishing with thumbnails and chapters
 - ✅ **Shorts Generation** - Create short-form content with ranked schedule times
 - ✅ **Thumbnail Generation** - AI-generated thumbnails
-- ✅ **GitHub Actions** - No infrastructure management needed
-- ✅ **Parallel Execution** - 40% faster pipeline
-- ✅ **Redis Integration** - Video ideas queue management
+- ✅ **GitHub Actions Orchestration** - Passes state via a Hex-Encoded Bus to bypass runner payload limits
+- ✅ **Parallel Execution** - 40% faster pipeline through async promise overlapping
+- ✅ **Redis Integration** - Video ideas queue management with Lua deadlock recovery
 - ✅ **Mobile Dashboard** - React Native app for on-the-go management
 - ✅ **Schedule Management** - Ranked publish times for optimal engagement
 
@@ -63,6 +69,16 @@ Monitor the workflow execution in the Actions tab!
 
 ## 🏗️ Architecture
 
+### High-Level Components
+
+**Control Plane (Next.js Brain)** → **Compute Plane (GH Actions Muscle)** → **Data Plane (Cloudinary / Hex Bus)**
+
+1. **Worker 1: Idea Selector** - Deterministic math filtering to dedupe and rank ideas via Gemini.
+2. **Worker 2 & 3: Parallel Render & Redis AI Queue** - Orchestrates \`scene_render_method\` (\`code\` / \`ai\`). Uses Lua deadlock recovery for parallel tasks and overlaps Puppeteer renders with background API sleeps to manage rate-limits.
+3. **Worker 4: F5-TTS Batching** - When \`voiceover_provider\` is \`f5\`, bypasses model load overhead by generating 44-byte WAV headers instantly for empty hooks and batch inferencing the rest via Python subprocess. Uses \`gemini\` as API fallback.
+4. **Worker 5: The Assembler** - Advanced FFmpeg filter graphs for merging audio, video, intros, and background music.
+5. **The Hex-Encoded Bus** - Passes massive JSON states between GitHub Actions steps by piping \`echo $JSON | xxd -p\` and decoding downstream, bypassing standard runner limits.
+
 ### GitHub Actions Workflow
 
 **GitHub Actions Cron** → **Parallel Execution** → **YouTube Upload**
@@ -71,28 +87,26 @@ Monitor the workflow execution in the Actions tab!
 Generate Script (2 min)
 ├─ Fetch idea from Redis queue
 ├─ Generate script with scene titles
-└─ Output script data
+└─ Output state to Hex-Encoded Bus
       ↓
 Parallel Rendering (60 min)
-├─ Render Scenes (GEMINI_API_KEY rotation)
-└─ Generate Voiceover (parallel, GEMINI_API_KEY rotation)
+├─ Render Scenes (Method: Code vs AI)
+└─ Generate Voiceover (Provider: F5-TTS vs Gemini)
       ↓
 Assemble Video (15 min)
 ├─ Combine scenes + voiceover + music
 ├─ Add intro (8s) and outro (8s)
 └─ Track scene durations
       ↓
-Generate Thumbnail (5 min)
-└─ AI-generated thumbnail with URL output
+Generate Thumbnail & Process Shorts (60 min)
+├─ AI-generated thumbnail with URL output
+├─ Generate 5 shorts from main video
+└─ Assign to ranked schedule times
       ↓
 Upload to YouTube (10 min)
 ├─ Generate chapter timestamps
 ├─ Attach thumbnail
 └─ Schedule publish time
-      ↓
-Process Shorts (60 min)
-├─ Generate 5 shorts from main video
-└─ Assign to ranked schedule times
       ↓
 Pipeline Summary
 └─ Display results

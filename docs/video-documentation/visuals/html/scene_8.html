@@ -496,7 +496,7 @@
     function loop() {
         let t = (performance.now() - start) / 1000;
         window.renderFrame(t);
-        if (t < 30) requestAnimationFrame(loop);
+        requestAnimationFrame(loop);
     }
     loop();
     
