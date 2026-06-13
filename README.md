@@ -4,9 +4,13 @@
 
 ## 📺 Video Explainer
 
-<video src="https://drive.google.com/file/d/1CEMlFWAZHlSRn7wEbvAN7zhIqZXnYirt/view?usp=sharing" width="100%" controls></video>
+<div align="center">
+  <a href="https://drive.google.com/file/d/1CEMlFWAZHlSRn7wEbvAN7zhIqZXnYirt/view?usp=sharing">
+    <img src="https://img.shields.io/badge/Watch_Video_Explainer-Google_Drive-blue?style=for-the-badge&logo=googledrive" alt="Watch Video Explainer" />
+  </a>
+</div>
 <br/>
-*[View Video Explainer directly](https://drive.google.com/file/d/1CEMlFWAZHlSRn7wEbvAN7zhIqZXnYirt/view?usp=sharing)*
+
 
 ## 🌟 Features
 
