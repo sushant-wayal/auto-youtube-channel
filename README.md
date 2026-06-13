@@ -4,8 +4,7 @@
 
 ## 📺 Video Explainer
 
-<video src="docs/video-documentation/video_explainer_compressed.mp4" width="100%" controls></video>
-<br/>
+https://github.com/sushant-wayal/auto-youtube-channel/raw/main/docs/video-documentation/video_explainer_compressed.mp4
 
 
 ## 🌟 Features
