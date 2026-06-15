@@ -172,11 +172,26 @@ export class SceneHtmlGenerationService {
 
 SCREEN DIMENSIONS:
 - Render for ${format}.
-- Exact viewport: ${width}x${height}.
-- Make the root layout fill the full viewport.
-- Use responsive CSS tied to these dimensions; do not rely on scrolling.
+- Exact canvas size: ${width}x${height} pixels.
+- The root container (#app or equivalent) MUST be exactly ${width}x${height}px.
+- DO NOT put display:flex or display:grid on <body> or <html>. Leave them as display:block.
+- Position the root container with absolute positioning centered like this:
+    #app {
+      position: absolute;
+      left: 50%; top: 50%;
+      margin-left: -${width / 2}px;
+      margin-top: -${height / 2}px;
+      width: ${width}px;
+      height: ${height}px;
+      overflow: hidden;
+    }
+- If you write a resize() function to scale the canvas, use Math.max (not Math.min):
+    const scale = Math.max(window.innerWidth / ${width}, window.innerHeight / ${height});
+    app.style.transform = \`scale(\${scale})\`;
+    app.style.transformOrigin = 'center center';
+- This ensures the visual COVERS the full screen with no black bars or margins.
+- Do not rely on scrolling. Everything must stay within the canvas bounds.
 - Keep all essential visual elements inside the safe area.
-- Do not clip or cut off the visuals, but ensure they are well-framed within the viewport.
 
 TIMING:
 - The scene may be rendered for up to ${maxDuration.toFixed(2)} seconds.
@@ -220,6 +235,7 @@ export function sanitizeGeneratedHtml(raw: string, input: Partial<SceneHtmlGener
     .replace(/\bEventSource\b/g, "BlockedEventSource");
 
   html = ensureHeadMetadata(html, input);
+  html = ensureFullscreenFix(html, input);
   html = ensureRenderFrameHook(html);
 
   if (!/<\/html>\s*$/i.test(html)) {
@@ -232,13 +248,97 @@ export function sanitizeGeneratedHtml(raw: string, input: Partial<SceneHtmlGener
 function ensureHeadMetadata(html: string, input: Partial<SceneHtmlGenerationInput>): string {
   const width = input.isShort ? 1080 : 1920;
   const height = input.isShort ? 1920 : 1080;
-  const metadata = `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff;}body{min-width:${width}px;min-height:${height}px;}</style>`;
+  // Reset body/html so flex-shrink never collapses the canvas before JS scaling runs.
+  const metadata = `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#fff;display:block!important;flex-shrink:0!important;}body{min-width:${width}px;min-height:${height}px;position:relative;}</style>`;
 
   if (/<head[\s\S]*?>/i.test(html)) {
     return html.replace(/<head[\s\S]*?>/i, match => `${match}${metadata}`);
   }
 
   return html.replace(/<html[\s\S]*?>/i, match => `${match}<head>${metadata}</head>`);
+}
+
+/**
+ * Injects a script that patches two common AI-generation bugs that cause
+ * clipping / letterboxing:
+ *
+ * 1. Any inline `resize()` that used `Math.min` for scaling is overridden so
+ *    the canvas always COVERS (fills) the screen rather than fitting inside it.
+ *
+ * 2. If the AI placed `display:flex; justify-content:center; align-items:center`
+ *    on body/html, those are stripped so the container never gets flex-shrunk
+ *    before the JS `scale()` transform is applied.
+ *
+ * 3. Any #app (or the first full-viewport-sized child) is forced to use
+ *    absolute centering via negative margins so the scale() origin is correct.
+ */
+function ensureFullscreenFix(html: string, input: Partial<SceneHtmlGenerationInput>): string {
+  const width = input.isShort ? 1080 : 1920;
+  const height = input.isShort ? 1920 : 1080;
+
+  const fixScript = `<script>
+(function() {
+  // ── 1. Patch Math.min → Math.max in all resize-scale calls ──────────────
+  // We override window.renderFrame AFTER the page scripts have run so the
+  // scale value is always computed with cover semantics.
+  var _origResize;
+  function _patchedResize() {
+    var app = document.getElementById('app') ||
+              document.querySelector('[id$="-app"]') ||
+              document.querySelector('body > div:first-child');
+    if (!app) return;
+    var W = ${width}, H = ${height};
+    var scale = Math.max(window.innerWidth / W, window.innerHeight / H);
+    app.style.transform = 'scale(' + scale + ')';
+    app.style.transformOrigin = 'center center';
+    // Guarantee absolute centering so transform-origin is correct
+    if (getComputedStyle(app).position !== 'absolute') {
+      app.style.position = 'absolute';
+    }
+    app.style.left = '50%';
+    app.style.top  = '50%';
+    app.style.marginLeft = (-W / 2) + 'px';
+    app.style.marginTop  = (-H / 2) + 'px';
+    app.style.width  = W + 'px';
+    app.style.height = H + 'px';
+  }
+
+  // ── 2. Strip flex-centering from body that shrinks the canvas ───────────
+  function _stripBodyFlex() {
+    [document.documentElement, document.body].forEach(function(el) {
+      if (!el) return;
+      var s = el.style;
+      if (s.display === 'flex' || getComputedStyle(el).display === 'flex') {
+        s.display = 'block';
+      }
+    });
+  }
+
+  // ── 3. Apply on load and resize ─────────────────────────────────────────
+  window.addEventListener('resize', _patchedResize);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      _stripBodyFlex();
+      _patchedResize();
+    });
+  } else {
+    _stripBodyFlex();
+    _patchedResize();
+  }
+  // Re-apply a second time after a tick to catch any late JS mutations
+  setTimeout(function() { _stripBodyFlex(); _patchedResize(); }, 0);
+  setTimeout(function() { _patchedResize(); }, 100);
+})();
+</script>`;
+
+  // Inject right before </head> if possible, else before </body>
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `${fixScript}</head>`);
+  }
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${fixScript}</body>`);
+  }
+  return html;
 }
 
 function ensureRenderFrameHook(html: string): string {
