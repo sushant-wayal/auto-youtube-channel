@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
             voiceoverUrls,
             sceneNarrations,
             shortHooks,
+            shortCaptions,
             ideasAdded,
             scriptData,
             jobs,
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest) {
             voiceoverUrls?: string[];
             sceneNarrations?: string[];
             shortHooks?: string[];
+            shortCaptions?: string[];
             ideasAdded?: string[];
             scriptData?: unknown;
             jobs: Record<string, string | null>;
@@ -135,6 +137,7 @@ export async function POST(req: NextRequest) {
             voiceoverUrls: voiceoverUrls ?? [],
             sceneNarrations: sceneNarrations ?? [],
             shortHooks: shortHooks ?? [],
+            shortCaptions: shortCaptions ?? [],
             ideasAdded: ideasAdded ?? [],
             scriptData: scriptData ?? null,
             shorts,

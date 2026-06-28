@@ -35,6 +35,7 @@ interface VideoScript {
     shorts: Array<{
         id: string;
         hook: string;
+        instagramCaption: string;
         scenes: Array<{
             id: string;
             narration: string;

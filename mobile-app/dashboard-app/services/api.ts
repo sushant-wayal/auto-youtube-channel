@@ -26,6 +26,7 @@ export type PipelineStatus = {
     sceneNarrations?: string[];    // narration text per scene
     ideasAdded?: string[];         // ideas added to queue this run
     shortHooks?: string[];         // hook text per short
+    shortCaptions?: string[];      // paste-ready Instagram Reel captions
     shorts?: ShortResult[];        // per-short YouTube + video URLs
     scriptData?: unknown;          // full raw script object from generate-script
     jobs: {

@@ -143,6 +143,7 @@ REQUIRED OUTPUT FORMAT
     {
       "id": "short-1",
       "hook": "Why databases round-trip on every read?",
+      "instagramCaption": "Your cache hit rate can quietly multiply database load. Save this before tuning your next production cache. #SoftwareEngineering #Databases #Caching",
       "scenes": [
         {
           "id": "hook",
@@ -303,6 +304,11 @@ SHORTS RULES (CRITICAL)
 ========================
 
 - 3-5 shorts maximum
+- Every short MUST include an "instagramCaption" string written specifically for publishing the corresponding video as an Instagram Reel.
+- The caption must accurately match that short's hook and narration, open with a compelling human-readable line, add useful context or a natural call to action, and be ready to paste without editing.
+- Do not use markdown, labels such as "Caption:", fake quotations, or engagement bait.
+- Put hashtags naturally at the end of the caption and use NO MORE THAN 5 hashtags. Prefer 3-5 highly relevant hashtags over generic tags.
+- Never include #fyp, #viral, #explorepage, or unrelated trending hashtags.
 - Each short is divided into TWO phases:
   1. HOOK SCENE (0.8-1.5 seconds): Silent visual-only scroll-stopper
   2. CONTENT SCENE (8-12 seconds): Narrated explanation with visuals
@@ -612,7 +618,12 @@ If the format is violated, the output will be rejected.
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
         narration: this.preprocessNarration(narration),
         scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [],
-        shorts: Array.isArray(parsed.shorts) ? parsed.shorts.slice(0, 5) : [], // Max 5 shorts
+        shorts: Array.isArray(parsed.shorts)
+          ? parsed.shorts.slice(0, 5).map((short: any) => ({
+              ...short,
+              instagramCaption: this.normalizeInstagramCaption(short.instagramCaption),
+            }))
+          : [], // Max 5 shorts
       };
 
       return renderMethod === "ai" ? this.stripVisualActions(script) : script;
@@ -635,6 +646,25 @@ If the format is violated, the output will be rejected.
         scenes: short.scenes.map(scene => ({ ...scene, actions: [] })),
       })),
     };
+  }
+
+  /**
+   * Keep generated Reel captions paste-ready and enforce the product limit even
+   * when the model returns too many hashtags.
+   */
+  private normalizeInstagramCaption(value: unknown): string {
+    if (typeof value !== "string") return "";
+
+    let hashtagCount = 0;
+    return value
+      .trim()
+      .replace(/(^|\s)(#[\p{L}\p{N}_]+)/gu, (match, prefix: string, hashtag: string) => {
+        hashtagCount += 1;
+        return hashtagCount <= 5 ? `${prefix}${hashtag}` : "";
+      })
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   }
 
   /**

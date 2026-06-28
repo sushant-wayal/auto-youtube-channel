@@ -458,6 +458,8 @@ jobs:
           SCENE_NARRATIONS=${SCENE_NARRATIONS:-[]}
           SHORT_HOOKS=$(echo "$SCRIPT_DATA" | jq -c '[.script.shorts[].hook] // []' 2>/dev/null || true)
           SHORT_HOOKS=${SHORT_HOOKS:-[]}
+          SHORT_CAPTIONS=$(echo "$SCRIPT_DATA" | jq -c '[.script.shorts[].instagramCaption // ""]' 2>/dev/null || true)
+          SHORT_CAPTIONS=${SHORT_CAPTIONS:-[]}
           # Keep full raw script for app display/copy
           RAW_SCRIPT=$(echo "$SCRIPT_DATA" | jq -c '.script // {}' 2>/dev/null || true)
           RAW_SCRIPT=${RAW_SCRIPT:-\{\}}
@@ -492,6 +494,7 @@ jobs:
             --argjson voiceoverUrls "$VOICEOVER_URLS_JSON" \
             --argjson sceneNarrations "$SCENE_NARRATIONS" \
             --argjson shortHooks "$SHORT_HOOKS" \
+            --argjson shortCaptions "$SHORT_CAPTIONS" \
             --argjson ideasAdded "$IDEAS_ADDED" \
             --arg populateIdeas   "${{ needs['populate-ideas'].result }}" \
             --arg generateScript  "${{ needs['generate-script'].result }}" \
@@ -514,6 +517,7 @@ jobs:
               voiceoverUrls: $voiceoverUrls,
               sceneNarrations: $sceneNarrations,
               shortHooks: $shortHooks,
+              shortCaptions: $shortCaptions,
               ideasAdded: $ideasAdded,
               scriptData: $scriptData,
               jobs: {

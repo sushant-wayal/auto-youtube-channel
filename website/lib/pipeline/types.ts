@@ -35,6 +35,7 @@ export interface VideoScript {
     shorts: {
         id: string;
         hook: string;
+        instagramCaption: string;
         scenes: SceneIR[];
     }[]
 }

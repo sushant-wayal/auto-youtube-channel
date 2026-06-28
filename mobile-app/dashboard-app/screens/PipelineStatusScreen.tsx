@@ -162,7 +162,7 @@ function StatusBadge({ state }: { state: 'success' | 'failure' | 'skipped' | 'ca
 }
 
 // ─── CopyButton ───────────────────────────────────────────────────────────────
-function CopyButton({ url }: { url: string }) {
+function CopyButton({ url, label = 'Copy link' }: { url: string; label?: string }) {
     const [copied, setCopied] = useState(false);
     const scale = useRef(new Animated.Value(1)).current;
 
@@ -186,7 +186,7 @@ function CopyButton({ url }: { url: string }) {
                     color={copied ? colors.successGlow : colors.foregroundMuted}
                 />
                 <Text style={[styles.actionBtnText, copied && { color: colors.successGlow }]}>
-                    {copied ? 'Copied!' : 'Copy link'}
+                    {copied ? 'Copied!' : label}
                 </Text>
             </Animated.View>
         </TouchableOpacity>
@@ -471,12 +471,14 @@ function ScriptOutput({
     description,
     sceneNarrations,
     shortHooks,
+    shortCaptions,
     scriptData,
 }: {
     title?: string;
     description?: string;
     sceneNarrations?: string[];
     shortHooks?: string[];
+    shortCaptions?: string[];
     scriptData?: unknown;
 }) {
     const [showScenes, setShowScenes] = useState(false);
@@ -535,6 +537,33 @@ function ScriptOutput({
                             <Text style={styles.hookText}>{hook}</Text>
                         </View>
                     ))}
+                </View>
+            )}
+
+            {shortCaptions && shortCaptions.some(Boolean) && (
+                <View style={styles.captionsContainer}>
+                    <View style={styles.captionsHeading}>
+                        <View style={styles.instagramIcon}>
+                            <Ionicons name="logo-instagram" size={14} color="#F472B6" />
+                        </View>
+                        <View style={styles.captionsHeadingText}>
+                            <Text style={styles.subSectionLabel}>Instagram Reel Captions</Text>
+                            <Text style={styles.captionsHint}>Ready to paste · up to 5 hashtags</Text>
+                        </View>
+                    </View>
+                    {shortCaptions.map((caption, i) =>
+                        caption ? (
+                            <View key={i} style={styles.captionCard}>
+                                <View style={styles.captionCardTop}>
+                                    <Text style={styles.captionNumber}>REEL {i + 1}</Text>
+                                    <CopyButton url={caption} label="Copy caption" />
+                                </View>
+                                <Text style={styles.captionText} selectable>
+                                    {caption}
+                                </Text>
+                            </View>
+                        ) : null
+                    )}
                 </View>
             )}
 
@@ -633,7 +662,15 @@ function AssembledVideoOutput({ url }: { url: string }) {
     );
 }
 
-function ShortsOutput({ shorts, shortHooks }: { shorts?: ShortResult[]; shortHooks?: string[] }) {
+function ShortsOutput({
+    shorts,
+    shortHooks,
+    shortCaptions,
+}: {
+    shorts?: ShortResult[];
+    shortHooks?: string[];
+    shortCaptions?: string[];
+}) {
     if (!shorts || shorts.length === 0) {
         return <Text style={styles.outputNote}>No shorts data available yet.</Text>;
     }
@@ -649,6 +686,14 @@ function ShortsOutput({ shorts, shortHooks }: { shorts?: ShortResult[]; shortHoo
                                 <Text style={styles.shortHook} numberOfLines={2}>
                                     {shortHooks[s.shortIndex]}
                                 </Text>
+                            ) : null}
+                            {shortCaptions?.[s.shortIndex] ? (
+                                <View style={styles.shortCaption}>
+                                    <Text style={styles.shortCaptionText} numberOfLines={4}>
+                                        {shortCaptions[s.shortIndex]}
+                                    </Text>
+                                    <CopyButton url={shortCaptions[s.shortIndex]} label="Copy caption" />
+                                </View>
                             ) : null}
                         </View>
                         <View style={styles.shortActions}>
@@ -805,6 +850,7 @@ export default function PipelineStatusScreen() {
                                 description={status.description ?? undefined}
                                 sceneNarrations={status.sceneNarrations}
                                 shortHooks={status.shortHooks}
+                                shortCaptions={status.shortCaptions}
                                 scriptData={status.scriptData}
                             />
                         </JobSection>
@@ -886,7 +932,11 @@ export default function PipelineStatusScreen() {
                             icon="play-circle-outline"
                             state={getJobState('shortsProcessing', status.jobs.shortsProcessing, status.jobs)}
                         >
-                            <ShortsOutput shorts={status.shorts} shortHooks={status.shortHooks} />
+                            <ShortsOutput
+                                shorts={status.shorts}
+                                shortHooks={status.shortHooks}
+                                shortCaptions={status.shortCaptions}
+                            />
                         </JobSection>
                     </View>
                 </View>
@@ -1526,6 +1576,57 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: '#34D399',
     },
+    captionsContainer: {
+        gap: spacing.sm,
+        marginTop: spacing.lg,
+    },
+    captionsHeading: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    instagramIcon: {
+        width: 30,
+        height: 30,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 10,
+        backgroundColor: 'rgba(244, 114, 182, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(244, 114, 182, 0.22)',
+    },
+    captionsHeadingText: {
+        gap: 2,
+    },
+    captionsHint: {
+        fontSize: 10,
+        color: colors.foregroundMuted,
+    },
+    captionCard: {
+        gap: spacing.sm,
+        padding: spacing.md,
+        borderRadius: borderRadius.sm,
+        backgroundColor: 'rgba(139, 92, 246, 0.07)',
+        borderWidth: 1,
+        borderColor: 'rgba(167, 139, 250, 0.16)',
+    },
+    captionCardTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.sm,
+    },
+    captionNumber: {
+        fontSize: 10,
+        fontWeight: typography.fontWeightBold,
+        letterSpacing: 1.1,
+        color: '#C4B5FD',
+    },
+    captionText: {
+        fontSize: typography.fontSizeSm,
+        lineHeight: 21,
+        color: colors.secondaryForeground,
+    },
 
     // shorts
     shortsList: {
@@ -1553,6 +1654,21 @@ const styles = StyleSheet.create({
         fontSize: typography.fontSizeXs,
         color: colors.foregroundMuted,
         lineHeight: 16,
+    },
+    shortCaption: {
+        gap: spacing.sm,
+        marginTop: spacing.sm,
+        padding: spacing.sm,
+        borderRadius: 10,
+        backgroundColor: 'rgba(244, 114, 182, 0.06)',
+        borderLeftWidth: 2,
+        borderLeftColor: 'rgba(244, 114, 182, 0.55)',
+        alignItems: 'flex-start',
+    },
+    shortCaptionText: {
+        fontSize: typography.fontSizeXs,
+        lineHeight: 17,
+        color: colors.secondaryForeground,
     },
     shortActions: {
         gap: spacing.xs,
