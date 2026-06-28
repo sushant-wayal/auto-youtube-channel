@@ -215,29 +215,32 @@ export class VideoAssemblyService {
                 input.voiceoverProvider
             );
         } else {
-            console.error(`  🔇 No music provided, generating silence...`);
-            mixedAudioPath = path.join(outputDir, "silence.mp3");
-            await this.generatePlaceholderNarration(combinedDuration, mixedAudioPath);
+            console.error(`  🔇 No music provided, preserving scene narration audio...`);
+            mixedAudioPath = '';
         }
 
         const combinedWithMusic = path.join(outputDir, "combined_with_music.mp4");
 
-        console.error(`  🎼 Muxing mixed audio with combined video...`);
-        await runFFmpeg({
-            inputs: [combinedPath, mixedAudioPath],
-            output: combinedWithMusic,
-            args: [
-                "-threads", "1",
-                "-map", "0:v:0",
-                "-map", "1:a:0",
-                "-c:v", "copy",
-                "-c:a", "aac",
-                "-ar", "48000",
-                "-ac", "2",
-                "-b:a", "192k",
-                "-shortest"
-            ],
-        });
+        if (input.music) {
+            console.error(`  🎼 Muxing mixed audio with combined video...`);
+            await runFFmpeg({
+                inputs: [combinedPath, mixedAudioPath],
+                output: combinedWithMusic,
+                args: [
+                    "-threads", "1",
+                    "-map", "0:v:0",
+                    "-map", "1:a:0",
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-ar", "48000",
+                    "-ac", "2",
+                    "-b:a", "192k",
+                    "-shortest"
+                ],
+            });
+        } else {
+            await fsPromises.copyFile(combinedPath, combinedWithMusic);
+        }
 
 
 
