@@ -20,6 +20,9 @@ interface ScriptData {
 
 async function renderVideoScenes(videoId: string, scriptData: string) {
     validateConfig(['cloudinary']);
+    console.error(
+        `🎛️ Scene render setting received: ${process.env.SCENE_RENDER_METHOD || 'default (code)'}`
+    );
 
     const data: ScriptData = JSON.parse(scriptData);
     console.error(`🎬 Rendering ${data.script.scenes.length} scenes for video ${videoId}`);

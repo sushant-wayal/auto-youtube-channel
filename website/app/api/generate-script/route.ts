@@ -6,7 +6,7 @@ import { MOCK_SCRIPT } from "@/app/constants";
 
 export async function POST(request: NextRequest) {
     try {
-        const { videoIdea } = await request.json();
+        const { videoIdea, sceneRenderMethod } = await request.json();
 
         if (!videoIdea || typeof videoIdea !== "string") {
             return NextResponse.json(
@@ -15,7 +15,22 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        console.log("📝 Script generation requested for:", videoIdea);
+        if (
+            sceneRenderMethod !== undefined &&
+            sceneRenderMethod !== "code" &&
+            sceneRenderMethod !== "ai"
+        ) {
+            return NextResponse.json(
+                { error: "sceneRenderMethod must be either 'code' or 'ai'" },
+                { status: 400 }
+            );
+        }
+
+        console.log(
+            "📝 Script generation requested for:",
+            videoIdea,
+            `(render method: ${sceneRenderMethod || "environment fallback"})`
+        );
 
         // Check if we should use mock data (set USE_MOCK_SCRIPT=true in .env.local to enable)
         const useMock = process.env.USE_MOCK_SCRIPT === "true";
@@ -33,7 +48,7 @@ export async function POST(request: NextRequest) {
         // Real AI generation
         console.log("🤖 Using Gemini AI for script generation");
         const pipeline = new VideoGenerationPipeline();
-        const script = await pipeline.generateScriptOnly(videoIdea);
+        const script = await pipeline.generateScriptOnly(videoIdea, sceneRenderMethod);
 
         return NextResponse.json({ script });
     } catch (error) {

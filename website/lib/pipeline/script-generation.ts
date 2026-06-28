@@ -17,9 +17,10 @@ class ScriptGenerationService {
    */
   async generateScript(
     videoIdea: string,
-    duration: number = 7
+    duration: number = 7,
+    sceneRenderMethod?: "code" | "ai"
   ): Promise<VideoScript> {
-    const renderMethod = this.getSceneRenderMethod();
+    const renderMethod = sceneRenderMethod ?? this.getSceneRenderMethod();
     const prompt = this.buildScriptPrompt(videoIdea, duration, renderMethod);
 
     try {

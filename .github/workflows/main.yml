@@ -13,6 +13,38 @@ on:
   #   - cron: '23 0 * * *'  # Run daily at 0:23 AM UTC, 05:53 AM IST - adjust as needed
 
 jobs:
+  # Resolve dynamic pipeline settings once. Redis is authoritative; repository
+  # variables are used only when Redis is unavailable or has no valid value.
+  pipeline-settings:
+    name: Resolve Pipeline Settings
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      voiceover_provider: ${{ steps.settings.outputs.voiceover_provider }}
+      scene_render_method: ${{ steps.settings.outputs.scene_render_method }}
+      settings_source: ${{ steps.settings.outputs.settings_source }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Read settings from Redis
+        id: settings
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
+          SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD }}
+        run: npx tsx .github/scripts/resolve-pipeline-settings.ts >> "$GITHUB_OUTPUT"
+
   # Step 0: Check Redis queue and populate with AI-generated ideas if empty
   populate-ideas:
     name: Populate Ideas Queue
@@ -48,7 +80,7 @@ jobs:
   # Step 1: Generate video script
   generate-script:
     name: Generate Script
-    needs: populate-ideas
+    needs: [populate-ideas, pipeline-settings]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -74,7 +106,7 @@ jobs:
         env:
           WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
-          SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
+          SCENE_RENDER_METHOD: ${{ needs.pipeline-settings.outputs.scene_render_method }}
         run: |
           FALLBACK_VIDEO_ID="video-$(date +%s)"
           
@@ -98,7 +130,7 @@ jobs:
   # Step 2: Render scenes (runs in parallel with voice-over and thumbnail)
   render-scenes:
     name: Render Video Scenes
-    needs: generate-script
+    needs: [generate-script, pipeline-settings]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
@@ -134,7 +166,7 @@ jobs:
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
-          SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
+          SCENE_RENDER_METHOD: ${{ needs.pipeline-settings.outputs.scene_render_method }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
         run: |
@@ -143,7 +175,7 @@ jobs:
   # Step 3: Generate voice-overs (runs in parallel with scene rendering)
   generate-voiceover:
     name: Generate Voice-overs
-    needs: generate-script
+    needs: [generate-script, pipeline-settings]
     runs-on: ubuntu-latest
     timeout-minutes: 360
     outputs:
@@ -185,7 +217,7 @@ jobs:
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
+          VOICEOVER_PROVIDER: ${{ needs.pipeline-settings.outputs.voiceover_provider }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
           npx tsx .github/scripts/generate-voiceover.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
@@ -223,7 +255,7 @@ jobs:
   # Step 5: Assemble video
   assemble-video:
     name: Assemble Video
-    needs: [generate-script, render-scenes, generate-voiceover]
+    needs: [generate-script, render-scenes, generate-voiceover, pipeline-settings]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
@@ -259,7 +291,7 @@ jobs:
           CLIPS_TIMINGS: ${{ needs.render-scenes.outputs.clips_timings }}
           ANIMATION_STOP_TIMES: ${{ needs.render-scenes.outputs.animation_stop_times }}
           VOICEOVER_URLS: ${{ needs.generate-voiceover.outputs.voiceover_data }}
-          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
+          VOICEOVER_PROVIDER: ${{ needs.pipeline-settings.outputs.voiceover_provider }}
         run: |
           RESULT=$(npx tsx .github/scripts/assemble-video.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
@@ -331,7 +363,7 @@ jobs:
   # immediately after script generation, independently of the long-form pipeline.
   process-short:
     name: "Process Short #${{ matrix.short_index }}"
-    needs: [generate-script, shorts-matrix-setup]
+    needs: [generate-script, shorts-matrix-setup, pipeline-settings]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: needs.shorts-matrix-setup.outputs.short_indices != '[]'
@@ -381,9 +413,9 @@ jobs:
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-          VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
+          VOICEOVER_PROVIDER: ${{ needs.pipeline-settings.outputs.voiceover_provider }}
           WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
-          SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD || 'code' }}
+          SCENE_RENDER_METHOD: ${{ needs.pipeline-settings.outputs.scene_render_method }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
@@ -394,7 +426,7 @@ jobs:
   # Summary job
   pipeline-summary:
     name: Pipeline Summary
-    needs: [populate-ideas, generate-script, render-scenes, generate-voiceover, assemble-video, upload-youtube, shorts-matrix-setup, process-short, generate-thumbnail]
+    needs: [pipeline-settings, populate-ideas, generate-script, render-scenes, generate-voiceover, assemble-video, upload-youtube, shorts-matrix-setup, process-short, generate-thumbnail]
     runs-on: ubuntu-latest
     if: always()
     
@@ -417,6 +449,7 @@ jobs:
           echo "**Assembled Video:** $VIDEO_URL" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- Pipeline Settings: ${{ needs.pipeline-settings.outputs.settings_source }} (voiceover: ${{ needs.pipeline-settings.outputs.voiceover_provider }}, render: ${{ needs.pipeline-settings.outputs.scene_render_method }})" >> $GITHUB_STEP_SUMMARY
           echo "- Populate Ideas: ${{ needs['populate-ideas'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Script Generation: ${{ needs['generate-script'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Scene Rendering: ${{ needs['render-scenes'].result }}" >> $GITHUB_STEP_SUMMARY

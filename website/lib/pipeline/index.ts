@@ -86,8 +86,11 @@ class VideoGenerationPipeline {
     /**
      * Generate only the script (for testing or preview)
      */
-    async generateScriptOnly(videoIdea: string): Promise<VideoScript> {
-        return await this.scriptService.generateScript(videoIdea, 7);
+    async generateScriptOnly(
+        videoIdea: string,
+        sceneRenderMethod?: "code" | "ai"
+    ): Promise<VideoScript> {
+        return await this.scriptService.generateScript(videoIdea, 7, sceneRenderMethod);
     }
 }
 

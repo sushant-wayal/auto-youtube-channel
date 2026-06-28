@@ -48,6 +48,8 @@ interface VideoScript {
 
 async function generateScript(customIdea?: string): Promise<{ videoId: string; script: VideoScript }> {
     validateConfig(['website']);
+    const sceneRenderMethod =
+        process.env.SCENE_RENDER_METHOD?.toLowerCase() === 'ai' ? 'ai' : 'code';
 
     let videoIdea: string;
 
@@ -90,7 +92,8 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
     const response = await fetch(`${websiteDomain}/api/generate-script`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videoIdea }),
+        // Carry the Redis-resolved setting into the separately deployed website API.
+        body: JSON.stringify({ videoIdea, sceneRenderMethod }),
     });
 
     if (!response.ok) {
@@ -104,7 +107,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
     }
 
     const videoId = `video-${Date.now()}`;
-    console.error(`✅ Generated script: "${data.script.title}"`);
+    console.error(`✅ Generated ${sceneRenderMethod}-render script: "${data.script.title}"`);
 
     return { videoId, script: data.script };
 }
