@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "npm run build --workspaces",
-    "daily": "npx tsx .github/scripts/generate-script.ts"
+    "daily": "npx tsx .github/scripts/generate-script.ts",
+    "publish:local-assets": "tsx assemble-local-assets-and-publish.ts"
   },
   "devDependencies": {
     "@types/react": "~19.1.10"
