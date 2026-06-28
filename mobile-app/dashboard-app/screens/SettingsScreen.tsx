@@ -32,9 +32,11 @@ type OptionButtonProps = {
     onPress: () => void;
     icon: string;
     description: string;
+    badge: string;
+    disabled?: boolean;
 };
 
-function OptionButton({ label, selected, onPress, icon, description }: OptionButtonProps) {
+function OptionButton({ label, selected, onPress, icon, description, badge, disabled }: OptionButtonProps) {
     const scale = useRef(new Animated.Value(1)).current;
 
     const handlePressIn = () => {
@@ -62,9 +64,11 @@ function OptionButton({ label, selected, onPress, icon, description }: OptionBut
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
                 activeOpacity={1}
+                disabled={disabled}
                 style={[
                     styles.optionButton,
                     selected ? styles.optionButtonActive : styles.optionButtonInactive,
+                    disabled && styles.optionButtonDisabled,
                 ]}
             >
                 {selected && (
@@ -75,23 +79,34 @@ function OptionButton({ label, selected, onPress, icon, description }: OptionBut
                         style={[StyleSheet.absoluteFill, { borderRadius: borderRadius.sm - 1 }]}
                     />
                 )}
-                <View style={styles.optionHeader}>
-                    <Ionicons
-                        name={icon as any}
-                        size={18}
-                        color={selected ? colors.gradientTo : colors.foregroundMuted}
-                    />
-                    <Text
-                        style={[
-                            styles.optionLabel,
-                            selected ? styles.optionLabelActive : styles.optionLabelInactive,
-                        ]}
-                    >
-                        {label}
-                    </Text>
+                <View style={styles.optionContent}>
+                    <View style={[styles.optionIcon, selected && styles.optionIconActive]}>
+                        <Ionicons
+                            name={icon as any}
+                            size={20}
+                            color={selected ? colors.gradientTo : colors.foregroundMuted}
+                        />
+                    </View>
+                    <View style={styles.optionText}>
+                        <View style={styles.optionHeader}>
+                            <Text
+                                style={[
+                                    styles.optionLabel,
+                                    selected ? styles.optionLabelActive : styles.optionLabelInactive,
+                                ]}
+                            >
+                                {label}
+                            </Text>
+                            <View style={[styles.optionBadge, selected && styles.optionBadgeActive]}>
+                                <Text style={[styles.optionBadgeText, selected && styles.optionBadgeTextActive]}>
+                                    {badge}
+                                </Text>
+                            </View>
+                        </View>
+                        <Text style={styles.optionDescription}>{description}</Text>
+                    </View>
                 </View>
-                <Text style={styles.optionDescription}>{description}</Text>
-                
+
                 {selected && (
                     <View style={styles.checkIndicator}>
                         <LinearGradient
@@ -278,9 +293,13 @@ export default function SettingsScreen() {
             >
                 {/* Header section */}
                 <View style={styles.header}>
+                    <View style={styles.eyebrow}>
+                        <Ionicons name="options-outline" size={13} color={colors.gradientTo} />
+                        <Text style={styles.eyebrowText}>PIPELINE CONFIGURATION</Text>
+                    </View>
                     <Text style={styles.headerTitle}>System Settings</Text>
                     <Text style={styles.headerSubtitle}>
-                        Configure visual rendering formats and speech models for automated video generations.
+                        Choose how Serenity generates scene voiceovers and renders visuals for every video.
                     </Text>
                 </View>
 
@@ -296,27 +315,33 @@ export default function SettingsScreen() {
                         {/* Setting Box 1: Voiceover Provider */}
                         <View style={styles.card}>
                             <View style={styles.cardHeader}>
-                                <Ionicons name="mic-outline" size={20} color={colors.primary} style={styles.cardHeaderIcon} />
-                                <View>
+                                <View style={styles.cardHeaderIcon}>
+                                    <Ionicons name="mic-outline" size={20} color={colors.gradientTo} />
+                                </View>
+                                <View style={styles.cardHeaderText}>
                                     <Text style={styles.cardTitle}>Voiceover Provider</Text>
-                                    <Text style={styles.cardSubtitle}>Select text-to-speech synthesis pipeline</Text>
+                                    <Text style={styles.cardSubtitle}>Choose the text-to-speech engine used for scene narration.</Text>
                                 </View>
                             </View>
 
-                            <View style={styles.optionsRow}>
+                            <View style={styles.optionsList}>
                                 <OptionButton
                                     label="F5 TTS"
                                     icon="musical-notes-outline"
-                                    description="High-end voice-cloned custom-trained voice with natural expression & prosody."
+                                    badge="LOCAL"
+                                    description="Runs the F5-TTS engine locally to generate the voiceover for each scene."
                                     selected={voiceoverProvider === 'f5'}
                                     onPress={() => handleUpdateVoiceover('f5')}
+                                    disabled={updating}
                                 />
                                 <OptionButton
-                                    label="Gemini"
+                                    label="Gemini TTS"
                                     icon="sparkles-outline"
-                                    description="Ultra-fast Google Flash TTS service. Clear, neutral narration preview voice."
+                                    badge="CLOUD API"
+                                    description="Uses the Gemini TTS API to generate each scene voiceover instead of generating it locally."
                                     selected={voiceoverProvider === 'gemini'}
                                     onPress={() => handleUpdateVoiceover('gemini')}
+                                    disabled={updating}
                                 />
                             </View>
                         </View>
@@ -324,27 +349,33 @@ export default function SettingsScreen() {
                         {/* Setting Box 2: Scene Render Method */}
                         <View style={styles.card}>
                             <View style={styles.cardHeader}>
-                                <Ionicons name="videocam-outline" size={20} color={colors.primary} style={styles.cardHeaderIcon} />
-                                <View>
+                                <View style={styles.cardHeaderIcon}>
+                                    <Ionicons name="videocam-outline" size={20} color={colors.gradientTo} />
+                                </View>
+                                <View style={styles.cardHeaderText}>
                                     <Text style={styles.cardTitle}>Scene Render Method</Text>
-                                    <Text style={styles.cardSubtitle}>Visual composition rendering engine</Text>
+                                    <Text style={styles.cardSubtitle}>Choose how scene HTML is produced from Gemini output.</Text>
                                 </View>
                             </View>
 
-                            <View style={styles.optionsRow}>
+                            <View style={styles.optionsList}>
                                 <OptionButton
                                     label="Code Render"
                                     icon="code-slash-outline"
-                                    description="Standard HTML/Canvas layout rendering with vector animations, layouts, and typography."
+                                    badge="DETERMINISTIC"
+                                    description="Gemini returns a JSON scene configuration, then the pipeline deterministically converts it into HTML."
                                     selected={sceneRenderMethod === 'code'}
                                     onPress={() => handleUpdateRender('code')}
+                                    disabled={updating}
                                 />
                                 <OptionButton
                                     label="AI Render"
                                     icon="film-outline"
-                                    description="Advanced diffusion-based dynamic scene image and video generation."
+                                    badge="AI-GENERATED"
+                                    description="Gemini generates the scene HTML directly, making the result flexible but non-deterministic."
                                     selected={sceneRenderMethod === 'ai'}
                                     onPress={() => handleUpdateRender('ai')}
+                                    disabled={updating}
                                 />
                             </View>
                         </View>
@@ -358,27 +389,27 @@ export default function SettingsScreen() {
                         >
                             <View style={styles.summaryHeader}>
                                 <Ionicons name="shield-checkmark-outline" size={18} color={colors.gradientTo} />
-                                <Text style={styles.summaryTitle}>Active Pipeline Pipeline Config</Text>
+                                <Text style={styles.summaryTitle}>Active Pipeline</Text>
                             </View>
                             <View style={styles.summaryGrid}>
                                 <View style={styles.summaryCell}>
-                                    <Text style={styles.summaryLabel}>VOICEOVER MODEL</Text>
+                                    <Text style={styles.summaryLabel}>VOICEOVER</Text>
                                     <Text style={styles.summaryValue}>
-                                        {voiceoverProvider === 'f5' ? 'F5 Custom Voice' : 'Gemini Flash TTS'}
+                                        {voiceoverProvider === 'f5' ? 'F5 TTS · Local' : 'Gemini TTS · Cloud'}
                                     </Text>
                                 </View>
                                 <View style={styles.summaryDivider} />
                                 <View style={styles.summaryCell}>
-                                    <Text style={styles.summaryLabel}>RENDER METHOD</Text>
+                                    <Text style={styles.summaryLabel}>SCENE RENDERING</Text>
                                     <Text style={styles.summaryValue}>
-                                        {sceneRenderMethod === 'code' ? 'Code Canvas Engine' : 'AI Gen Diffusion'}
+                                        {sceneRenderMethod === 'code' ? 'Code · Deterministic' : 'AI · Direct HTML'}
                                     </Text>
                                 </View>
                             </View>
                             {updating && (
                                 <View style={styles.updatingOverlay}>
                                     <ActivityIndicator size="small" color={colors.gradientTo} />
-                                    <Text style={styles.updatingText}>Writing to Redis cluster...</Text>
+                                    <Text style={styles.updatingText}>Saving pipeline settings...</Text>
                                 </View>
                             )}
                         </LinearGradient>
@@ -402,20 +433,33 @@ const styles = StyleSheet.create({
         paddingBottom: spacing.xxl * 2,
     },
     header: {
-        marginBottom: spacing.xl,
-        marginTop: spacing.sm,
+        marginBottom: spacing.xxl,
+        marginTop: spacing.md,
+    },
+    eyebrow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        marginBottom: spacing.sm,
+    },
+    eyebrowText: {
+        fontSize: 10,
+        fontWeight: typography.fontWeightBold,
+        color: colors.gradientTo,
+        letterSpacing: 1.4,
     },
     headerTitle: {
-        fontSize: typography.fontSizeXl,
+        fontSize: typography.fontSizeXxl,
         fontWeight: typography.fontWeightBold,
         color: colors.foreground,
-        letterSpacing: 0.5,
-        marginBottom: spacing.xs,
+        letterSpacing: 0.2,
+        marginBottom: spacing.sm,
     },
     headerSubtitle: {
         fontSize: typography.fontSizeSm,
         color: colors.foregroundMuted,
-        lineHeight: 18,
+        lineHeight: 20,
+        maxWidth: 520,
     },
     loadingContainer: {
         paddingVertical: 100,
@@ -435,15 +479,27 @@ const styles = StyleSheet.create({
         borderRadius: borderRadius.md,
         borderWidth: 1,
         borderColor: colors.cardBorder,
-        padding: spacing.md,
+        padding: spacing.lg,
+        ...shadows.sm,
     },
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: spacing.md,
+        marginBottom: spacing.lg,
     },
     cardHeaderIcon: {
-        marginRight: spacing.sm,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(6, 182, 212, 0.09)',
+        borderWidth: 1,
+        borderColor: 'rgba(6, 182, 212, 0.16)',
+        marginRight: spacing.md,
+    },
+    cardHeaderText: {
+        flex: 1,
     },
     cardTitle: {
         fontSize: typography.fontSizeMd,
@@ -453,21 +509,21 @@ const styles = StyleSheet.create({
     cardSubtitle: {
         fontSize: typography.fontSizeXs,
         color: colors.foregroundMuted,
-        marginTop: 1,
+        lineHeight: 17,
+        marginTop: 2,
     },
-    optionsRow: {
-        flexDirection: 'row',
+    optionsList: {
         gap: spacing.sm,
     },
     optionCol: {
-        flex: 1,
+        width: '100%',
     },
     optionButton: {
         borderRadius: borderRadius.sm,
         borderWidth: 1,
         padding: spacing.md,
-        minHeight: 140,
-        justifyContent: 'flex-start',
+        minHeight: 94,
+        justifyContent: 'center',
         position: 'relative',
         overflow: 'hidden',
     },
@@ -477,13 +533,37 @@ const styles = StyleSheet.create({
     },
     optionButtonInactive: {
         backgroundColor: '#090E1F',
-        borderColor: 'rgba(255, 255, 255, 0.05)',
+        borderColor: 'rgba(255, 255, 255, 0.07)',
+    },
+    optionButtonDisabled: {
+        opacity: 0.65,
+    },
+    optionContent: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        paddingRight: spacing.lg,
+    },
+    optionIcon: {
+        width: 38,
+        height: 38,
+        borderRadius: 11,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(148, 163, 184, 0.07)',
+        marginRight: spacing.md,
+    },
+    optionIconActive: {
+        backgroundColor: 'rgba(6, 182, 212, 0.10)',
+    },
+    optionText: {
+        flex: 1,
     },
     optionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.xs + 2,
-        marginBottom: spacing.xs + 2,
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+        marginBottom: spacing.xs,
     },
     optionLabel: {
         fontSize: typography.fontSizeSm,
@@ -496,10 +576,28 @@ const styles = StyleSheet.create({
     optionLabelInactive: {
         color: colors.foregroundMuted,
     },
+    optionBadge: {
+        borderRadius: 6,
+        backgroundColor: 'rgba(148, 163, 184, 0.08)',
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+    },
+    optionBadgeActive: {
+        backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    },
+    optionBadgeText: {
+        fontSize: 8,
+        fontWeight: typography.fontWeightBold,
+        color: colors.mutedForeground,
+        letterSpacing: 0.7,
+    },
+    optionBadgeTextActive: {
+        color: colors.gradientTo,
+    },
     optionDescription: {
-        fontSize: 11,
+        fontSize: typography.fontSizeXs,
         color: colors.foregroundMuted,
-        lineHeight: 14,
+        lineHeight: 17,
     },
     checkIndicator: {
         position: 'absolute',
@@ -541,6 +639,7 @@ const styles = StyleSheet.create({
     },
     summaryCell: {
         flex: 1,
+        minWidth: 0,
     },
     summaryLabel: {
         fontSize: 9,
@@ -550,9 +649,10 @@ const styles = StyleSheet.create({
         marginBottom: 2,
     },
     summaryValue: {
-        fontSize: typography.fontSizeSm,
+        fontSize: typography.fontSizeXs,
         fontWeight: typography.fontWeightMedium,
         color: colors.gradientTo,
+        lineHeight: 17,
     },
     summaryDivider: {
         width: 1,
