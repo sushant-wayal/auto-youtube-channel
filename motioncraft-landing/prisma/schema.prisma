@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model WaitlistEntry {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  profession      String
+  currentWorkflow String   @map("current_workflow")
+  painPoint       String   @map("pain_point") @db.Text
+  selectedPlan    String   @map("selected_plan")
+  paymentObjection String  @map("payment_objection")
+  paymentObjectionOther String? @map("payment_objection_other") @db.Text
+  primaryUseCases String[] @map("primary_use_cases")
+  primaryUseCaseOther String? @map("primary_use_case_other") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("waitlist")
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  email     String?
+  category  String   @default("General feedback")
+  feedback  String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("feedback")
+}
