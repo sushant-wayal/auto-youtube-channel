@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { login } from "./actions";
 
 export default async function AdminLogin({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
@@ -13,7 +14,7 @@ export default async function AdminLogin({ searchParams }: { searchParams: Promi
   return (
     <main className="admin-shell login-shell">
       <form action={login} className="login-card">
-        <Link href="/" className="brand"><span className="brand-mark">M</span> motioncraft</Link>
+        <Link href="/" className="brand"><span className="brand-mark"><Image src="/logo.png" alt="" width={58} height={58} /></span> motioncraft</Link>
         <div><p className="eyebrow">PRIVATE ACCESS</p><h1>Admin dashboard</h1><p>Enter the password configured for this deployment.</p></div>
         <label>Password<input name="password" type="password" required autoFocus placeholder="••••••••••••" /></label>
         {errorMessage && <p className="form-error">{errorMessage}</p>}

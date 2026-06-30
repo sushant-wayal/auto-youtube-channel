@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight, AudioLines, Blocks, BookOpen, Check, ChevronDown, CirclePlay, Code2,
@@ -74,7 +75,7 @@ function Reveal({ children, className = "", delay = 0 }: { children: React.React
 }
 
 function Logo() {
-  return <a className="brand" href="#"><span className="brand-mark">M</span> motioncraft <span className="beta">PRIVATE BETA</span></a>;
+  return <a className="brand" href="#"><span className="brand-mark"><Image src="/logo.png" alt="" width={58} height={58} /></span> motioncraft <span className="beta">PRIVATE BETA</span></a>;
 }
 
 function ProductPreview() {

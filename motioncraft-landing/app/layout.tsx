@@ -8,6 +8,10 @@ const manrope = Manrope({ subsets: ["latin"], variable: "--font-display" });
 export const metadata: Metadata = {
   title: "Motioncraft — Ideas, beautifully explained",
   description: "Turn any idea into a polished animated infographic video.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { MessageSquare, Trash2, Users, WalletCards } from "lucide-react";
 import { prisma } from "@/lib/prisma";
@@ -18,7 +19,7 @@ export default async function AdminPage() {
   const paidPlanIntent = entries.filter((entry) => ["Explorer", "Creator", "Pro"].includes(entry.selectedPlan)).length;
   return (
     <main className="admin-shell">
-      <nav className="admin-nav"><span className="brand"><span className="brand-mark">M</span> motioncraft <i>admin</i></span><form action={logout}><button className="ghost-button">Sign out</button></form></nav>
+      <nav className="admin-nav"><span className="brand"><span className="brand-mark"><Image src="/logo.png" alt="" width={58} height={58} /></span> motioncraft <i>admin</i></span><form action={logout}><button className="ghost-button">Sign out</button></form></nav>
       <header className="admin-header"><div><p className="eyebrow">DEMAND SIGNALS</p><h1>Research dashboard</h1><p>Everything people have shared while you validate the idea.</p></div></header>
       <section className="stats">
         <div><Users/><span>{entries.length}</span><p>Waitlist members</p></div>
