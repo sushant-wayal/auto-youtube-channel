@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { scheduleTimesApi } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
-import LoadingSpinner from '../components/LoadingSpinner';
+import SkeletonLoader from '../components/SkeletonLoader';
 import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -269,7 +269,7 @@ export default function ScheduleTimesScreen() {
         longFormTime !== originalLongFormTime;
 
     if (loading && originalShortsTimes.length === 0) {
-        return <LoadingSpinner />;
+        return <SkeletonLoader variant="schedule" />;
     }
 
     return (

@@ -13,7 +13,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { shortsApi } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
-import LoadingSpinner from '../components/LoadingSpinner';
+import SkeletonLoader from '../components/SkeletonLoader';
 import { colors, spacing, borderRadius, typography, shadows } from '../theme';
 
 export default function ShortsScheduleScreen() {
@@ -123,7 +123,7 @@ export default function ShortsScheduleScreen() {
     const hasChanges = publishTime !== originalTime;
 
     if (loading && !originalTime) {
-        return <LoadingSpinner />;
+        return <SkeletonLoader variant="shorts" />;
     }
 
     return (

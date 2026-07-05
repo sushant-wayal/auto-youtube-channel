@@ -21,7 +21,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { pipelineApi, PipelineStatus, JobResult, ShortResult } from '../services/api';
-import LoadingSpinner from '../components/LoadingSpinner';
+import SkeletonLoader from '../components/SkeletonLoader';
 import ErrorMessage from '../components/ErrorMessage';
 import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
 
@@ -471,14 +471,12 @@ function ScriptOutput({
     description,
     sceneNarrations,
     shortHooks,
-    shortCaptions,
     scriptData,
 }: {
     title?: string;
     description?: string;
     sceneNarrations?: string[];
     shortHooks?: string[];
-    shortCaptions?: string[];
     scriptData?: unknown;
 }) {
     const [showScenes, setShowScenes] = useState(false);
@@ -491,6 +489,7 @@ function ScriptOutput({
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
+
 
     return (
         <View style={styles.scriptOutputContainer}>
@@ -540,32 +539,6 @@ function ScriptOutput({
                 </View>
             )}
 
-            {shortCaptions && shortCaptions.some(Boolean) && (
-                <View style={styles.captionsContainer}>
-                    <View style={styles.captionsHeading}>
-                        <View style={styles.instagramIcon}>
-                            <Ionicons name="logo-instagram" size={14} color="#F472B6" />
-                        </View>
-                        <View style={styles.captionsHeadingText}>
-                            <Text style={styles.subSectionLabel}>Instagram Reel Captions</Text>
-                            <Text style={styles.captionsHint}>Ready to paste · up to 5 hashtags</Text>
-                        </View>
-                    </View>
-                    {shortCaptions.map((caption, i) =>
-                        caption ? (
-                            <View key={i} style={styles.captionCard}>
-                                <View style={styles.captionCardTop}>
-                                    <Text style={styles.captionNumber}>REEL {i + 1}</Text>
-                                    <CopyButton url={caption} label="Copy caption" />
-                                </View>
-                                <Text style={styles.captionText} selectable>
-                                    {caption}
-                                </Text>
-                            </View>
-                        ) : null
-                    )}
-                </View>
-            )}
 
             {/* Expander for JSON */}
             <View style={styles.jsonTerminalContainer}>
@@ -735,11 +708,7 @@ export default function PipelineStatusScreen() {
     };
 
     if (loading) {
-        return (
-            <View style={styles.centered}>
-                <LoadingSpinner />
-            </View>
-        );
+        return <SkeletonLoader variant="pipeline" />;
     }
 
     const isSuccess = status?.overallStatus === 'success';
@@ -850,7 +819,6 @@ export default function PipelineStatusScreen() {
                                 description={status.description ?? undefined}
                                 sceneNarrations={status.sceneNarrations}
                                 shortHooks={status.shortHooks}
-                                shortCaptions={status.shortCaptions}
                                 scriptData={status.scriptData}
                             />
                         </JobSection>

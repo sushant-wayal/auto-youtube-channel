@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ideasApi, IdeasQueue } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
 import EmptyState from '../components/EmptyState';
-import LoadingSpinner from '../components/LoadingSpinner';
+import SkeletonLoader from '../components/SkeletonLoader';
 import { colors, spacing, borderRadius, typography, shadows, gradients, motion } from '../theme';
 
 // Enable LayoutAnimation for Android
@@ -428,7 +428,7 @@ export default function IdeasScreen() {
     };
 
     if (loading && !ideasQueue) {
-        return <LoadingSpinner />;
+        return <SkeletonLoader variant="ideas" />;
     }
 
     return (
