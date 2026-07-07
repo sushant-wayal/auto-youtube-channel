@@ -15,6 +15,16 @@ export class SeriesRedisService {
         return ids;
     }
 
+    async getAllSeries(): Promise<SeriesState[]> {
+        const ids = await this.redis.smembers('series:all');
+        if (ids.length === 0) return [];
+        
+        const keys = ids.map(id => `series:${id}`);
+        const data = await this.redis.mget(keys);
+        
+        return data.filter(d => d !== null).map(d => JSON.parse(d as string) as SeriesState);
+    }
+
     async getSeries(id: string): Promise<SeriesState | null> {
         const data = await this.redis.get(`series:${id}`);
         if (!data) return null;
@@ -24,6 +34,9 @@ export class SeriesRedisService {
     async saveSeries(series: SeriesState): Promise<void> {
         series.version = (series.version || 0) + 1;
         await this.redis.set(`series:${series.id}`, JSON.stringify(series));
+        
+        // Track in the all series set
+        await this.redis.sadd('series:all', series.id);
         
         if (series.status === 'active') {
             await this.redis.sadd('series:active', series.id);
@@ -49,6 +62,8 @@ export class SeriesRedisService {
             
             const multi = this.redis.multi();
             multi.set(key, JSON.stringify(series));
+            multi.sadd('series:all', series.id); // Ensure it's in the all set
+            
             if (series.status === 'active') {
                 multi.sadd('series:active', series.id);
             } else {

@@ -40,6 +40,9 @@ async function checkQueueAndPopulate(): Promise<void> {
 
         console.error(`⚠️  Queue is below threshold (${queueSize}/${MIN_QUEUE_SIZE}), populating...`);
 
+        // Check if we need to launch a new series (Strategist AI)
+        await seriesManager.autoInitiateSeriesIfNeeded();
+
         // Fetch existing queue ideas to avoid duplicates
         let existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
         if (existingIdeas.length > 0) {

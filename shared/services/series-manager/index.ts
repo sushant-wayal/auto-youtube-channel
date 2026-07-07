@@ -6,6 +6,7 @@ config({ path: resolve(__dirname, '../../../.env.local') });
 import { SeriesRedisService } from './redis-service';
 import { SeriesAIService } from './ai-service';
 import { SeriesState } from './types';
+import { YouTubeDataService } from '../../../workers/idea-selector/src/lib/youtube-data-service';
 
 export class SeriesManager {
     private redis: SeriesRedisService;
@@ -38,6 +39,51 @@ export class SeriesManager {
 
         await this.redis.saveSeries(initialState);
         return initialState;
+    }
+
+    /**
+     * Checks if a new series should be initiated based on constraints and channel context.
+     */
+    async autoInitiateSeriesIfNeeded(): Promise<boolean> {
+        const activeIds = await this.redis.getActiveSeriesIds();
+        const activeCount = activeIds.length;
+
+        if (activeCount >= 10) {
+            console.log(`[SeriesManager] Active series count is ${activeCount} (max 10). Skipping series strategist.`);
+            return false;
+        }
+
+        console.log(`[SeriesManager] Running Series Strategist AI (Active Series: ${activeCount})...`);
+
+        // 1. Fetch historical series context
+        const allSeries = await this.redis.getAllSeries();
+
+        // 2. Fetch channel analytics (recent long-form videos)
+        const youtubeDataService = new YouTubeDataService();
+        let analytics: any[] = [];
+        try {
+            console.log(`[SeriesManager] Fetching channel performance data...`);
+            const recentVideos = await youtubeDataService.fetchRecentVideos(30);
+            const longFormVideos = recentVideos.filter(v => !v.isShort);
+            if (longFormVideos.length > 0) {
+                analytics = await youtubeDataService.fetchVideoAnalytics(longFormVideos, 90);
+            }
+        } catch (error) {
+            console.error(`[SeriesManager] Failed to fetch YouTube analytics:`, error);
+            // Continue without analytics if it fails, the AI will use other context
+        }
+
+        // 3. Ask AI
+        const decision = await this.ai.decideAndInventNewSeries(allSeries, activeCount, analytics);
+
+        if (decision.shouldCreate && decision.id && decision.title && decision.learningGoal) {
+            console.log(`[SeriesManager] 🚀 AI Strategist decided to launch NEW SERIES: "${decision.title}"`);
+            await this.initializeSeries(decision.id, decision.title, decision.learningGoal);
+            return true;
+        }
+
+        console.log(`[SeriesManager] AI Strategist decided NOT to launch a new series at this time.`);
+        return false;
     }
 
     /**
