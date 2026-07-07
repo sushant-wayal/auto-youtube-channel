@@ -23,6 +23,9 @@ export async function GET() {
 
       // Optional: full YouTube access (includes all above + modifications)
       "https://www.googleapis.com/auth/youtube",
+
+      // For YouTube Live
+      "https://www.googleapis.com/auth/youtube.force-ssl",
     ],
   });
 

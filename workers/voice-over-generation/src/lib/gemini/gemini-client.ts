@@ -10,12 +10,12 @@ class GeminiClient {
     private lastUsedKey: number = 1;
 
     private constructor() {
-        this.apiKey1 = process.env.GEMINI_API_KEY_1 || "";
-        this.apiKey2 = process.env.GEMINI_API_KEY_2 || "";
+        this.apiKey1 = process.env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY || "";
+        this.apiKey2 = process.env.GEMINI_API_KEY_2 || this.apiKey1;
 
-        if (!this.apiKey1 || !this.apiKey2) {
+        if (!this.apiKey1) {
             throw new Error(
-                "GEMINI_API_KEY_1 or GEMINI_API_KEY_2 is not set. Please add them to your .env.local file."
+                "GEMINI_API_KEY, GEMINI_API_KEY_1 or GEMINI_API_KEY_2 is not set. Please add them to your .env.local file."
             );
         }
 

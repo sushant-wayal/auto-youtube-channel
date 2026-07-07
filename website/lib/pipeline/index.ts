@@ -1,6 +1,6 @@
 import ScriptGenerationService from "./script-generation";
 import { VideoScript, GenerationProgress, VideoGenerationResult, VideoAssets } from "./types";
-import TTSService from "@/lib/audio/tts-service";
+import TTSService from "../audio/tts-service";
 import path from "path";
 
 class VideoGenerationPipeline {

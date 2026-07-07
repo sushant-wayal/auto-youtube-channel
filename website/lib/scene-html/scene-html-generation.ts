@@ -1,4 +1,4 @@
-import { GeminiService } from "@/lib/ai";
+import { GeminiService } from "../ai";
 
 export interface SceneHtmlGenerationInput {
   narration: string;

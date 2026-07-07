@@ -1,0 +1,22 @@
+{
+  "name": "live-streaming",
+  "version": "1.0.0",
+  "description": "Worker for orchestrating YouTube Live Streams",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/cli.ts",
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "dotenv": "^16.4.7",
+    "googleapis": "^144.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

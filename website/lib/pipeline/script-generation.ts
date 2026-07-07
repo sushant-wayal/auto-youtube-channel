@@ -1,4 +1,4 @@
-import { GeminiService } from "@/lib/ai";
+import { GeminiService } from "../ai";
 import { VideoScript } from "./types";
 import { promises as fs } from "fs";
 import path from "path";
@@ -21,6 +21,31 @@ class ScriptGenerationService {
     sceneRenderMethod?: "code" | "ai"
   ): Promise<VideoScript> {
     const renderMethod = sceneRenderMethod ?? this.getSceneRenderMethod();
+
+    if (process.env.USE_MOCK_SCRIPT === "true") {
+      console.log("⚠️ USING MOCK SCRIPT (USE_MOCK_SCRIPT=true)");
+      return {
+        title: "Mock Script Title",
+        description: "Mock Script Description",
+        tags: ["mock", "test"],
+        narration: "This is a mock narration to bypass the AI generation step.",
+        scenes: [
+          {
+            id: "scene-1",
+            sceneTitle: "Mock Scene 1",
+            sceneTheme: "dark",
+            baseDuration: 15.0,
+            holdDuration: 2.0,
+            narration: "This is a mock narration to bypass the AI generation step.",
+            actions: [
+              { t: 0.5, op: "text", x: 960, y: 500, value: "Mock Scene", size: "title" }
+            ]
+          }
+        ],
+        shorts: []
+      };
+    }
+
     const prompt = this.buildScriptPrompt(videoIdea, duration, renderMethod);
 
     try {
