@@ -17,6 +17,12 @@ interface ScriptData {
             narration: string;
         }>;
     };
+    seriesContext?: {
+        seriesId: string;
+        seriesTitle: string;
+        episodeId: string;
+        topic: string;
+    };
 }
 
 /**
@@ -112,9 +118,35 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
         hasOutro: true,
         outroDuration: 8,
         outroTitle: 'Outro',
+        seriesTitle: data.seriesContext?.seriesTitle,
     });
 
     console.error(`✅ Uploaded to YouTube: ${result.videoId}`);
+
+    if (data.seriesContext) {
+        console.error(`📺 Video is part of series "${data.seriesContext.seriesTitle}". Triggering completion webhook...`);
+        const websiteDomain = process.env.WEBSITE_DOMAIN || 'http://localhost:3000';
+        try {
+            const webhookRes = await fetch(`${websiteDomain}/api/series/complete-episode`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    seriesId: data.seriesContext.seriesId,
+                    episodeId: data.seriesContext.episodeId,
+                    topic: data.seriesContext.topic,
+                    videoId: result.videoId
+                })
+            });
+            if (webhookRes.ok) {
+                console.error(`✅ Webhook triggered successfully.`);
+            } else {
+                console.error(`⚠️ Webhook failed with status: ${webhookRes.status}`);
+            }
+        } catch (e) {
+            console.error(`⚠️ Failed to trigger series webhook:`, e);
+        }
+    }
+
     return result;
 }
 

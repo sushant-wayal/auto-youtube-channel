@@ -6,7 +6,7 @@ import { MOCK_SCRIPT } from "@/app/constants";
 
 export async function POST(request: NextRequest) {
     try {
-        const { videoIdea, sceneRenderMethod } = await request.json();
+        const { videoIdea, sceneRenderMethod, seriesContext } = await request.json();
 
         if (!videoIdea || typeof videoIdea !== "string") {
             return NextResponse.json(
@@ -48,13 +48,12 @@ export async function POST(request: NextRequest) {
         // Real AI generation
         console.log("🤖 Using Gemini AI for script generation");
         const pipeline = new VideoGenerationPipeline();
-        const script = await pipeline.generateScriptOnly(videoIdea, sceneRenderMethod);
+        const script = await pipeline.generateScriptOnly(videoIdea, sceneRenderMethod, seriesContext);
 
         return NextResponse.json({ script });
     } catch (error) {
         console.error("Script generation error:", error);
-        throw error;
-
+        
         // Fallback to mock if AI fails
         console.log("⚠️ AI generation failed, falling back to MOCK script");
         return NextResponse.json({ script: MOCK_SCRIPT });

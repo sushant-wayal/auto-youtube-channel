@@ -46,12 +46,13 @@ interface VideoScript {
     }>;
 }
 
-async function generateScript(customIdea?: string): Promise<{ videoId: string; script: VideoScript }> {
+async function generateScript(customIdea?: string): Promise<{ videoId: string; script: VideoScript; seriesContext?: any }> {
     validateConfig(['website']);
     const sceneRenderMethod =
         process.env.SCENE_RENDER_METHOD?.toLowerCase() === 'ai' ? 'ai' : 'code';
 
     let videoIdea: string;
+    let seriesContext: any = undefined;
 
     if (customIdea) {
         // Use custom idea from workflow input
@@ -68,12 +69,37 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
 
             const queueKey = 'video:ideas'; // TEST queue - separate from production
 
-            const idea = await redis.lpop(queueKey);
+            const ideaRaw = await redis.lpop(queueKey);
             await redis.quit();
 
-            if (idea) {
-                videoIdea = idea;
-                console.error(`📥 Video idea from Redis queue: "${videoIdea}"`);
+            if (ideaRaw) {
+                try {
+                    const parsedIdea = JSON.parse(ideaRaw);
+                    if (parsedIdea && typeof parsedIdea === 'object' && parsedIdea.topic) {
+                        // It's a semantic learning queue item from series-manager
+                        videoIdea = parsedIdea.topic;
+                        
+                        if (parsedIdea.seriesContext) {
+                            seriesContext = parsedIdea.seriesContext;
+                            console.error(`📥 Series episode from Redis queue: "${videoIdea}" (Series: ${seriesContext.seriesTitle})`);
+                        } else {
+                            console.error(`📥 Structured video idea from Redis queue: "${videoIdea}"`);
+                        }
+                    } else if (parsedIdea && typeof parsedIdea === 'object' && parsedIdea.idea) {
+                        // Support legacy structured format
+                        videoIdea = parsedIdea.idea;
+                        seriesContext = parsedIdea.seriesContext;
+                        console.error(`📥 Structured video idea from Redis queue: "${videoIdea}"`);
+                    } else {
+                        // It's a JSON string but not our format, just use as string
+                        videoIdea = ideaRaw;
+                        console.error(`📥 Video idea from Redis queue: "${videoIdea}"`);
+                    }
+                } catch (e) {
+                    // Not JSON, use raw string
+                    videoIdea = ideaRaw;
+                    console.error(`📥 Plain video idea from Redis queue: "${videoIdea}"`);
+                }
             } else {
                 // Fallback to random idea from pool
                 videoIdea = VIDEO_IDEAS[Math.floor(Math.random() * VIDEO_IDEAS.length)];
@@ -93,7 +119,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Carry the Redis-resolved setting into the separately deployed website API.
-        body: JSON.stringify({ videoIdea, sceneRenderMethod }),
+        body: JSON.stringify({ videoIdea, sceneRenderMethod, seriesContext }),
     });
 
     if (!response.ok) {
@@ -109,7 +135,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
     const videoId = `video-${Date.now()}`;
     console.error(`✅ Generated ${sceneRenderMethod}-render script: "${data.script.title}"`);
 
-    return { videoId, script: data.script };
+    return { videoId, script: data.script, seriesContext };
 }
 
 // Main execution

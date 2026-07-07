@@ -40,6 +40,7 @@ type UploadCommonArgs = {
   thumbnailUrl?: string;     // Optional Cloudinary thumbnail URL
   privacyStatus?: "public" | "unlisted" | "private";
   scheduledPublishTime?: string; // ISO 8601 timestamp for scheduled publishing
+  seriesTitle?: string;
 };
 
 export class YouTubeService {
@@ -72,7 +73,8 @@ export class YouTubeService {
     tags = [],
     thumbnailUrl,
     privacyStatus = "public",
-    scheduledPublishTime
+    scheduledPublishTime,
+    seriesTitle
   }: { jobId: string } & UploadCommonArgs): Promise<string> {
 
     const tmpDir = "/tmp/youtube";
@@ -109,6 +111,21 @@ export class YouTubeService {
         console.error(`⏰ Using fallback shorts publish time (Rank 1): ${bestTime} IST (${finalScheduledTime})`);
       }
 
+      // Playlist logic
+      let finalDescription = description;
+      let targetPlaylistId: string | null = null;
+      if (seriesTitle) {
+        console.error(`📺 Series detected: ${seriesTitle}. Managing playlist...`);
+        try {
+          targetPlaylistId = await this.getOrCreatePlaylist(seriesTitle, finalPrivacyStatus);
+          if (targetPlaylistId) {
+            finalDescription += `\n\n📺 Watch the full ${seriesTitle} series here: https://www.youtube.com/playlist?list=${targetPlaylistId}`;
+          }
+        } catch (err) {
+          console.error(`⚠️ Failed to setup playlist:`, err);
+        }
+      }
+
       console.error("🚀 Starting YouTube upload...");
 
       /* 2️⃣ Upload video to YouTube */
@@ -116,7 +133,7 @@ export class YouTubeService {
         videoPath,
         isShort ?? false,
         title,
-        description,
+        finalDescription,
         tags,
         finalPrivacyStatus,
         finalScheduledTime
@@ -139,6 +156,17 @@ export class YouTubeService {
         console.error(`✅ Thumbnail uploaded successfully`);
       }
 
+      /* 4️⃣ Add to Playlist (if applicable) */
+      if (targetPlaylistId) {
+        try {
+          console.error(`📺 Adding video to playlist...`);
+          await this.addToPlaylist(videoId, targetPlaylistId);
+          console.error(`✅ Video added to playlist successfully`);
+        } catch (err) {
+          console.error(`⚠️ Failed to add video to playlist:`, err);
+        }
+      }
+
       return videoId;
     } finally {
       /* 4️⃣ Cleanup local files */
@@ -152,6 +180,66 @@ export class YouTubeService {
   }
 
   /* -------------------- HELPERS -------------------- */
+
+  private async getOrCreatePlaylist(seriesTitle: string, privacyStatus: string): Promise<string | null> {
+    try {
+      // Search for existing playlist
+      const response = await this.youtube.playlists.list({
+        part: ["snippet"],
+        mine: true,
+        maxResults: 50,
+      });
+
+      const existingPlaylist = response.data.items?.find(
+        (p) => p.snippet?.title === seriesTitle
+      );
+
+      if (existingPlaylist?.id) {
+        console.error(`✅ Found existing playlist: ${existingPlaylist.id}`);
+        return existingPlaylist.id;
+      }
+
+      // Create new playlist
+      console.error(`🆕 Creating new playlist for series: ${seriesTitle}`);
+      const createResponse = await this.youtube.playlists.insert({
+        part: ["snippet", "status"],
+        requestBody: {
+          snippet: {
+            title: seriesTitle,
+            description: `All episodes for the series: ${seriesTitle}`,
+          },
+          status: {
+            privacyStatus: privacyStatus === 'private' ? 'private' : 'public',
+          },
+        },
+      });
+
+      if (createResponse.data.id) {
+        console.error(`✅ Created new playlist: ${createResponse.data.id}`);
+        return createResponse.data.id;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error managing playlist:", error);
+      return null;
+    }
+  }
+
+  private async addToPlaylist(videoId: string, playlistId: string): Promise<void> {
+    await this.youtube.playlistItems.insert({
+      part: ["snippet"],
+      requestBody: {
+        snippet: {
+          playlistId: playlistId,
+          resourceId: {
+            kind: "youtube#video",
+            videoId: videoId,
+          },
+        },
+      },
+    });
+  }
 
   private async uploadVideoToYouTube(
     videoPath: string,

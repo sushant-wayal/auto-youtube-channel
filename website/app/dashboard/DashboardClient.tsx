@@ -1021,31 +1021,60 @@ export default function DashboardClient() {
                                                     </Button>
                                                 </div>
                                             </div>
-                                        ) : (
+                                        ) : (() => {
+                                            let parsedIdea = null;
+                                            try {
+                                                parsedIdea = JSON.parse(idea);
+                                            } catch (e) {
+                                                // Ignore, it's a regular string
+                                            }
+                                            
+                                            const isSeries = parsedIdea && parsedIdea.isSeries;
+                                            
+                                            return (
                                             <>
-                                                <p className="flex-1 text-sm">{idea}</p>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => startEditing(index, idea)}
-                                                    disabled={ideasLoading || editingIndex !== null}
-                                                    className="text-blue-600 hover:text-blue-700"
-                                                    title="Edit idea"
-                                                >
-                                                    ✎
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => removeIdea(index)}
-                                                    disabled={ideasLoading || editingIndex !== null}
-                                                    className="text-red-600 hover:text-red-700"
-                                                    title="Remove idea"
-                                                >
-                                                    ✕
-                                                </Button>
+                                                {isSeries ? (
+                                                    <div className="flex-1 flex flex-col gap-1 border-l-4 border-indigo-500 pl-3 py-1 bg-indigo-50/30 rounded-r-md overflow-hidden">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded flex items-center uppercase tracking-wider">
+                                                                📺 Series: {parsedIdea.seriesContext?.seriesTitle || 'Unknown Series'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm font-medium">{parsedIdea.topic}</p>
+                                                        {parsedIdea.seriesContext?.learningObjective && (
+                                                            <p className="text-xs text-muted-foreground truncate" title={parsedIdea.seriesContext.learningObjective}>
+                                                                {parsedIdea.seriesContext.learningObjective}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <p className="flex-1 text-sm break-words">{idea}</p>
+                                                )}
+                                                
+                                                <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => startEditing(index, idea)}
+                                                        disabled={ideasLoading || editingIndex !== null || isSeries}
+                                                        className="text-blue-600 hover:text-blue-700 disabled:opacity-30 h-8 w-8 p-0"
+                                                        title={isSeries ? "Cannot edit series episodes directly" : "Edit idea"}
+                                                    >
+                                                        ✎
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => removeIdea(index)}
+                                                        disabled={ideasLoading || editingIndex !== null}
+                                                        className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+                                                        title="Remove idea"
+                                                    >
+                                                        ✕
+                                                    </Button>
+                                                </div>
                                             </>
-                                        )}
+                                        )})()}
                                     </div>
                                 ))}
                             </div>

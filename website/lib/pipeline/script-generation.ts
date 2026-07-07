@@ -2,6 +2,7 @@ import { GeminiService } from "@/lib/ai";
 import { VideoScript } from "./types";
 import { promises as fs } from "fs";
 import path from "path";
+import { SeriesContext, buildSeriesContextPrompt } from "./series-context";
 
 class ScriptGenerationService {
   private gemini: GeminiService;
@@ -18,10 +19,11 @@ class ScriptGenerationService {
   async generateScript(
     videoIdea: string,
     duration: number = 7,
-    sceneRenderMethod?: "code" | "ai"
+    sceneRenderMethod?: "code" | "ai",
+    seriesContext?: SeriesContext
   ): Promise<VideoScript> {
     const renderMethod = sceneRenderMethod ?? this.getSceneRenderMethod();
-    const prompt = this.buildScriptPrompt(videoIdea, duration, renderMethod);
+    const prompt = this.buildScriptPrompt(videoIdea, duration, renderMethod, seriesContext);
 
     try {
       const response = await this.gemini.generateText(prompt, {
@@ -41,7 +43,7 @@ class ScriptGenerationService {
     return process.env.SCENE_RENDER_METHOD === "ai" ? "ai" : "code";
   }
 
-  private buildScriptPrompt(videoIdea: string, duration: number, renderMethod: "code" | "ai"): string {
+  private buildScriptPrompt(videoIdea: string, duration: number, renderMethod: "code" | "ai", seriesContext?: SeriesContext): string {
     const aiRenderOverride = renderMethod === "ai"
       ? `
 ========================
@@ -80,6 +82,7 @@ Create content for a ${duration}-minute YouTube video about:
 Return ONLY valid JSON in the exact format below.
 This output feeds an automated video rendering pipeline.
 ${aiRenderOverride}
+${buildSeriesContextPrompt(seriesContext)}
 
 ========================
 DESIGN PHILOSOPHY

@@ -10,6 +10,7 @@
 
 import Redis from 'ioredis';
 import { runIdeaSelector } from '../../workers/idea-selector/src/index';
+import { SeriesManager } from '../../shared/services/series-manager';
 
 const QUEUE_KEY = 'video:ideas';
 const MIN_QUEUE_SIZE = 6; // Minimum ideas in queue before triggering selector
@@ -23,6 +24,7 @@ async function checkQueueAndPopulate(): Promise<void> {
     }
 
     const redis = new Redis(redisUrl);
+    const seriesManager = new SeriesManager();
 
     try {
         // Check current queue size
@@ -32,10 +34,11 @@ async function checkQueueAndPopulate(): Promise<void> {
         if (queueSize >= MIN_QUEUE_SIZE) {
             console.error(`✅ Queue has sufficient ideas (${queueSize}), skipping idea generation`);
             await redis.quit();
+            await seriesManager.close();
             return;
         }
 
-        console.error(`⚠️  Queue is below threshold (${queueSize}/${MIN_QUEUE_SIZE}), running idea-selector worker...`);
+        console.error(`⚠️  Queue is below threshold (${queueSize}/${MIN_QUEUE_SIZE}), populating...`);
 
         // Fetch existing queue ideas to avoid duplicates
         let existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
@@ -50,8 +53,23 @@ async function checkQueueAndPopulate(): Promise<void> {
         let currentSize = queueSize;
         const addedTopics: string[] = [];
         while (currentSize < MIN_QUEUE_SIZE) {
-            console.error(`\n🚀 Running idea-selector worker (${currentSize}/${MIN_QUEUE_SIZE} ideas)...`);
+            console.error(`\n🚀 Populating idea (${currentSize}/${MIN_QUEUE_SIZE} ideas)...`);
 
+            // 1. Try to schedule a series episode first
+            const scheduledSeries = await seriesManager.scheduleNextEpisode();
+            
+            if (scheduledSeries) {
+                // scheduleNextEpisode already pushed the payload to video:ideas.
+                // We just need to refresh our loop state.
+                console.error(`✅ Scheduled series episode.`);
+                existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
+                currentSize = existingIdeas.length;
+                addedTopics.push("series-episode-scheduled");
+                continue;
+            }
+
+            // 2. If no series episode to schedule, fallback to standalone idea generation
+            console.error(`🤖 Running idea-selector worker for standalone idea...`);
             const result = await runIdeaSelector({
                 existingQueueIdeas: existingIdeas,
             });
@@ -80,10 +98,12 @@ async function checkQueueAndPopulate(): Promise<void> {
         console.log(`ideas_added=${JSON.stringify(addedTopics)}`);
 
         await redis.quit();
+        await seriesManager.close();
         console.error(`✅ Ideas queue populated successfully`);
 
     } catch (error) {
         await redis.quit();
+        await seriesManager.close();
         console.error('❌ Error in check-and-populate-ideas:', error);
         throw error;
     }

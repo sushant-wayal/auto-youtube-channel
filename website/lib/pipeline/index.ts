@@ -2,6 +2,7 @@ import ScriptGenerationService from "./script-generation";
 import { VideoScript, GenerationProgress, VideoGenerationResult, VideoAssets } from "./types";
 import TTSService from "@/lib/audio/tts-service";
 import path from "path";
+import { SeriesContext } from "./series-context";
 
 class VideoGenerationPipeline {
     private scriptService: ScriptGenerationService;
@@ -88,9 +89,10 @@ class VideoGenerationPipeline {
      */
     async generateScriptOnly(
         videoIdea: string,
-        sceneRenderMethod?: "code" | "ai"
+        sceneRenderMethod?: "code" | "ai",
+        seriesContext?: SeriesContext
     ): Promise<VideoScript> {
-        return await this.scriptService.generateScript(videoIdea, 7, sceneRenderMethod);
+        return await this.scriptService.generateScript(videoIdea, 7, sceneRenderMethod, seriesContext);
     }
 }
 

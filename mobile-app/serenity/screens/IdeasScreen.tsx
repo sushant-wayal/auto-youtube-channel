@@ -135,6 +135,15 @@ function IdeaCardItem({
 
     const isFirst = index === 0;
     const isLast = index === ideasCount - 1;
+    
+    let isSeries = false;
+    let parsedIdea = null;
+    try {
+        parsedIdea = JSON.parse(item);
+        if (parsedIdea && parsedIdea.isSeries) {
+            isSeries = true;
+        }
+    } catch(e) {}
 
     return (
         <Animated.View
@@ -183,9 +192,32 @@ function IdeaCardItem({
                                     placeholderTextColor={colors.mutedForeground}
                                 />
                             ) : (
-                                <Text style={[styles.ideaTextMinimal, isExpanded && styles.ideaTextExpanded]} numberOfLines={isExpanded ? undefined : 2}>
-                                    {item}
-                                </Text>
+                                <>
+                                    {isSeries ? (
+                                        <View style={{ flex: 1, flexDirection: 'column' }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                                                <View style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexDirection: 'row', alignItems: 'center' }}>
+                                                    <Ionicons name="tv-outline" size={10} color="#6366f1" style={{ marginRight: 4 }} />
+                                                    <Text style={{ color: '#6366f1', fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }}>
+                                                        Series: {parsedIdea?.seriesContext?.seriesTitle || 'Unknown'}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                            <Text style={[styles.ideaTextMinimal, isExpanded && styles.ideaTextExpanded]} numberOfLines={isExpanded ? undefined : 2}>
+                                                {parsedIdea?.topic}
+                                            </Text>
+                                            {parsedIdea?.seriesContext?.learningObjective && (
+                                                <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }} numberOfLines={isExpanded ? undefined : 1}>
+                                                    {parsedIdea.seriesContext.learningObjective}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    ) : (
+                                        <Text style={[styles.ideaTextMinimal, isExpanded && styles.ideaTextExpanded]} numberOfLines={isExpanded ? undefined : 2}>
+                                            {item}
+                                        </Text>
+                                    )}
+                                </>
                             )}
                         </View>
                     </View>
@@ -215,12 +247,12 @@ function IdeaCardItem({
                         <View style={styles.expandedActions}>
                             <View style={styles.actionRow}>
                                 <TouchableOpacity
-                                    style={styles.compactButton}
+                                    style={[styles.compactButton, isSeries && styles.compactButtonDisabled]}
                                     onPress={startEditing}
-                                    disabled={loading}
+                                    disabled={loading || isSeries}
                                 >
-                                    <Ionicons name="create-outline" size={16} color={colors.foreground} />
-                                    <Text style={styles.compactButtonText}>Edit</Text>
+                                    <Ionicons name="create-outline" size={16} color={isSeries ? colors.mutedForeground : colors.foreground} />
+                                    <Text style={[styles.compactButtonText, isSeries && { color: colors.mutedForeground }]}>Edit</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.compactButton, styles.deleteButton]}

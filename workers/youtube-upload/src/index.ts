@@ -19,6 +19,7 @@ import { generateTimestamps, canGenerateTimestamps } from './utils/timestamp-gen
  * @param hasOutro boolean (optional) - whether video has outro
  * @param outroDuration number (optional) - outro duration in seconds
  * @param outroTitle string (optional) - title for outro chapter
+ * @param seriesTitle string (optional) - series title for playlist generation
  * @returns { videoId: string }
  */
 export async function uploadToYouTube({
@@ -38,6 +39,7 @@ export async function uploadToYouTube({
     hasOutro = false,
     outroDuration = 8,
     outroTitle = 'Outro',
+    seriesTitle,
 }: {
     videoUrl: string;
     isShort?: boolean;
@@ -55,6 +57,7 @@ export async function uploadToYouTube({
     hasOutro?: boolean;  // Whether video has outro
     outroDuration?: number;  // Outro duration (default: 8)
     outroTitle?: string;  // Title for outro chapter
+    seriesTitle?: string;  // Series title for playlist generation
 }): Promise<{ videoId: string }> {
     validateConfig(['youtube']);
 
@@ -97,6 +100,7 @@ export async function uploadToYouTube({
         thumbnailUrl,
         privacyStatus,
         scheduledPublishTime,
+        seriesTitle,
     });
     return { videoId: uploadedVideoId };
 }
