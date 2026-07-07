@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { SeriesManager } from '../../../../../shared/services/series-manager';
+import { SeriesManager } from '@/lib/series-manager';
 
 export async function POST(request: Request) {
     try {
