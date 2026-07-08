@@ -43,7 +43,7 @@ Return ONLY a valid JSON array of objects with this exact structure:
 
         try {
             const response = await this.ai.models.generateContent({
-                model: 'gemini-2.5-pro',
+                model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: {
                     temperature: 0.7,
@@ -119,7 +119,7 @@ Return ONLY a valid JSON object with this exact structure:
 
         try {
             const response = await this.ai.models.generateContent({
-                model: 'gemini-2.5-pro',
+                model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: {
                     temperature: 0.7,

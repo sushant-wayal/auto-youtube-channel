@@ -49,11 +49,11 @@ export class SeriesManager {
         const activeCount = activeIds.length;
 
         if (activeCount >= 10) {
-            console.log(`[SeriesManager] Active series count is ${activeCount} (max 10). Skipping series strategist.`);
+            console.error(`[SeriesManager] Active series count is ${activeCount} (max 10). Skipping series strategist.`);
             return false;
         }
 
-        console.log(`[SeriesManager] Running Series Strategist AI (Active Series: ${activeCount})...`);
+        console.error(`[SeriesManager] Running Series Strategist AI (Active Series: ${activeCount})...`);
 
         // 1. Fetch historical series context
         const allSeries = await this.redis.getAllSeries();
@@ -62,7 +62,7 @@ export class SeriesManager {
         const youtubeDataService = new YouTubeDataService();
         let analytics: any[] = [];
         try {
-            console.log(`[SeriesManager] Fetching channel performance data...`);
+            console.error(`[SeriesManager] Fetching channel performance data...`);
             const recentVideos = await youtubeDataService.fetchRecentVideos(30);
             const longFormVideos = recentVideos.filter(v => !v.isShort);
             if (longFormVideos.length > 0) {
@@ -77,12 +77,12 @@ export class SeriesManager {
         const decision = await this.ai.decideAndInventNewSeries(allSeries, activeCount, analytics);
 
         if (decision.shouldCreate && decision.id && decision.title && decision.learningGoal) {
-            console.log(`[SeriesManager] 🚀 AI Strategist decided to launch NEW SERIES: "${decision.title}"`);
+            console.error(`[SeriesManager] 🚀 AI Strategist decided to launch NEW SERIES: "${decision.title}"`);
             await this.initializeSeries(decision.id, decision.title, decision.learningGoal);
             return true;
         }
 
-        console.log(`[SeriesManager] AI Strategist decided NOT to launch a new series at this time.`);
+        console.error(`[SeriesManager] AI Strategist decided NOT to launch a new series at this time.`);
         return false;
     }
 
@@ -122,7 +122,7 @@ export class SeriesManager {
 
         await this.redis.mutateSeries(selectedSeriesId, async (series) => {
             if (series.learningQueue.length === 0) {
-                console.log(`Series ${series.id} queue is empty, expanding...`);
+                console.error(`Series ${series.id} queue is empty, expanding...`);
                 const newEpisodes = await this.ai.generateNextEpisodes(series, 3);
                 series.learningQueue.push(...newEpisodes);
             }
@@ -156,7 +156,7 @@ export class SeriesManager {
 
         // Push to global video:ideas queue
         await this.redis.pushToGlobalQueue(nextItemPayload);
-        console.log(`Scheduled episode "${nextItemPayload.topic}" (ID: ${nextItemPayload.seriesContext.episodeId}) for series "${nextItemPayload.seriesContext.seriesTitle}"`);
+        console.error(`Scheduled episode "${nextItemPayload.topic}" (ID: ${nextItemPayload.seriesContext.episodeId}) for series "${nextItemPayload.seriesContext.seriesTitle}"`);
         return true;
     }
 
@@ -169,7 +169,7 @@ export class SeriesManager {
         await this.redis.mutateSeries(seriesId, (series) => {
             // Idempotency check: Is it already in history?
             if (series.history.some(h => h.episodeId === episodeId)) {
-                console.log(`Episode ${episodeId} already marked as completed. Skipping.`);
+                console.error(`Episode ${episodeId} already marked as completed. Skipping.`);
                 return;
             }
 
@@ -203,7 +203,7 @@ export class SeriesManager {
      * Generates more items for the learningQueue based on progress
      */
     async expandQueue(seriesId: string): Promise<void> {
-        console.log(`Expanding queue for series ${seriesId}...`);
+        console.error(`Expanding queue for series ${seriesId}...`);
         
         // We get the series to send history to AI, but we don't hold a lock during AI generation.
         const currentSeries = await this.redis.getSeries(seriesId);
@@ -216,7 +216,7 @@ export class SeriesManager {
             series.learningQueue.push(...newEpisodes);
         });
         
-        console.log(`Added ${newEpisodes.length} new episodes to ${seriesId} queue.`);
+        console.error(`Added ${newEpisodes.length} new episodes to ${seriesId} queue.`);
     }
 
     async close() {
