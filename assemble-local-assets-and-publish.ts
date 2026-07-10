@@ -72,8 +72,10 @@ Usage:
 
 Required:
   --scene-dir      Directory containing scene HTML files.
-  --audio-dir      Directory containing matching voiceover files.
-  --thumbnail      Local thumbnail image path for the long-form video.
+  --audio-dir      Directory containing matching voiceover files. (OR --audio-url)
+  --audio-url      Comma-separated URLs to audio narration files.
+  --thumbnail      Local thumbnail image path for the long-form video. (OR --thumbnail-url)
+  --thumbnail-url  URL to the thumbnail image.
   --title          YouTube title, unless provided by --script-file.
 
 Optional:
@@ -271,19 +273,21 @@ async function main(): Promise<void> {
 
   const sceneDirParam = asString(params, 'scene-dir');
   const audioDirParam = asString(params, 'audio-dir');
+  const audioUrlParam = asString(params, 'audio-url');
   const thumbnailParam = asString(params, 'thumbnail');
+  const thumbnailUrlParam = asString(params, 'thumbnail-url');
   const scriptFile = asString(params, 'script-file');
   const scriptMetadata = scriptFile ? await loadScriptMetadata(scriptFile) : {};
   const title = asString(params, 'title', scriptMetadata.title || '');
 
-  if (!sceneDirParam || !audioDirParam || !thumbnailParam || !title) {
+  if (!sceneDirParam || (!audioDirParam && !audioUrlParam) || (!thumbnailParam && !thumbnailUrlParam) || !title) {
     printUsage();
     process.exit(1);
   }
 
   const sceneDir = path.resolve(sceneDirParam);
-  const audioDir = path.resolve(audioDirParam);
-  const thumbnail = path.resolve(thumbnailParam);
+  let audioDir = audioDirParam ? path.resolve(audioDirParam) : '';
+  let thumbnail = thumbnailParam ? path.resolve(thumbnailParam) : '';
   const description = asString(params, 'description', scriptMetadata.description || '');
   const tagParam = asString(params, 'tags');
   const tags = tagParam
@@ -303,7 +307,49 @@ async function main(): Promise<void> {
   const skipUpload = hasFlag(params, 'skip-upload');
 
   await assertDir(sceneDir, 'Scene directory');
-  await assertDir(audioDir, 'Audio directory');
+
+  if (thumbnailUrlParam) {
+    console.log(`Downloading thumbnail from ${thumbnailUrlParam}...`);
+    const response = await fetch(thumbnailUrlParam);
+    if (!response.ok) throw new Error(`Failed to fetch thumbnail url: ${response.statusText}`);
+    const urlPath = new URL(thumbnailUrlParam).pathname;
+    let ext = path.extname(urlPath).toLowerCase();
+    if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+      ext = '.jpg';
+    }
+    thumbnail = path.join(process.cwd(), `.tmp-thumbnail-${Date.now()}${ext}`);
+    const buffer = await response.arrayBuffer();
+    await fsPromises.writeFile(thumbnail, Buffer.from(buffer));
+  }
+  
+  if (audioUrlParam) {
+    audioDir = path.join(process.cwd(), '.tmp-audio-dir-' + Date.now());
+    await fsPromises.mkdir(audioDir, { recursive: true });
+    
+    console.log('Downloading audio files from URLs...');
+    const urls = audioUrlParam.split(',').map(u => u.trim()).filter(Boolean);
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      console.log(`  Downloading ${url}...`);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch audio url: ${response.statusText}`);
+      
+      const urlPath = new URL(url).pathname;
+      let ext = path.extname(urlPath).toLowerCase();
+      // Only keep known audio extensions or default to .mp3
+      if (!['.wav', '.mp3', '.m4a', '.aac'].includes(ext)) {
+        ext = '.mp3';
+      }
+      
+      const dest = path.join(audioDir, `narration_${String(i + 1).padStart(2, '0')}${ext}`);
+      
+      const buffer = await response.arrayBuffer();
+      await fsPromises.writeFile(dest, Buffer.from(buffer));
+    }
+  } else {
+    await assertDir(audioDir, 'Audio directory');
+  }
+
   await assertFile(thumbnail, 'Thumbnail');
   if (music) await assertFile(path.resolve(music), 'Music');
   if (intro) await assertFile(path.resolve(intro), 'Intro');
@@ -404,6 +450,16 @@ async function main(): Promise<void> {
   });
 
   console.log(`YouTube upload complete: https://youtube.com/watch?v=${youtubeId}`);
+
+  if (audioUrlParam && audioDir.includes('.tmp-audio-dir-')) {
+    console.log('Cleaning up temporary audio directory...');
+    await fsPromises.rm(audioDir, { recursive: true, force: true }).catch(() => {});
+  }
+
+  if (thumbnailUrlParam && thumbnail.includes('.tmp-thumbnail-')) {
+    console.log('Cleaning up temporary thumbnail...');
+    await fsPromises.rm(thumbnail, { force: true }).catch(() => {});
+  }
 }
 
 main().catch(error => {
