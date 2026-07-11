@@ -75,7 +75,7 @@ export class HybridValidator {
                     const commonWords = [...aiWords].filter(w => queueWords.has(w));
                     const overlapRatio = commonWords.length / Math.min(aiWords.size, queueWords.size);
 
-                    return overlapRatio > 0.6;
+                    return overlapRatio > 0.4;
                 });
 
                 return !isSimilarToQueue;
@@ -99,10 +99,10 @@ export class HybridValidator {
             ideaMapping.set(longIdea, aiIdea);
         }
 
-        // Apply elimination rules (30-day window, overuse threshold)
+        // Apply elimination rules (90-day window, stricter overuse threshold)
         const eligible = hardEliminate(ideasToCheck, history, {
-            recentDaysWindow: 30,
-            topicOveruseThreshold: 2.0,
+            recentDaysWindow: 90,
+            topicOveruseThreshold: 1.5,
         });
 
         // Get unique AI ideas that passed

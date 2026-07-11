@@ -57,8 +57,8 @@ export class YouTubeDataService {
     /**
      * Fetch recent channel videos
      */
-    async fetchRecentVideos(maxResults: number = 50): Promise<YouTubeVideo[]> {
-        console.error(`📹 Fetching recent ${maxResults} videos from channel...`);
+    async fetchRecentVideos(maxResults: number = 500, daysBack: number = 90): Promise<YouTubeVideo[]> {
+        console.error(`📹 Fetching recent videos from channel (up to ${daysBack} days back, max ${maxResults})...`);
 
         try {
             // Get channel uploads playlist ID
@@ -72,30 +72,54 @@ export class YouTubeDataService {
                 throw new Error('Could not find uploads playlist');
             }
 
-            // Fetch videos from uploads playlist
-            const playlistResponse = await this.youtube.playlistItems.list({
-                part: ['snippet', 'contentDetails'],
-                playlistId: uploadsPlaylistId,
-                maxResults,
-            });
+            const videoIds: string[] = [];
+            let nextPageToken: string | undefined | null = undefined;
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - daysBack);
 
-            const videoIds = playlistResponse.data.items
-                ?.map(item => item.contentDetails?.videoId)
-                .filter(Boolean) as string[];
+            let reachedCutoff = false;
+
+            // Fetch videos from uploads playlist with pagination
+            do {
+                const playlistResponse: any = await this.youtube.playlistItems.list({
+                    part: ['snippet', 'contentDetails'],
+                    playlistId: uploadsPlaylistId,
+                    maxResults: 50,
+                    pageToken: nextPageToken || undefined,
+                });
+
+                for (const item of playlistResponse.data.items || []) {
+                    const publishedAt = item.snippet?.publishedAt;
+                    if (publishedAt && new Date(publishedAt) < cutoffDate) {
+                        reachedCutoff = true;
+                    }
+                    if (!reachedCutoff && videoIds.length < maxResults) {
+                        if (item.contentDetails?.videoId) {
+                            videoIds.push(item.contentDetails.videoId);
+                        }
+                    }
+                }
+
+                nextPageToken = playlistResponse.data.nextPageToken;
+
+            } while (nextPageToken && !reachedCutoff && videoIds.length < maxResults);
 
             if (!videoIds || videoIds.length === 0) {
                 console.error('⚠️ No videos found in channel');
                 return [];
             }
 
-            // Get detailed video info including duration
-            const videosResponse = await this.youtube.videos.list({
-                part: ['snippet', 'contentDetails'],
-                id: videoIds,
-            });
+            // Get detailed video info including duration. Batch in chunks of 50.
+            const videos: YouTubeVideo[] = [];
+            for (let i = 0; i < videoIds.length; i += 50) {
+                const batchIds = videoIds.slice(i, i + 50);
+                const videosResponse = await this.youtube.videos.list({
+                    part: ['snippet', 'contentDetails'],
+                    id: batchIds,
+                });
 
-            const videos: YouTubeVideo[] = videosResponse.data.items?.map(item => {
-                const duration = item.contentDetails?.duration || 'PT0S';
+                const batchVideos = videosResponse.data.items?.map(item => {
+                    const duration = item.contentDetails?.duration || 'PT0S';
                 const durationSeconds = this.parseDuration(duration);
                 const isShort = durationSeconds <= 60; // Shorts are <= 60 seconds
 
@@ -109,6 +133,9 @@ export class YouTubeDataService {
                     isShort,
                 };
             }) || [];
+            
+                videos.push(...batchVideos);
+            }
 
             console.error(`✅ Fetched ${videos.length} videos (${videos.filter(v => v.isShort).length} shorts, ${videos.filter(v => !v.isShort).length} long-form)`);
             return videos;

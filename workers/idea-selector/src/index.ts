@@ -65,7 +65,7 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
         // Step 1: Fetch channel videos from YouTube
         console.error('\n📊 STEP 1: Fetching channel data from YouTube...');
         const youtubeService = new YouTubeDataService();
-        const recentVideos = await youtubeService.fetchRecentVideos(50);
+        const recentVideos = await youtubeService.fetchRecentVideos(500, 90);
 
         if (recentVideos.length === 0) {
             throw new Error('No videos found in channel. Cannot generate ideas.');
