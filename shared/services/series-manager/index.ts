@@ -104,6 +104,10 @@ export class SeriesManager {
             const series = await this.redis.getSeries(id);
             if (!series || series.status !== 'active') continue;
             
+            // Skip series that already have an episode in progress
+            const hasInProgress = series.learningQueue.some(item => item.status === 'in_progress');
+            if (hasInProgress) continue;
+
             if (series.priority > selectedPriority) {
                 selectedSeriesId = id;
                 selectedPriority = series.priority;
@@ -127,8 +131,8 @@ export class SeriesManager {
                 series.learningQueue.push(...newEpisodes);
             }
 
-            // Find the first pending or in_progress item
-            const nextItem = series.learningQueue.find(item => item.status === 'pending' || item.status === 'in_progress');
+            // Find the first pending item
+            const nextItem = series.learningQueue.find(item => item.status === 'pending' || !item.status);
             
             if (!nextItem) {
                 return; // Nothing to schedule

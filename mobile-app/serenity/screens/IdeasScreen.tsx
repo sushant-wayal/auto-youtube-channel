@@ -194,22 +194,30 @@ function IdeaCardItem({
                             ) : (
                                 <>
                                     {isSeries ? (
-                                        <View style={{ flex: 1, flexDirection: 'column' }}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                                                <View style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexDirection: 'row', alignItems: 'center' }}>
-                                                    <Ionicons name="tv-outline" size={10} color="#6366f1" style={{ marginRight: 4 }} />
-                                                    <Text style={{ color: '#6366f1', fontSize: 10, fontWeight: '700', textTransform: 'uppercase' }}>
-                                                        Series: {parsedIdea?.seriesContext?.seriesTitle || 'Unknown'}
+                                        <View style={styles.seriesContentContainer}>
+                                            <View style={styles.seriesBadgeRow}>
+                                                <LinearGradient
+                                                    colors={['rgba(139, 92, 246, 0.12)', 'rgba(99, 102, 241, 0.12)']}
+                                                    start={{ x: 0, y: 0 }}
+                                                    end={{ x: 1, y: 0 }}
+                                                    style={styles.seriesBadge}
+                                                >
+                                                    <Ionicons name="layers-outline" size={12} color={colors.primary} />
+                                                    <Text style={styles.seriesBadgeText} numberOfLines={1}>
+                                                        {parsedIdea?.seriesContext?.seriesTitle || 'Series'}
                                                     </Text>
-                                                </View>
+                                                </LinearGradient>
                                             </View>
                                             <Text style={[styles.ideaTextMinimal, isExpanded && styles.ideaTextExpanded]} numberOfLines={isExpanded ? undefined : 2}>
                                                 {parsedIdea?.topic}
                                             </Text>
-                                            {parsedIdea?.seriesContext?.learningObjective && (
-                                                <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 4 }} numberOfLines={isExpanded ? undefined : 1}>
-                                                    {parsedIdea.seriesContext.learningObjective}
-                                                </Text>
+                                            {parsedIdea?.seriesContext?.learningObjective && isExpanded && (
+                                                <View style={styles.objectiveContainer}>
+                                                    <Ionicons name="bulb-outline" size={14} color={colors.gradientTo} style={styles.objectiveIcon} />
+                                                    <Text style={styles.objectiveText}>
+                                                        {parsedIdea.seriesContext.learningObjective}
+                                                    </Text>
+                                                </View>
                                             )}
                                         </View>
                                     ) : (
@@ -806,5 +814,52 @@ const styles = StyleSheet.create({
         fontSize: typography.fontSizeXs,
         fontWeight: typography.fontWeightSemibold,
         color: colors.foreground,
+    },
+    seriesContentContainer: {
+        flex: 1,
+        flexDirection: 'column',
+    },
+    seriesBadgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: spacing.xs,
+        flexShrink: 1,
+    },
+    seriesBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: borderRadius.sm,
+        borderWidth: 1,
+        borderColor: 'rgba(139, 92, 246, 0.3)',
+        gap: 6,
+        flexShrink: 1,
+    },
+    seriesBadgeText: {
+        color: colors.primary,
+        fontSize: 10,
+        fontWeight: typography.fontWeightBold,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        flexShrink: 1,
+    },
+    objectiveContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginTop: spacing.sm,
+        paddingTop: spacing.sm,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.04)',
+        gap: spacing.xs,
+    },
+    objectiveIcon: {
+        marginTop: 1,
+    },
+    objectiveText: {
+        flex: 1,
+        color: colors.foregroundMuted,
+        fontSize: typography.fontSizeSm,
+        lineHeight: 20,
     },
 });

@@ -456,3 +456,96 @@ export const settingsApi = {
         }
     },
 };
+
+// Series Management API Types
+export type SeriesQueueItem = {
+    episodeId: string;
+    topic: string;
+    learningObjective: string;
+    difficulty: "beginner" | "intermediate" | "advanced";
+    estimatedDuration: string;
+    prerequisites: string[];
+    status?: "pending" | "in_progress";
+};
+
+export type SeriesState = {
+    id: string;
+    title: string;
+    learningGoal: string;
+    status: "active" | "paused" | "completed";
+    version: number;
+    priority: number;
+    uploadCount: number;
+    lastUploadTimestamp: string;
+    learningQueue: SeriesQueueItem[];
+    history: any[];
+};
+
+export type SeriesResponse = {
+    ok: boolean;
+    series?: SeriesState | SeriesState[];
+    error?: string;
+};
+
+// Series API
+export const seriesApi = {
+    getSeries: async (): Promise<SeriesResponse> => {
+        try {
+            console.log('[API] Fetching series from:', `${API_BASE_URL}/api/series`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`);
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error fetching series:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    createSeries: async (title: string, learningGoal: string): Promise<SeriesResponse> => {
+        try {
+            console.log('[API] Creating series:', title);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'create', title, learningGoal }),
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error creating series:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    updateSeriesStatus: async (id: string, status: 'active' | 'paused'): Promise<SeriesResponse> => {
+        try {
+            console.log('[API] Updating series status:', id, status);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'updateStatus', id, status }),
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error updating series status:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    deleteSeries: async (id: string): Promise<SeriesResponse> => {
+        try {
+            console.log('[API] Deleting series:', id);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'delete', id }),
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error deleting series:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    }
+};

@@ -14,7 +14,7 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 
 // Load environment variables from .env.local
-config({ path: resolve(__dirname, '../.env.local') });
+config({ path: resolve(__dirname, '../../../.env.local') });
 
 import { YouTubeDataService } from './lib/youtube-data-service';
 import { GeminiIdeaGenerator, TopicIdea } from './lib/gemini-idea-generator';
@@ -40,13 +40,15 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
     try {
         // Validate environment variables
         const requiredEnvVars = [
-            'GEMINI_API_KEY_1',
             'YT_CLIENT_ID',
             'YT_CLIENT_SECRET',
             'YT_REFRESH_TOKEN',
         ];
 
         const missingVars = requiredEnvVars.filter(v => !process.env[v]);
+        if (!process.env.GEMINI_API_KEY_1 && !process.env.GEMINI_API_KEY) {
+            missingVars.push('GEMINI_API_KEY_1 or GEMINI_API_KEY');
+        }
         if (missingVars.length > 0) {
             throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
         }

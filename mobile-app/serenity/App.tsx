@@ -11,6 +11,7 @@ import IdeasScreen from './screens/IdeasScreen';
 import ScheduleTimesScreen from './screens/ScheduleTimesScreen';
 import PipelineStatusScreen from './screens/PipelineStatusScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import SeriesScreen from './screens/SeriesScreen';
 import { borderRadius, colors, gradients, motion, shadows, spacing, typography } from './theme';
 import { pipelineApi } from './services/api';
 
@@ -28,16 +29,15 @@ Notifications.setNotificationHandler({
 });
 
 const Tab = createMaterialTopTabNavigator();
-const NUM_TABS = 3;
+const NUM_TABS = 4;
 
 type TabItemProps = {
-    label: string;
     icon: React.ComponentProps<typeof Ionicons>['name'];
     isActive: boolean;
     onPress: () => void;
 };
 
-function TabItem({ label, icon, isActive, onPress }: TabItemProps) {
+function TabItem({ icon, isActive, onPress }: TabItemProps) {
     const scale = React.useRef(new Animated.Value(1)).current;
 
     const handlePressIn = () => {
@@ -76,14 +76,11 @@ function TabItem({ label, icon, isActive, onPress }: TabItemProps) {
                     >
                         <Ionicons
                             name={icon}
-                            size={14}
+                            size={18}
                             color={isActive ? colors.primaryForeground : colors.foregroundMuted}
                         />
                     </LinearGradient>
                 </View>
-                <Text style={[styles.tabLabel, isActive ? styles.tabLabelActive : styles.tabLabelInactive]}>
-                    {label}
-                </Text>
             </Animated.View>
         </TouchableOpacity>
     );
@@ -181,8 +178,8 @@ export default function App() {
                                     width: tabWidth - 8,
                                     transform: [{
                                         translateX: indicatorPosition.interpolate({
-                                            inputRange: [0, 1, 2],
-                                            outputRange: [0, tabWidth, tabWidth * 2],
+                                            inputRange: [0, 1, 2, 3],
+                                            outputRange: [0, tabWidth, tabWidth * 2, tabWidth * 3],
                                         }),
                                     }],
                                 },
@@ -196,9 +193,10 @@ export default function App() {
                             />
                         </Animated.View>
 
-                        <TabItem label="Ideas" icon="bulb-outline" isActive={activeTab === 0} onPress={() => handleTabPress(0, 'Ideas')} />
-                        <TabItem label="Schedule" icon="time-outline" isActive={activeTab === 1} onPress={() => handleTabPress(1, 'Schedule')} />
-                        <TabItem label="Pipeline" icon="git-branch-outline" isActive={activeTab === 2} onPress={() => handleTabPress(2, 'Pipeline')} />
+                        <TabItem icon="bulb-outline" isActive={activeTab === 0} onPress={() => handleTabPress(0, 'Ideas')} />
+                        <TabItem icon="layers-outline" isActive={activeTab === 1} onPress={() => handleTabPress(1, 'Series')} />
+                        <TabItem icon="time-outline" isActive={activeTab === 2} onPress={() => handleTabPress(2, 'Schedule')} />
+                        <TabItem icon="git-branch-outline" isActive={activeTab === 3} onPress={() => handleTabPress(3, 'Pipeline')} />
                     </View>
                 </LinearGradient>
 
@@ -223,6 +221,7 @@ export default function App() {
                         }}
                     >
                         <Tab.Screen name="Ideas" component={IdeasScreen} options={{}} />
+                        <Tab.Screen name="Series" component={SeriesScreen} options={{}} />
                         <Tab.Screen name="Schedule" component={ScheduleTimesScreen} options={{}} />
                         <Tab.Screen name="Pipeline" component={PipelineStatusScreen} options={{}} />
                     </Tab.Navigator>
@@ -289,9 +288,9 @@ const styles = StyleSheet.create({
         gap: spacing.xs + 2,
     },
     iconShell: {
-        width: 26,
-        height: 26,
-        borderRadius: 13,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         overflow: 'hidden',
         opacity: 0.75,
         borderWidth: 1,
@@ -306,18 +305,7 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 13,
-    },
-    tabLabel: {
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightSemibold,
-        letterSpacing: 0.3,
-    },
-    tabLabelActive: {
-        color: colors.foreground,
-    },
-    tabLabelInactive: {
-        color: colors.foregroundMuted,
+        borderRadius: 16,
     },
     pillIndicator: {
         position: 'absolute',
