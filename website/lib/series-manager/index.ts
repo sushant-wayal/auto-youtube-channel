@@ -184,7 +184,7 @@ export class SeriesManager {
             // Remove it from the learningQueue now that it's complete
             series.learningQueue = series.learningQueue.filter(q => q.episodeId !== episodeId);
 
-            series.uploadCount++;
+            series.uploadCount = (series.uploadCount || 0) + 1;
             series.lastUploadTimestamp = new Date().toISOString();
             
             queueLengthAfter = series.learningQueue.length;
@@ -193,9 +193,11 @@ export class SeriesManager {
         // If queue is getting low (e.g. <= 1 item left), expand it in the background
         // Doing this outside of mutateSeries so AI API calls don't block the optimistic lock
         if (queueLengthAfter > 0 && queueLengthAfter <= 1) {
-            this.expandQueue(seriesId).catch(err => {
+            try {
+                await this.expandQueue(seriesId);
+            } catch (err) {
                 console.error(`Background queue expansion failed for ${seriesId}:`, err);
-            });
+            }
         }
     }
 

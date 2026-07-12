@@ -146,15 +146,18 @@ export default function SeriesScreen() {
                                             <Text style={styles.sectionTitle}>Upcoming Episodes</Text>
                                         </View>
                                         <View style={styles.timeline}>
-                                            {item.learningQueue.slice(0, 3).map((ep, idx) => (
-                                                <View key={ep.episodeId || idx} style={styles.timelineItem}>
-                                                    <View style={styles.timelineDot} />
-                                                    <Text style={styles.queueTopic} numberOfLines={2}>
-                                                        <Text style={styles.episodeNumber}>Ep {idx + 1}: </Text>
-                                                        {ep.topic}
-                                                    </Text>
-                                                </View>
-                                            ))}
+                                            {item.learningQueue.slice(0, 3).map((ep, idx) => {
+                                                const baseEpisodeNum = (item.history?.length || item.uploadCount || 0) + 1;
+                                                return (
+                                                    <View key={ep.episodeId || idx} style={styles.timelineItem}>
+                                                        <View style={styles.timelineDot} />
+                                                        <Text style={styles.queueTopic} numberOfLines={2}>
+                                                            <Text style={styles.episodeNumber}>Ep {baseEpisodeNum + idx}: </Text>
+                                                            {ep.topic}
+                                                        </Text>
+                                                    </View>
+                                                );
+                                            })}
                                             {item.learningQueue.length > 3 && (
                                                 <View style={styles.timelineItem}>
                                                     <View style={[styles.timelineDot, styles.timelineDotMuted]} />

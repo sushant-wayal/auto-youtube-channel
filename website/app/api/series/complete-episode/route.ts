@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { SeriesManager } from '@/lib/series-manager';
 
+export const maxDuration = 60; // Allow enough time for AI queue expansion
+
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -14,16 +16,9 @@ export async function POST(request: Request) {
         
         const manager = new SeriesManager();
         
-        // Fire and forget since AI expansion could take 10-20 seconds
-        manager.completeEpisode(seriesId, episodeId, topic, videoId)
-            .then(async () => {
-                console.log('Worker completion finished successfully.');
-                await manager.close();
-            })
-            .catch(async (err) => {
-                console.error('Worker completion error:', err);
-                await manager.close();
-            });
+        await manager.completeEpisode(seriesId, episodeId, topic, videoId);
+        console.log('Worker completion finished successfully.');
+        await manager.close();
 
         return NextResponse.json({ success: true, message: `Completion trigger accepted for ${seriesId}.` });
 
