@@ -1,0 +1,271 @@
+name: Live Stream Pipeline
+
+# ── Trigger ───────────────────────────────────────────────────────────────────
+# Only triggered manually — completely separate from the daily long-form pipeline.
+on:
+  workflow_dispatch:
+    inputs:
+      video_idea:
+        description: 'Topic / idea for the live stream'
+        required: true
+        type: string
+      duration:
+        description: 'Target duration in minutes (default: 3)'
+        required: false
+        default: '3'
+        type: string
+      privacy:
+        description: 'YouTube privacy setting'
+        required: false
+        default: 'private'
+        type: choice
+        options:
+          - private
+          - unlisted
+          - public
+
+# ── Jobs ──────────────────────────────────────────────────────────────────────
+jobs:
+
+  # ── Stage 1: Generate the script ────────────────────────────────────────────
+  live-generate-script:
+    name: 🎬 Generate Script
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      video_id:    ${{ steps.script.outputs.video_id }}
+      scene_count: ${{ steps.script.outputs.scene_count }}
+      script_data: ${{ steps.script.outputs.script_data }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate live stream script
+        id: script
+        env:
+          WEBSITE_DOMAIN:   ${{ vars.WEBSITE_DOMAIN }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          REDIS_URL:        ${{ secrets.REDIS_URL }}
+          SCENE_RENDER_METHOD: ai
+        run: |
+          npx tsx .github/scripts/live-generate-script.ts \
+            "${{ github.event.inputs.video_idea }}" \
+            "${{ github.event.inputs.duration }}" >> "$GITHUB_OUTPUT"
+
+  # ── Stage 2: Build the scene index matrix ───────────────────────────────────
+  live-scene-matrix-setup:
+    name: 🗂 Setup Scene Matrix
+    needs: live-generate-script
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      scene_indices: ${{ steps.matrix.outputs.scene_indices }}
+      scene_count:   ${{ steps.matrix.outputs.scene_count }}
+
+    steps:
+      - name: Compute scene indices
+        id: matrix
+        run: |
+          SCENE_COUNT="${{ needs.live-generate-script.outputs.scene_count }}"
+          SCENE_INDICES=$(node -e "console.log(JSON.stringify(Array.from({length: $SCENE_COUNT}, (_, i) => i)))")
+          echo "scene_indices=$SCENE_INDICES" >> $GITHUB_OUTPUT
+          echo "scene_count=$SCENE_COUNT"     >> $GITHUB_OUTPUT
+          echo "🎬 Scene indices: $SCENE_INDICES"
+
+  # ── Stage 3a: Render each scene (parallel matrix) ───────────────────────────
+  live-render-scene:
+    name: "🎨 Render Scene #${{ matrix.scene_index }}"
+    needs: [live-generate-script, live-scene-matrix-setup]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false   # one scene failing should not cancel siblings
+      matrix:
+        scene_index: ${{ fromJson(needs.live-scene-matrix-setup.outputs.scene_indices) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install system dependencies (Puppeteer + FFmpeg)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+            libxkbcommon0 libxcomposite1 libxrandr2 libgbm1 \
+            libpangocairo-1.0-0 libasound2t64
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Render scene ${{ matrix.scene_index }}
+        env:
+          SCENE_INDEX:          ${{ matrix.scene_index }}
+          VIDEO_ID:             ${{ needs.live-generate-script.outputs.video_id }}
+          SCRIPT_DATA:          ${{ needs.live-generate-script.outputs.script_data }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY:   ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          WEBSITE_DOMAIN:       ${{ vars.WEBSITE_DOMAIN }}
+          SCENE_RENDER_METHOD:  ai
+          GEMINI_API_KEY_1:     ${{ secrets.GEMINI_API_KEY_1 }}
+          REDIS_URL:            ${{ secrets.REDIS_URL }}
+        run: npx tsx .github/scripts/live-render-single-scene.ts
+
+  # ── Stage 3b: Generate voiceover for each scene (parallel matrix) ────────────
+  live-voiceover-scene:
+    name: "🎤 Voiceover Scene #${{ matrix.scene_index }}"
+    needs: [live-generate-script, live-scene-matrix-setup]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        scene_index: ${{ fromJson(needs.live-scene-matrix-setup.outputs.scene_indices) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install system dependencies (FFmpeg for audio processing)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate voiceover for scene ${{ matrix.scene_index }}
+        env:
+          SCENE_INDEX:          ${{ matrix.scene_index }}
+          VIDEO_ID:             ${{ needs.live-generate-script.outputs.video_id }}
+          SCRIPT_DATA:          ${{ needs.live-generate-script.outputs.script_data }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY:   ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          GEMINI_API_KEY_1:     ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2:     ${{ secrets.GEMINI_API_KEY_2 }}
+          VOICEOVER_PROVIDER:   gemini
+        run: npx tsx .github/scripts/live-voiceover-single-scene.ts
+
+  # ── Stage 4: Assemble each scene segment (parallel matrix) ───────────────────
+  # Waits for ALL render + voiceover matrix jobs to complete first.
+  # URL reconstruction is deterministic — no inter-matrix output passing needed.
+  live-assemble-scene:
+    name: "🧩 Assemble Segment #${{ matrix.scene_index }}"
+    needs: [live-generate-script, live-scene-matrix-setup, live-render-scene, live-voiceover-scene]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        scene_index: ${{ fromJson(needs.live-scene-matrix-setup.outputs.scene_indices) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install system dependencies (FFmpeg)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Assemble segment ${{ matrix.scene_index }}
+        env:
+          SCENE_INDEX:          ${{ matrix.scene_index }}
+          VIDEO_ID:             ${{ needs.live-generate-script.outputs.video_id }}
+          SCRIPT_DATA:          ${{ needs.live-generate-script.outputs.script_data }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY:   ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+        run: npx tsx .github/scripts/live-assemble-single-scene.ts
+
+  # ── Stage 5: Stream all segments to YouTube as one broadcast ─────────────────
+  live-stream-to-youtube:
+    name: 🚀 Stream to YouTube
+    needs: [live-generate-script, live-scene-matrix-setup, live-assemble-scene]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90   # must be longer than the video itself
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install system dependencies (FFmpeg)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Stream to YouTube Live
+        env:
+          VIDEO_ID:             ${{ needs.live-generate-script.outputs.video_id }}
+          SCENE_COUNT:          ${{ needs.live-scene-matrix-setup.outputs.scene_count }}
+          SCRIPT_DATA:          ${{ needs.live-generate-script.outputs.script_data }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          YT_CLIENT_ID:         ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET:     ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN:     ${{ secrets.YT_REFRESH_TOKEN }}
+          PRIVACY:              ${{ github.event.inputs.privacy }}
+        run: npx tsx .github/scripts/live-stream-to-youtube.ts
+
+  # ── Summary ───────────────────────────────────────────────────────────────────
+  live-summary:
+    name: 📋 Pipeline Summary
+    needs:
+      - live-generate-script
+      - live-scene-matrix-setup
+      - live-render-scene
+      - live-voiceover-scene
+      - live-assemble-scene
+      - live-stream-to-youtube
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Write summary
+        run: |
+          echo "## 🔴 Live Stream Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Script Generation     | ${{ needs['live-generate-script'].result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Scene Matrix Setup    | ${{ needs['live-scene-matrix-setup'].result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Scene Rendering       | ${{ needs['live-render-scene'].result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Voiceover Generation  | ${{ needs['live-voiceover-scene'].result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Scene Assembly        | ${{ needs['live-assemble-scene'].result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| YouTube Streaming     | ${{ needs['live-stream-to-youtube'].result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Video ID:** ${{ needs.live-generate-script.outputs.video_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Scenes:** ${{ needs.live-generate-script.outputs.scene_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Idea:** ${{ github.event.inputs.video_idea }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Privacy:** ${{ github.event.inputs.privacy }}" >> $GITHUB_STEP_SUMMARY
