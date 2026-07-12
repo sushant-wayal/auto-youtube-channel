@@ -65,7 +65,8 @@ export class YouTubeLiveService {
                     title: `${title} - Stream`,
                 },
                 cdn: {
-                    format: `${resolution}_${frameRate}`,
+                    resolution: resolution,
+                    frameRate: frameRate,
                     ingestionType: "rtmp",
                 },
             },
