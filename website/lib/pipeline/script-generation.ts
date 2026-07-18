@@ -147,7 +147,7 @@ REQUIRED OUTPUT FORMAT
     {
       "id": "short-1",
       "hook": "Why databases round-trip on every read?",
-      "instagramCaption": "Your cache hit rate can quietly multiply database load. Save this before tuning your next production cache. #SoftwareEngineering #Databases #Caching",
+      "instagramCaption": "Your cache hit rate can quietly multiply database load.\\n\\nUnderstanding this one concept can save your production database from buckling under pressure.\\n\\nSave this before tuning your next production cache.\\n\\n#SoftwareEngineering #Databases #Caching",
       "scenes": [
         {
           "id": "hook",
@@ -309,9 +309,11 @@ SHORTS RULES (CRITICAL)
 
 - 3-5 shorts maximum
 - Every short MUST include an "instagramCaption" string written specifically for publishing the corresponding video as an Instagram Reel.
+- The caption must be 3-4 paragraphs long, each containing 1-4 sentences. Use standard JSON newlines (\\n\\n) to separate paragraphs.
 - The caption must accurately match that short's hook and narration, open with a compelling human-readable line, add useful context or a natural call to action, and be ready to paste without editing.
 - Do not use markdown, labels such as "Caption:", fake quotations, or engagement bait.
-- Put hashtags naturally at the end of the caption and use NO MORE THAN 5 hashtags. Prefer 3-5 highly relevant hashtags over generic tags.
+- The hashtags MUST be placed in their own final paragraph at the very end (making the total 4-5 paragraphs including the hashtag paragraph).
+- Use NO MORE THAN 5 hashtags in that last paragraph. Prefer 3-5 highly relevant hashtags over generic tags.
 - Never include #fyp, #viral, #explorepage, or unrelated trending hashtags.
 - Each short is divided into TWO phases:
   1. HOOK SCENE (0.8-1.5 seconds): Silent visual-only scroll-stopper
