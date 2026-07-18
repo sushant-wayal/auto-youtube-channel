@@ -50,52 +50,83 @@ export class ClipsRenderService {
     const timings: number[] = [];
     const animationStopTimes: number[] = [];
 
-    for (let i = 0; i < this.scenes.length; i++) {
-      console.error(`🎬 Rendering scene ${i + 1} of ${this.scenes.length}...`);
+    const redis = new Redis(process.env.REDIS_URL!);
 
-      const scene = this.scenes[i];
-      const resolvedTheme = scene.sceneTheme && scene.sceneTheme !== "auto"
-        ? scene.sceneTheme
-        : (i % 2 === 0 ? "light" : "dark");
+    try {
+      for (let i = 0; i < this.scenes.length; i++) {
+        const scene = this.scenes[i];
+        const cacheKey = `render_cache:${this.jobId}:${scene.id}`;
 
-      const sceneDuration = scene.baseDuration + (scene.holdDuration ?? 0);
-      const duration = this.renderMethod === "ai" ? Math.min(sceneDuration, 120) : sceneDuration;
-      const { html, animationStopTime } = this.renderMethod === "ai"
-        ? await this.generateAiSceneHtml(scene, duration)
-        : this.htmlRenderer.render({
-          duration: scene.baseDuration,
-          actions: scene.actions,
-          sceneTheme: resolvedTheme,
-        }, height, width);
+        const cached = await redis.hgetall(cacheKey);
+        if (cached && cached.url && cached.timing && cached.animationStopTime) {
+          console.error(`🎬 Skipping scene ${i + 1} of ${this.scenes.length} (already rendered).`);
+          urls.push(cached.url);
+          timings.push(Number(cached.timing));
+          animationStopTimes.push(Number(cached.animationStopTime));
+          continue;
+        }
 
-      const outPath = path.join(
-        outputDir,
-        `scene_${String(i).padStart(3, "0")}.mp4`
-      );
+        console.error(`🎬 Rendering scene ${i + 1} of ${this.scenes.length}...`);
 
-      await this.videoRenderer.render({
-        html,
-        width: width,
-        height: height,
-        fps: fps,
-        duration,
-        output: outPath
-      });
+        const resolvedTheme = scene.sceneTheme && scene.sceneTheme !== "auto"
+          ? scene.sceneTheme
+          : (i % 2 === 0 ? "light" : "dark");
 
-      const result = await this.cloudinaryService.uploadVideo(
-        outPath,
-        "scenes",
-        `${this.jobId}_scene_${scene.id}`
-      );
+        const sceneDuration = scene.baseDuration + (scene.holdDuration ?? 0);
+        const duration = this.renderMethod === "ai" ? Math.min(sceneDuration, 120) : sceneDuration;
+        const { html, animationStopTime } = this.renderMethod === "ai"
+          ? await this.generateAiSceneHtml(scene, duration)
+          : this.htmlRenderer.render({
+            duration: scene.baseDuration,
+            actions: scene.actions,
+            sceneTheme: resolvedTheme,
+          }, height, width);
 
-      fs.unlinkSync(outPath);
+        const outPath = path.join(
+          outputDir,
+          `scene_${String(i).padStart(3, "0")}.mp4`
+        );
 
-      urls.push(result.secureUrl);
-      timings.push(duration);
-      animationStopTimes.push(animationStopTime);
+        await this.videoRenderer.render({
+          html,
+          width: width,
+          height: height,
+          fps: fps,
+          duration,
+          output: outPath
+        });
+
+        const result = await this.cloudinaryService.uploadVideo(
+          outPath,
+          "scenes",
+          `${this.jobId}_scene_${scene.id}`
+        );
+
+        fs.unlinkSync(outPath);
+
+        urls.push(result.secureUrl);
+        timings.push(duration);
+        animationStopTimes.push(animationStopTime);
+
+        await redis.hset(cacheKey, {
+          url: result.secureUrl,
+          timing: duration,
+          animationStopTime: animationStopTime
+        });
+        await redis.expire(cacheKey, 86400); // 1 day expiration for safety
+      }
+
+      fs.rmSync(outputDir, { recursive: true, force: true });
+
+      // Cleanup redis keys since all scenes rendered successfully
+      const pipeline = redis.multi();
+      for (const scene of this.scenes) {
+        pipeline.del(`render_cache:${this.jobId}:${scene.id}`);
+      }
+      await pipeline.exec();
+    } finally {
+      await redis.quit();
     }
-
-    fs.rmSync(outputDir, { recursive: true, force: true });
 
     // Await all pending rate-limit cooldowns (65 seconds sleep + queue releases)
     if (this.pendingCleanups.length > 0) {
