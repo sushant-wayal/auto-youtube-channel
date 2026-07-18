@@ -93,3 +93,385 @@ footer{max-width:1180px;margin:auto;border-top:1px solid #222127;padding:45px 28
     min-height: 520px;
   }
 }
+
+/* ── Demo card: real video thumbnails ── */
+.demo-thumb-video {
+  background: #0a0a0d;
+  height: 250px;
+  position: relative;
+  overflow: hidden;
+  display: block;
+  cursor: pointer;
+}
+.demo-thumb-vid {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.demo-thumb-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,.18) 0%, rgba(0,0,0,.55) 100%);
+  pointer-events: none;
+}
+.demo-thumb-video button {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,.35);
+  color: white;
+  background: rgba(255,255,255,.15);
+  backdrop-filter: blur(12px);
+  display: grid;
+  place-items: center;
+  transition: .2s;
+}
+.demo-thumb-video button svg { width: 18px; }
+.demo-card:hover .demo-thumb-video button {
+  transform: translate(-50%, -50%) scale(1.1);
+  background: #8058e4;
+  border-color: transparent;
+}
+.demo-thumb-video small {
+  position: absolute;
+  z-index: 2;
+  right: 14px;
+  bottom: 13px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: rgba(9,9,11,.8);
+  font-size: 9px;
+  color: #ccc;
+}
+
+/* ══════════════════════════════════════════
+   VIDEO MODAL
+══════════════════════════════════════════ */
+.video-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(4, 4, 7, .88);
+  backdrop-filter: blur(18px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.video-modal-inner {
+  width: 100%;
+  max-width: 960px;
+  background: #0d0d10;
+  border: 1px solid #3a3552;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.04),
+    0 30px 80px rgba(0,0,0,.8),
+    0 0 60px rgba(130, 90, 240, .08);
+  display: flex;
+  flex-direction: column;
+  position: relative;  /* needed for .vc-bar absolute in fullscreen */
+}
+
+/* ══ Fullscreen layout ══
+   When the inner wrapper is the fullscreen element, it fills the screen. */
+.video-modal-inner:fullscreen,
+.video-modal-inner:-webkit-full-screen {
+  max-width: 100vw;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  background: #000;
+}
+.video-modal-inner:fullscreen .video-wrapper,
+.video-modal-inner:-webkit-full-screen .video-wrapper {
+  flex: 1 1 auto;
+  aspect-ratio: unset;
+  max-height: none;
+  width: 100%;
+}
+.video-modal-inner:fullscreen .video-modal-player,
+.video-modal-inner:-webkit-full-screen .video-modal-player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ── Header ── */
+.video-modal-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  background: #0d0d10;
+  border-bottom: 1px solid #232330;
+}
+.video-modal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e0ea;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.video-modal-close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #1a1922;
+  border: 1px solid #2e2c3a;
+  color: #888;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.video-modal-close:hover {
+  background: #252332;
+  border-color: #4a4660;
+  color: #ddd;
+}
+.video-modal-close svg { width: 15px; height: 15px; display: block; }
+
+/* ── Video wrapper ── */
+.video-wrapper {
+  position: relative;
+  background: #000;
+  cursor: pointer;
+  user-select: none;
+  /* Aspect ratio on the wrapper, not the video element */
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 160px);
+  overflow: hidden;
+}
+.video-modal-player {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #000;
+  /* Fill the wrapper; letterbox if video has different ratio */
+  object-fit: contain;
+}
+
+/* ── Centered pause icon ── */
+.video-center-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 3;
+  pointer-events: none;
+}
+.video-center-play svg {
+  width: 60px;
+  height: 60px;
+  color: rgba(255,255,255,.95);
+  filter: drop-shadow(0 2px 24px rgba(0,0,0,.8));
+}
+
+/* ── Controls bar — always absolute overlay (YouTube-style) ── */
+.vc-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: 36px 16px 12px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(4, 3, 12, .70) 40%,
+    rgba(4, 3, 12, .95) 100%
+  );
+}
+
+/* ── Scrubber ── */
+.vc-scrubber {
+  position: relative;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+.vc-track {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,.14);
+  border-radius: 99px;
+  transition: height .14s;
+}
+.vc-scrubber:hover .vc-track { height: 5px; }
+.vc-buffered {
+  position: absolute;
+  inset: 0;
+  right: auto;
+  background: rgba(255,255,255,.22);
+  border-radius: 99px;
+  pointer-events: none;
+}
+.vc-fill {
+  position: absolute;
+  inset: 0;
+  right: auto;
+  background: linear-gradient(90deg, #a074ff, #7046e0);
+  border-radius: 99px;
+  pointer-events: none;
+}
+.vc-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 8px rgba(0,0,0,.6);
+  pointer-events: none;
+  transition: transform .14s;
+}
+.vc-scrubber:hover .vc-thumb { transform: translate(-50%, -50%) scale(1); }
+
+/* ── Bottom row ── */
+.vc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.vc-left,
+.vc-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── Icon buttons ── */
+.vc-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,.75);
+  cursor: pointer;
+  transition: background .14s, color .14s;
+  flex-shrink: 0;
+}
+.vc-btn:hover {
+  background: rgba(255,255,255,.1);
+  color: #fff;
+}
+.vc-btn svg {
+  width: 19px;
+  height: 19px;
+  display: block;
+}
+
+/* ── Time display ── */
+.vc-time {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,.65);
+  letter-spacing: .02em;
+  white-space: nowrap;
+  padding: 0 6px;
+  line-height: 1;
+}
+.vc-time b {
+  color: rgba(255,255,255,.9);
+  font-weight: 500;
+}
+
+/* ── Volume ── */
+.vc-volume-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.vc-volume-slider {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+.vc-vol-range {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 72px;
+  height: 3px;
+  background: rgba(255,255,255,.2);
+  border-radius: 99px;
+  outline: none;
+  cursor: pointer;
+  margin: 0 6px;
+}
+.vc-vol-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(0,0,0,.4);
+}
+.vc-vol-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  border: none;
+}
+
+/* ── Title in controls ── */
+.vc-title {
+  font-size: 11px;
+  color: rgba(255,255,255,.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  letter-spacing: .01em;
+}
+
+/* Close button in controls bar */
+.vc-close-btn {
+  color: rgba(255,255,255,.5);
+}
+.vc-close-btn:hover {
+  color: #fff;
+  background: rgba(255,60,60,.15);
+}
+
+/* Time separator */
+.vc-time-sep {
+  margin: 0 5px;
+  color: rgba(255,255,255,.3);
+}
+
+/* Separator between groups */
+.vc-sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255,255,255,.1);
+  margin: 0 8px;
+  flex-shrink: 0;
+  border-radius: 1px;
+}
