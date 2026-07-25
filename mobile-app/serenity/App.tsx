@@ -141,6 +141,17 @@ export default function App() {
         })();
     }, []);
 
+    React.useEffect(() => {
+        const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+            console.log('[Push] Notification clicked!', response.notification.request.content.title);
+            if (navigationRef.isReady()) {
+                navigationRef.navigate('Pipeline' as never);
+            }
+        });
+
+        return () => subscription.remove();
+    }, [navigationRef]);
+
     const screenWidth = Dimensions.get('window').width;
     const innerWidth = screenWidth - spacing.md * 2;
     const tabWidth = innerWidth / NUM_TABS;
