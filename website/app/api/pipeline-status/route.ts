@@ -83,78 +83,21 @@ export async function POST(req: NextRequest) {
             videoId,
             videoTitle,
             youtubeId,
-            videoUrl,
-            thumbnailUrl,
-            description,
-            sceneUrls,
-            voiceoverUrls,
-            sceneNarrations,
-            shortHooks,
-            shortCaptions,
-            ideasAdded,
-            scriptData,
-            jobs,
         }: {
             overallStatus: 'success' | 'failure';
             videoId: string;
             videoTitle?: string;
             youtubeId?: string;
-            videoUrl?: string;
-            thumbnailUrl?: string;
-            description?: string;
-            sceneUrls?: string[];
-            voiceoverUrls?: string[];
-            sceneNarrations?: string[];
-            shortHooks?: string[];
-            shortCaptions?: string[];
-            ideasAdded?: string[];
-            scriptData?: unknown;
-            jobs: Record<string, string | null>;
         } = body;
 
-        if (!overallStatus || !videoId || !jobs) {
+        if (!overallStatus || !videoId) {
             return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
         }
 
         redis = getRedisClient();
 
-        // Read per-short results stored by each matrix runner
-        const shortsRaw = await redis.lrange(`pipeline:shorts:${videoId}`, 0, -1);
-        const shorts = shortsRaw.map(s => {
-            try { return JSON.parse(s); } catch { return null; }
-        }).filter(Boolean);
-
-        const status = {
-            overallStatus,
-            ranAt: new Date().toISOString(),
-            videoId,
-            videoTitle: videoTitle ?? videoId,
-            youtubeId: youtubeId ?? null,
-            videoUrl: videoUrl ?? null,
-            thumbnailUrl: thumbnailUrl ?? null,
-            description: description ?? null,
-            sceneUrls: sceneUrls ?? [],
-            voiceoverUrls: voiceoverUrls ?? [],
-            sceneNarrations: sceneNarrations ?? [],
-            shortHooks: shortHooks ?? [],
-            shortCaptions: shortCaptions ?? [],
-            ideasAdded: ideasAdded ?? [],
-            scriptData: scriptData ?? null,
-            shorts,
-            jobs: {
-                populateIdeas: jobs.populateIdeas ?? null,
-                generateScript: jobs.generateScript ?? null,
-                renderScenes: jobs.renderScenes ?? null,
-                generateVoiceover: jobs.generateVoiceover ?? null,
-                assembleLongForm: jobs.assembleLongForm ?? null,
-                generateThumbnail: jobs.generateThumbnail ?? null,
-                uploadYoutube: jobs.uploadYoutube ?? null,
-                shortsProcessing: jobs.shortsProcessing ?? null,
-            },
-        };
-
-        // Persist status (7-day TTL so stale data auto-clears)
-        await redis.set(PIPELINE_STATUS_KEY, JSON.stringify(status), 'EX', 60 * 60 * 24 * 7);
+        // Persist final overall status (handled by Redis status tracking)
+        await redis.set('pipeline:status:overall', overallStatus, 'EX', 60 * 60 * 24 * 7);
 
         // Send push notification if a token is registered
         const pushToken = await redis.get(PUSH_TOKEN_KEY);
@@ -184,11 +127,59 @@ export async function GET() {
     let redis: Redis | null = null;
     try {
         redis = getRedisClient();
-        const raw = await redis.get(PIPELINE_STATUS_KEY);
-        if (!raw) {
-            return NextResponse.json({ ok: true, status: null });
+        
+        const overall = await redis.get('pipeline:status:overall');
+        
+        // If the new keys don't exist, check fallback for older runs
+        if (!overall) {
+            const raw = await redis.get(PIPELINE_STATUS_KEY);
+            if (!raw) {
+                return NextResponse.json({ ok: true, status: null });
+            }
+            return NextResponse.json({ ok: true, status: JSON.parse(raw) });
         }
-        return NextResponse.json({ ok: true, status: JSON.parse(raw) });
+
+        const metadata = await redis.hgetall('pipeline:status:metadata');
+        const jobs = await redis.hgetall('pipeline:status:jobs');
+        const sceneUrls = await redis.lrange('pipeline:status:sceneUrls', 0, -1);
+        const voiceoverUrls = await redis.lrange('pipeline:status:voiceoverUrls', 0, -1);
+        const ideasAdded = await redis.lrange('pipeline:status:ideasAdded', 0, -1);
+        
+        const shortsRaw = await redis.lrange(`pipeline:shorts:${metadata.videoId}`, 0, -1);
+        const shorts = shortsRaw.map(s => {
+            try { return JSON.parse(s); } catch { return null; }
+        }).filter(Boolean);
+
+        const status = {
+            overallStatus: overall,
+            ranAt: metadata.ranAt || new Date().toISOString(),
+            videoId: metadata.videoId,
+            videoTitle: metadata.videoTitle || metadata.videoId,
+            youtubeId: metadata.youtubeId || null,
+            videoUrl: metadata.videoUrl || null,
+            thumbnailUrl: metadata.thumbnailUrl || null,
+            description: metadata.description || null,
+            sceneUrls: sceneUrls || [],
+            voiceoverUrls: voiceoverUrls || [],
+            sceneNarrations: [],
+            shortHooks: [],
+            shortCaptions: [],
+            ideasAdded: ideasAdded || [],
+            scriptData: metadata.scriptData ? JSON.parse(metadata.scriptData) : null,
+            shorts,
+            jobs: {
+                populateIdeas: jobs.populateIdeas ?? null,
+                generateScript: jobs.generateScript ?? null,
+                renderScenes: jobs.renderScenes ?? null,
+                generateVoiceover: jobs.generateVoiceover ?? null,
+                assembleLongForm: jobs.assembleLongForm ?? null,
+                generateThumbnail: jobs.generateThumbnail ?? null,
+                uploadYoutube: jobs.uploadYoutube ?? null,
+                shortsProcessing: jobs.shortsProcessing ?? null,
+            },
+        };
+
+        return NextResponse.json({ ok: true, status });
     } catch (err: any) {
         console.error('[pipeline-status] Error:', err);
         return NextResponse.json({ ok: false, error: err.message }, { status: 500 });

@@ -5,6 +5,7 @@
 
 import { renderScenes } from '../../workers/video-scene-renderer/src/index';
 import { validateConfig } from '../../shared/config';
+import { setJobStatus } from './utils/status-updater';
 
 interface ScriptData {
     script: {
@@ -61,7 +62,9 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
             throw new Error('Missing required: videoId (arg) or SCRIPT_DATA (env)');
         }
 
+        await setJobStatus('renderScenes', 'running');
         const result = await renderVideoScenes(videoId, scriptData);
+        await setJobStatus('renderScenes', 'success');
 
         // Output for GitHub Actions (hex encoded to avoid secret detection patterns)
         console.error(`[DEBUG] About to output clips_urls with ${result.urls?.length || 0} URLs`);
@@ -76,6 +79,7 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
 
         process.exit(0);
     } catch (error) {
+        await setJobStatus('renderScenes', 'failure');
         console.error('❌ Scene rendering failed:', error);
         process.exit(1);
     }

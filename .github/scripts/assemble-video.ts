@@ -5,6 +5,7 @@
 
 import { assembleVideo } from '../../workers/video-assembler/src/index';
 import { validateConfig } from '../../shared/config';
+import { setJobStatus, setMetadata } from './utils/status-updater';
 
 interface ScriptData {
     script: {
@@ -86,6 +87,7 @@ async function assembleMainVideo(
         const animationStopTimes = Buffer.from(animationStopTimesEncoded, 'hex').toString('utf-8');
         const voiceoverUrls = Buffer.from(voiceoverUrlsEncoded, 'hex').toString('utf-8');
 
+        await setJobStatus('assembleLongForm', 'running');
         const result = await assembleMainVideo(
             videoId,
             scriptData,
@@ -94,6 +96,8 @@ async function assembleMainVideo(
             animationStopTimes,
             voiceoverUrls
         );
+        await setMetadata({ videoUrl: result.outputUrl });
+        await setJobStatus('assembleLongForm', 'success');
 
         // Output for GitHub Actions (hex encoded to avoid secret detection patterns)
         console.log(`video_url=${Buffer.from(result.outputUrl).toString('hex')}`);
@@ -105,6 +109,7 @@ async function assembleMainVideo(
 
         process.exit(0);
     } catch (error) {
+        await setJobStatus('assembleLongForm', 'failure');
         console.error('❌ Video assembly failed:', error);
         process.exit(1);
     }

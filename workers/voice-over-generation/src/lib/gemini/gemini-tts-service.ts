@@ -8,6 +8,7 @@ import GeminiClient from "./gemini-client";
 import type { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
+import Redis from "ioredis";
 import CloudinaryService from '../../../../../shared/services/cloudinary-service';
 
 export interface GeminiTTSConfig {
@@ -385,6 +386,15 @@ class GeminiTTSService {
 
                 console.error(`✅ Narration part ${i + 1} uploaded to Cloudinary: ${upload.secureUrl}`);
                 audioUrls.push(upload.secureUrl);
+
+                try {
+                    const redis = new Redis(process.env.REDIS_URL!);
+                    await redis.rpush('pipeline:status:voiceoverUrls', upload.secureUrl);
+                    await redis.expire('pipeline:status:voiceoverUrls', 86400 * 7);
+                    await redis.quit();
+                } catch (e) {
+                    console.error('Failed to push voiceover URL to Redis', e);
+                }
 
                 // Clean up local file
 

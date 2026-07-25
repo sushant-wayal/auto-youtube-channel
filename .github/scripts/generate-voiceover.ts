@@ -5,6 +5,7 @@
 
 import { generateVoiceOvers } from '../../workers/voice-over-generation/src/index';
 import { validateConfig } from '../../shared/config';
+import { setJobStatus } from './utils/status-updater';
 
 interface ScriptData {
     script: {
@@ -53,7 +54,9 @@ async function generateNarration(videoId: string, scriptData: string) {
             throw new Error('Missing required: videoId (arg) or SCRIPT_DATA (env)');
         }
 
+        await setJobStatus('generateVoiceover', 'running');
         const result = await generateNarration(videoId, scriptData);
+        await setJobStatus('generateVoiceover', 'success');
 
         // Output for GitHub Actions (hex encoded to avoid secret detection patterns)
         console.error(`[DEBUG] About to output voiceover_data with ${result.urls?.length || 0} URLs`);
@@ -63,6 +66,7 @@ async function generateNarration(videoId: string, scriptData: string) {
 
         process.exit(0);
     } catch (error) {
+        await setJobStatus('generateVoiceover', 'failure');
         console.error('❌ Voice-over generation failed:', error);
         process.exit(1);
     }

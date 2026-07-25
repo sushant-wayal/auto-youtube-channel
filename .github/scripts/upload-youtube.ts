@@ -6,6 +6,7 @@
 import { uploadToYouTube } from '../../workers/youtube-upload/src/index';
 import { validateConfig } from '../../shared/config';
 import { getLongFormPublishTime } from '../../shared/services/shorts-publish-time-service';
+import { setJobStatus, setMetadata } from './utils/status-updater';
 
 interface ScriptData {
     script: {
@@ -172,13 +173,17 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
         console.error(`[DEBUG] Thumbnail URL decoded: ${thumbnailUrl || '(none)'}`);
         console.error(`[DEBUG] Scene durations: ${sceneDurationsEncoded ? 'present' : 'not available'}`);
 
+        await setJobStatus('uploadYoutube', 'running');
         const result = await uploadVideo(videoUrl, scriptData, thumbnailUrl, sceneDurationsEncoded);
+        await setMetadata({ youtubeId: result.videoId });
+        await setJobStatus('uploadYoutube', 'success');
 
         // Output for GitHub Actions
         console.log(`youtube_id=${result.videoId}`);
 
         process.exit(0);
     } catch (error) {
+        await setJobStatus('uploadYoutube', 'failure');
         console.error('❌ YouTube upload failed:', error);
         process.exit(1);
     }

@@ -5,6 +5,7 @@
 
 import { validateConfig } from '../../shared/config';
 import Redis from 'ioredis';
+import { setJobStatus, setMetadata } from './utils/status-updater';
 
 // Fallback video ideas pool (used if Redis queue is empty)
 const VIDEO_IDEAS = [
@@ -138,6 +139,14 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
         const videoId = `video-${Date.now()}`;
         console.error(`✅ Generated ${sceneRenderMethod}-render script: "${data.script.title}"`);
 
+        await setMetadata({
+            videoId,
+            videoTitle: data.script.title,
+            description: data.script.description || '',
+            scriptData: JSON.stringify(data.script)
+        });
+        await setJobStatus('generateScript', 'success');
+
         return { videoId, script: data.script, seriesContext };
     } catch (error) {
         if (poppedIdeaRaw && !customIdea) {
@@ -158,6 +167,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
 // Main execution
 (async () => {
     try {
+        await setJobStatus('generateScript', 'running');
         const customIdea = process.argv[2]; // Optional custom idea from workflow input
         const result = await generateScript(customIdea);
 
@@ -165,6 +175,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
         console.log(JSON.stringify(result));
         process.exit(0);
     } catch (error) {
+        await setJobStatus('generateScript', 'failure');
         console.error('❌ Script generation failed:', error);
         process.exit(1);
     }

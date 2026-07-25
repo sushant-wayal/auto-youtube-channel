@@ -4,6 +4,7 @@
  */
 
 import { validateConfig } from '../../shared/config';
+import { setJobStatus, setMetadata } from './utils/status-updater';
 
 interface ScriptData {
     script: {
@@ -56,6 +57,8 @@ async function generateThumbnail(videoId: string, scriptData: string) {
     // Output for GitHub Actions (hex encoded to avoid secret detection patterns)
     console.log(`thumbnail_url=${Buffer.from(thumbnailUrl).toString('hex')}`);
 
+    await setMetadata({ thumbnailUrl });
+
     return result;
 }
 
@@ -69,9 +72,12 @@ async function generateThumbnail(videoId: string, scriptData: string) {
             throw new Error('Missing required: videoId (arg) or SCRIPT_DATA (env)');
         }
 
+        await setJobStatus('generateThumbnail', 'running');
         await generateThumbnail(videoId, scriptData);
+        await setJobStatus('generateThumbnail', 'success');
         process.exit(0);
     } catch (error) {
+        await setJobStatus('generateThumbnail', 'failure');
         console.error('❌ Thumbnail generation failed:', error);
         // Fail the pipeline so thumbnail issue is visible
         process.exit(1);

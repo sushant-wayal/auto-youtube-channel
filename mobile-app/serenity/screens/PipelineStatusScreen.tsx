@@ -698,8 +698,33 @@ export default function PipelineStatusScreen() {
     }, []);
 
     useEffect(() => {
-        load().finally(() => setLoading(false));
-    }, [load]);
+        let isMounted = true;
+
+        const fetchStatus = async () => {
+            await load();
+            if (isMounted) {
+                setLoading(false);
+            }
+        };
+
+        // If pipeline is finished, stop polling to save resources.
+        if (status?.overallStatus === 'success' || status?.overallStatus === 'failure') {
+            return;
+        }
+
+        // Fetch immediately
+        fetchStatus();
+
+        // Poll every 10 seconds
+        const intervalId = setInterval(() => {
+            fetchStatus();
+        }, 10000);
+
+        return () => {
+            isMounted = false;
+            clearInterval(intervalId);
+        };
+    }, [load, status?.overallStatus]);
 
     const handleRefresh = async () => {
         setRefreshing(true);

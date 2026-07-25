@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import Redis from 'ioredis';
 import CloudinaryService from '../../../../../shared/services/cloudinary-service';
 
 export interface F5TTSConfig {
@@ -350,6 +351,16 @@ class F5TTSService {
                 );
                 console.error(`✅ Narration part ${task.index + 1} uploaded: ${upload.secureUrl}`);
                 audioUrls[task.index] = upload.secureUrl;
+                
+                try {
+                    const redis = new Redis(process.env.REDIS_URL!);
+                    await redis.rpush('pipeline:status:voiceoverUrls', upload.secureUrl);
+                    await redis.expire('pipeline:status:voiceoverUrls', 86400 * 7);
+                    await redis.quit();
+                } catch (e) {
+                    console.error('Failed to push voiceover URL to Redis', e);
+                }
+
                 await fs.promises.rm(audioPath, { force: true });
             } catch (error) {
                 console.error(`❌ Failed to upload narration part ${task.index + 1} (F5):`, error);

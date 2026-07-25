@@ -11,6 +11,7 @@
 import Redis from 'ioredis';
 import { runIdeaSelector } from '../../workers/idea-selector/src/index';
 import { SeriesManager } from '../../shared/services/series-manager';
+import { initPipeline, setJobStatus, pushArrayItem } from './utils/status-updater';
 
 const QUEUE_KEY = 'video:ideas';
 const MIN_QUEUE_SIZE = 6; // Minimum ideas in queue before triggering selector
@@ -27,12 +28,16 @@ async function checkQueueAndPopulate(): Promise<void> {
     const seriesManager = new SeriesManager();
 
     try {
+        await initPipeline('pending...', 'Initializing Pipeline...');
+        await setJobStatus('populateIdeas', 'running');
+
         // Check current queue size
         const queueSize = await redis.llen(QUEUE_KEY);
         console.error(`📊 Current ideas queue size: ${queueSize}`);
 
         if (queueSize >= MIN_QUEUE_SIZE) {
             console.error(`✅ Queue has sufficient ideas (${queueSize}), skipping idea generation`);
+            await setJobStatus('populateIdeas', 'success');
             await redis.quit();
             await seriesManager.close();
             return;
@@ -88,6 +93,7 @@ async function checkQueueAndPopulate(): Promise<void> {
             // Add the topic to Redis queue
             await redis.rpush(QUEUE_KEY, topic);
             addedTopics.push(topic);
+            await pushArrayItem('ideasAdded', topic);
             console.error(`✅ Added topic to Redis queue (${QUEUE_KEY})`);
 
             // Refresh existing ideas list so next iteration avoids duplicating this topic
@@ -102,11 +108,13 @@ async function checkQueueAndPopulate(): Promise<void> {
 
         await redis.quit();
         await seriesManager.close();
+        await setJobStatus('populateIdeas', 'success');
         console.error(`✅ Ideas queue populated successfully`);
 
     } catch (error) {
         await redis.quit();
         await seriesManager.close();
+        await setJobStatus('populateIdeas', 'failure');
         console.error('❌ Error in check-and-populate-ideas:', error);
         throw error;
     }
