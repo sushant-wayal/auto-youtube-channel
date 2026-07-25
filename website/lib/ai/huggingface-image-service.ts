@@ -31,8 +31,8 @@ export const HF_IMAGE_MODELS = {
 } as const;
 
 class HuggingFaceImageService {
-    private readonly apiUrl = "https://router.huggingface.co/hf-inference/models";
-    private readonly defaultModel = HF_IMAGE_MODELS.FLUX_SCHNELL;
+    private readonly apiUrl = "https://api-inference.huggingface.co/models";
+    private readonly defaultModel = HF_IMAGE_MODELS.STABLE_DIFFUSION_3_5;
     private apiKey: string;
 
     constructor() {
