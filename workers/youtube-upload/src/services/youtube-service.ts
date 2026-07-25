@@ -209,7 +209,7 @@ export class YouTubeService {
             description: `All episodes for the series: ${seriesTitle}`,
           },
           status: {
-            privacyStatus: privacyStatus === 'private' ? 'private' : 'public',
+            privacyStatus: 'public',
           },
         },
       });
