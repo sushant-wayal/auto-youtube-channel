@@ -34,6 +34,7 @@ TECHNICAL REQUIREMENTS:
 - Must render correctly in Chromium.
 - Expose window.renderFrame(seconds) and make every animation deterministic from that time value.
 - CSS animations are allowed, but window.renderFrame(seconds) must pause and seek them with document.getAnimations().
+- IMPORTANT: In window.renderFrame, ALWAYS check if elements exist before accessing their .style properties (e.g., if (!el) return;) to avoid null reference errors.
 
 VISUAL STYLE:
 
@@ -347,7 +348,13 @@ function ensureRenderFrameHook(html: string): string {
   const originalRenderFrame = typeof window.renderFrame === "function" ? window.renderFrame.bind(window) : null;
   window.renderFrame = function(seconds) {
     const ms = Math.max(0, Number(seconds) || 0) * 1000;
-    if (typeof originalRenderFrame === "function") originalRenderFrame(seconds);
+    if (typeof originalRenderFrame === "function") {
+      try {
+        originalRenderFrame(seconds);
+      } catch (err) {
+        console.error("AI renderFrame error:", err);
+      }
+    }
     if (document.getAnimations) {
       document.getAnimations().forEach(function(animation) {
         try {
