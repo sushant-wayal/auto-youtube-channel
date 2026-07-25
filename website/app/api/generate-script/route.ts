@@ -54,8 +54,9 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error("Script generation error:", error);
         
-        // Fallback to mock if AI fails
-        console.log("⚠️ AI generation failed, falling back to MOCK script");
-        return NextResponse.json({ script: MOCK_SCRIPT });
+        return NextResponse.json(
+            { error: "AI script generation failed" },
+            { status: 500 }
+        );
     }
 }

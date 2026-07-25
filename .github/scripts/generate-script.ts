@@ -53,6 +53,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
 
     let videoIdea: string;
     let seriesContext: any = undefined;
+    let poppedIdeaRaw: string | undefined = undefined;
 
     if (customIdea) {
         // Use custom idea from workflow input
@@ -70,6 +71,7 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
             const queueKey = 'video:ideas'; // TEST queue - separate from production
 
             const ideaRaw = await redis.lpop(queueKey);
+            poppedIdeaRaw = ideaRaw || undefined;
             await redis.quit();
 
             if (ideaRaw) {
@@ -112,30 +114,45 @@ async function generateScript(customIdea?: string): Promise<{ videoId: string; s
         }
     }
 
-    const websiteDomain = process.env.WEBSITE_DOMAIN || 'http://localhost:3000';
+    try {
+        const websiteDomain = process.env.WEBSITE_DOMAIN || 'http://localhost:3000';
 
-    // Call the script generation API
-    const response = await fetch(`${websiteDomain}/api/generate-script`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // Carry the Redis-resolved setting into the separately deployed website API.
-        body: JSON.stringify({ videoIdea, sceneRenderMethod, seriesContext }),
-    });
+        // Call the script generation API
+        const response = await fetch(`${websiteDomain}/api/generate-script`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // Carry the Redis-resolved setting into the separately deployed website API.
+            body: JSON.stringify({ videoIdea, sceneRenderMethod, seriesContext }),
+        });
 
-    if (!response.ok) {
-        throw new Error(`Script generation failed: ${response.statusText}`);
+        if (!response.ok) {
+            throw new Error(`Script generation failed: ${response.statusText}`);
+        }
+
+        const data = await response.json() as { script?: VideoScript; error?: string };
+
+        if (!data.script) {
+            throw new Error(data.error || 'Failed to generate script');
+        }
+
+        const videoId = `video-${Date.now()}`;
+        console.error(`✅ Generated ${sceneRenderMethod}-render script: "${data.script.title}"`);
+
+        return { videoId, script: data.script, seriesContext };
+    } catch (error) {
+        if (poppedIdeaRaw && !customIdea) {
+            console.error(`🔄 Script generation failed. Rolling back idea to Redis queue...`);
+            try {
+                const redis = new Redis(process.env.REDIS_URL!);
+                await redis.lpush('video:ideas', poppedIdeaRaw);
+                await redis.quit();
+                console.error(`✅ Rollback successful.`);
+            } catch (rbError) {
+                console.error(`❌ Rollback failed:`, rbError);
+            }
+        }
+        throw error;
     }
-
-    const data = await response.json() as { script?: VideoScript; error?: string };
-
-    if (!data.script) {
-        throw new Error(data.error || 'Failed to generate script');
-    }
-
-    const videoId = `video-${Date.now()}`;
-    console.error(`✅ Generated ${sceneRenderMethod}-render script: "${data.script.title}"`);
-
-    return { videoId, script: data.script, seriesContext };
 }
 
 // Main execution
