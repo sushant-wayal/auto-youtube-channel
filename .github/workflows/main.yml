@@ -219,6 +219,7 @@ jobs:
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           VOICEOVER_PROVIDER: ${{ needs.pipeline-settings.outputs.voiceover_provider }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
         run: |
           npx tsx .github/scripts/generate-voiceover.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
 
@@ -249,6 +250,7 @@ jobs:
         env:
           WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
         run: |
           npx tsx .github/scripts/generate-thumbnail.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
 
@@ -292,6 +294,7 @@ jobs:
           ANIMATION_STOP_TIMES: ${{ needs.render-scenes.outputs.animation_stop_times }}
           VOICEOVER_URLS: ${{ needs.generate-voiceover.outputs.voiceover_data }}
           VOICEOVER_PROVIDER: ${{ needs.pipeline-settings.outputs.voiceover_provider }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
         run: |
           RESULT=$(npx tsx .github/scripts/assemble-video.ts "${{ needs.generate-script.outputs.video_id }}")
           echo "$RESULT" >> $GITHUB_OUTPUT
