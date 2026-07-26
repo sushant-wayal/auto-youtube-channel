@@ -54,12 +54,10 @@ const getJobState = (key: string, result: JobResult, jobs: Record<string, JobRes
     if (result === 'failure') return 'failure';
     if (result === 'cancelled') return 'cancelled';
     if (result === 'skipped') return 'skipped';
+    if (result === 'running') return 'running';
 
-    // It is null, let's see if it's the active one
-    const firstNullKey = jobKeys.find((k) => jobs[k] === null);
-    if (firstNullKey === key) {
-        return 'running';
-    }
+    // If it hasn't started yet, it remains pending.
+    // The pipeline contains parallel steps, so we don't assume sequential order.
     return 'pending';
 };
 

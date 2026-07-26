@@ -83,11 +83,13 @@ export async function POST(req: NextRequest) {
             videoId,
             videoTitle,
             youtubeId,
+            jobs,
         }: {
             overallStatus: 'success' | 'failure';
             videoId: string;
             videoTitle?: string;
             youtubeId?: string;
+            jobs?: Record<string, string>;
         } = body;
 
         if (!overallStatus || !videoId) {
@@ -98,6 +100,15 @@ export async function POST(req: NextRequest) {
 
         // Persist final overall status (handled by Redis status tracking)
         await redis.set('pipeline:status:overall', overallStatus, 'EX', 60 * 60 * 24 * 7);
+
+        // Persist final job statuses from the pipeline summary
+        if (jobs) {
+            for (const [jobName, jobStatus] of Object.entries(jobs)) {
+                if (jobStatus) {
+                    await redis.hset('pipeline:status:jobs', jobName, jobStatus);
+                }
+            }
+        }
 
         // Send push notification if a token is registered
         const pushToken = await redis.get(PUSH_TOKEN_KEY);
@@ -150,6 +161,26 @@ export async function GET() {
             try { return JSON.parse(s); } catch { return null; }
         }).filter(Boolean);
 
+        let parsedScriptData = null;
+        let sceneNarrations: string[] = [];
+        let shortHooks: string[] = [];
+        let shortCaptions: string[] = [];
+
+        if (metadata.scriptData) {
+            try {
+                parsedScriptData = JSON.parse(metadata.scriptData);
+                if (parsedScriptData.scenes) {
+                    sceneNarrations = parsedScriptData.scenes.map((s: any) => s.narration || '');
+                }
+                if (parsedScriptData.shorts) {
+                    shortHooks = parsedScriptData.shorts.map((s: any) => s.hook || '');
+                    shortCaptions = parsedScriptData.shorts.map((s: any) => s.instagramCaption || '');
+                }
+            } catch (e) {
+                console.error('[pipeline-status] Error parsing scriptData:', e);
+            }
+        }
+
         const status = {
             overallStatus: overall,
             ranAt: metadata.ranAt || new Date().toISOString(),
@@ -161,11 +192,11 @@ export async function GET() {
             description: metadata.description || null,
             sceneUrls: sceneUrls || [],
             voiceoverUrls: voiceoverUrls || [],
-            sceneNarrations: [],
-            shortHooks: [],
-            shortCaptions: [],
+            sceneNarrations,
+            shortHooks,
+            shortCaptions,
             ideasAdded: ideasAdded || [],
-            scriptData: metadata.scriptData ? JSON.parse(metadata.scriptData) : null,
+            scriptData: parsedScriptData,
             shorts,
             jobs: {
                 populateIdeas: jobs.populateIdeas ?? null,

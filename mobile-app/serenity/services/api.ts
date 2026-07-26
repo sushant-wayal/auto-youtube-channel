@@ -1,7 +1,6 @@
 import { API_BASE_URL } from '../config';
 
-// Pipeline Status API Types
-export type JobResult = 'success' | 'failure' | 'skipped' | 'cancelled' | null;
+export type JobResult = 'success' | 'failure' | 'skipped' | 'cancelled' | 'running' | null;
 
 export type ShortResult = {
     shortIndex: number;
