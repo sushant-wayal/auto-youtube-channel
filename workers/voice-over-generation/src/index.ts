@@ -15,10 +15,12 @@ export async function generateVoiceOvers({
     perSceneNarration,
     videoId,
     voice = 'Puck',
+    isShort = false,
 }: {
     perSceneNarration: string[];
     videoId: string;
     voice?: string;
+    isShort?: boolean;
 }): Promise<{ urls: string[] }> {
     validateConfig(['cloudinary', 'voiceover']);
 
@@ -37,7 +39,7 @@ export async function generateVoiceOvers({
                 videoId,
                 perSceneNarration,
                 outputDir,
-                { voice }
+                { voice, isShort }
             );
         }
 
@@ -45,7 +47,8 @@ export async function generateVoiceOvers({
         return ttsService.generateNarrationAudios(
             videoId,
             perSceneNarration,
-            outputDir
+            outputDir,
+            { isShort }
         );
     };
 

@@ -14,6 +14,7 @@ import CloudinaryService from '../../../../../shared/services/cloudinary-service
 export interface GeminiTTSConfig {
     voice?: string; // Voice selection (Puck, Charon, Kore, Fenrir, Aoede)
     speed?: number; // Speed multiplier (0.25 to 4.0)
+    isShort?: boolean;
 }
 
 class GeminiTTSService {
@@ -387,13 +388,15 @@ class GeminiTTSService {
                 console.error(`✅ Narration part ${i + 1} uploaded to Cloudinary: ${upload.secureUrl}`);
                 audioUrls.push(upload.secureUrl);
 
-                try {
-                    const redis = new Redis(process.env.REDIS_URL!);
-                    await redis.rpush('pipeline:status:voiceoverUrls', upload.secureUrl);
-                    await redis.expire('pipeline:status:voiceoverUrls', 86400 * 7);
-                    await redis.quit();
-                } catch (e) {
-                    console.error('Failed to push voiceover URL to Redis', e);
+                if (!config?.isShort) {
+                    try {
+                        const redis = new Redis(process.env.REDIS_URL!);
+                        await redis.rpush('pipeline:status:voiceoverUrls', upload.secureUrl);
+                        await redis.expire('pipeline:status:voiceoverUrls', 86400 * 7);
+                        await redis.quit();
+                    } catch (e) {
+                        console.error('Failed to push voiceover URL to Redis', e);
+                    }
                 }
 
                 // Clean up local file

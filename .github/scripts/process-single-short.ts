@@ -125,6 +125,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         perSceneNarration: allNarrations,
         videoId: shortId,
         voice: 'Puck',
+        isShort: true,
     });
 
     // ── 3. Assemble ──────────────────────────────────────────────────────────

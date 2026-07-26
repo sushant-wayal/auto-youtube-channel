@@ -63,8 +63,10 @@ export class ClipsRenderService {
           urls.push(cached.url);
           timings.push(Number(cached.timing));
           animationStopTimes.push(Number(cached.animationStopTime));
-          await redis.rpush('pipeline:status:sceneUrls', cached.url);
-          await redis.expire('pipeline:status:sceneUrls', 86400 * 7);
+          if (!this.isShort) {
+            await redis.rpush('pipeline:status:sceneUrls', cached.url);
+            await redis.expire('pipeline:status:sceneUrls', 86400 * 7);
+          }
           continue;
         }
 
@@ -116,8 +118,10 @@ export class ClipsRenderService {
           animationStopTime: animationStopTime
         });
         await redis.expire(cacheKey, 86400); // 1 day expiration for safety
-        await redis.rpush('pipeline:status:sceneUrls', result.secureUrl);
-        await redis.expire('pipeline:status:sceneUrls', 86400 * 7);
+        if (!this.isShort) {
+          await redis.rpush('pipeline:status:sceneUrls', result.secureUrl);
+          await redis.expire('pipeline:status:sceneUrls', 86400 * 7);
+        }
       }
 
       fs.rmSync(outputDir, { recursive: true, force: true });

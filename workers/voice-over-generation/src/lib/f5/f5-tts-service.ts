@@ -305,7 +305,8 @@ class F5TTSService {
     async generateNarrationAudios(
         jobId: string,
         narrations: string[],
-        outputDir: string
+        outputDir: string,
+        options?: { isShort?: boolean }
     ): Promise<string[]> {
         const audioUrls: string[] = [];
 
@@ -352,13 +353,15 @@ class F5TTSService {
                 console.error(`✅ Narration part ${task.index + 1} uploaded: ${upload.secureUrl}`);
                 audioUrls[task.index] = upload.secureUrl;
                 
-                try {
-                    const redis = new Redis(process.env.REDIS_URL!);
-                    await redis.rpush('pipeline:status:voiceoverUrls', upload.secureUrl);
-                    await redis.expire('pipeline:status:voiceoverUrls', 86400 * 7);
-                    await redis.quit();
-                } catch (e) {
-                    console.error('Failed to push voiceover URL to Redis', e);
+                if (!options?.isShort) {
+                    try {
+                        const redis = new Redis(process.env.REDIS_URL!);
+                        await redis.rpush('pipeline:status:voiceoverUrls', upload.secureUrl);
+                        await redis.expire('pipeline:status:voiceoverUrls', 86400 * 7);
+                        await redis.quit();
+                    } catch (e) {
+                        console.error('Failed to push voiceover URL to Redis', e);
+                    }
                 }
 
                 await fs.promises.rm(audioPath, { force: true });
