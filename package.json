@@ -1,14 +1,10 @@
 {
   "private": true,
-  "workspaces": {
-    "packages": [
-      "workers/*",
-      "shared"
-    ],
-    "nohoist": [
-      "**/mobile-app/**"
-    ]
-  },
+  "workspaces": [
+    "workers/*",
+    "shared",
+    "mobile-app/serenity"
+  ],
   "scripts": {
     "build": "npm run build --workspaces",
     "daily": "npx tsx .github/scripts/generate-script.ts",
