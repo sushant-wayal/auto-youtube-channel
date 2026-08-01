@@ -2,11 +2,11 @@ import React from 'react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { StatusBar } from 'expo-status-bar';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Text, View, Animated, Dimensions, TouchableOpacity, Platform, StyleSheet, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Notifications from 'expo-notifications';
 import IdeasScreen from './screens/IdeasScreen';
 import ScheduleTimesScreen from './screens/ScheduleTimesScreen';
 import PipelineStatusScreen from './screens/PipelineStatusScreen';
@@ -17,16 +17,12 @@ import { pipelineApi } from './services/api';
 
 // Hardcoded - avoids any Constants resolution issues in standalone builds
 const EXPO_PROJECT_ID = '294f6e06-d643-47b7-92a6-8701a374abf0';
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-    }),
-});
+// Expo Go no longer includes Android remote-notification support. Keeping this
+// require behind the runtime guard prevents its native module from loading there.
+const getNotifications = () =>
+    isExpoGo ? null : (require('expo-notifications') as typeof import('expo-notifications'));
 
 const Tab = createMaterialTopTabNavigator();
 const NUM_TABS = 4;
@@ -102,8 +98,21 @@ export default function App() {
     }, [activeTab, indicatorPosition]);
 
     React.useEffect(() => {
+        const Notifications = getNotifications();
+        if (!Notifications) return;
+
         (async () => {
             try {
+                Notifications.setNotificationHandler({
+                    handleNotification: async () => ({
+                        shouldShowAlert: true,
+                        shouldShowBanner: true,
+                        shouldShowList: true,
+                        shouldPlaySound: true,
+                        shouldSetBadge: true,
+                    }),
+                });
+
                 if (Platform.OS === 'android') {
                     await Notifications.setNotificationChannelAsync('pipeline', {
                         name: 'Pipeline Status',
@@ -142,6 +151,9 @@ export default function App() {
     }, []);
 
     React.useEffect(() => {
+        const Notifications = getNotifications();
+        if (!Notifications) return;
+
         const subscription = Notifications.addNotificationResponseReceivedListener(response => {
             console.log('[Push] Notification clicked!', response.notification.request.content.title);
             if (navigationRef.isReady()) {
@@ -221,6 +233,7 @@ export default function App() {
                     }}
                 >
                     <Tab.Navigator
+                        id="main-tabs"
                         screenOptions={{
                             swipeEnabled: true,
                             tabBarStyle: {

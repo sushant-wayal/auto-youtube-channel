@@ -12,7 +12,6 @@ import {
     Platform,
     LayoutAnimation,
     Animated,
-    UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,11 +20,6 @@ import ErrorMessage from '../components/ErrorMessage';
 import EmptyState from '../components/EmptyState';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { colors, spacing, borderRadius, typography, shadows, gradients, motion } from '../theme';
-
-// Enable LayoutAnimation for Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const triggerLayoutAnim = () => {
     LayoutAnimation.configureNext({

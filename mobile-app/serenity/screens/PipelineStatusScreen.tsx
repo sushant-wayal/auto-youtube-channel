@@ -12,7 +12,6 @@ import {
     Dimensions,
     LayoutAnimation,
     Animated,
-    UIManager,
     Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,10 +26,6 @@ import { colors, spacing, borderRadius, typography, shadows, gradients } from '.
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CAROUSEL_ITEM_WIDTH = SCREEN_WIDTH - 124;
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const triggerLayoutAnim = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);

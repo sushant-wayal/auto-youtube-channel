@@ -10,7 +10,6 @@ import {
     Platform,
     Animated,
     LayoutAnimation,
-    UIManager,
     Modal,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -20,10 +19,6 @@ import { scheduleTimesApi } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const triggerLayoutAnim = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);

@@ -10,17 +10,12 @@ import {
     ActivityIndicator,
     Platform,
     LayoutAnimation,
-    UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { settingsApi } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
 import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const triggerLayoutAnim = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
