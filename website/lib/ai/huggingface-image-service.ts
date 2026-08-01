@@ -7,6 +7,7 @@
 
 import fs from "fs";
 import path from "path";
+import { HfInference } from "@huggingface/inference";
 
 export interface HFImageConfig {
     model?: string;
@@ -32,8 +33,9 @@ export const HF_IMAGE_MODELS = {
 
 class HuggingFaceImageService {
     private readonly apiUrl = "https://api-inference.huggingface.co/models";
-    private readonly defaultModel = HF_IMAGE_MODELS.STABLE_DIFFUSION_3_5;
+    private readonly defaultModel = HF_IMAGE_MODELS.FLUX_SCHNELL;
     private apiKey: string;
+    private hf: HfInference;
 
     constructor() {
         // API key is required for the new router endpoint
@@ -45,6 +47,7 @@ class HuggingFaceImageService {
             );
         }
         this.apiKey = key;
+        this.hf = new HfInference(this.apiKey);
     }
 
     /**
@@ -90,9 +93,10 @@ class HuggingFaceImageService {
                 model,
             };
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(`❌ Hugging Face thumbnail generation failed:`, error);
-            throw new Error(`Failed to generate thumbnail with Hugging Face: ${error.message || error}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to generate thumbnail with Hugging Face: ${errorMessage}`);
         }
     }
 
@@ -100,15 +104,8 @@ class HuggingFaceImageService {
      * Generate image using Hugging Face Inference API
      */
     private async generateImage(prompt: string, model: string): Promise<Buffer> {
-        const url = `${this.apiUrl}/${model}`;
-
-        console.log(`🚀 Sending request to Hugging Face API...`);
-        console.log(`📡 URL: ${url}`);
-
-        const headers: Record<string, string> = {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${this.apiKey}`,
-        };
+        console.log(`🚀 Sending request to Hugging Face API via SDK...`);
+        console.log(`🤖 Model: ${model}`);
 
         // Retry logic for model loading
         let attempts = 0;
@@ -119,51 +116,36 @@ class HuggingFaceImageService {
             attempts++;
 
             try {
-                const response = await fetch(url, {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify({
-                        inputs: prompt,
-                        parameters: {
-                            num_inference_steps: 4,
-                            guidance_scale: 0.0,
-                        },
-                        options: {
-                            wait_for_model: true,
-                        },
-                    }),
+                // Use official SDK which handles retries and rate limits better
+                const blob = await this.hf.textToImage({
+                    inputs: prompt,
+                    model: model,
+                    parameters: {
+                        num_inference_steps: 4,
+                        guidance_scale: 0.0,
+                    }
+                }, {
+                    // @ts-expect-error - wait_for_model is missing from types
+                    wait_for_model: true,
                 });
 
-                // Check if model is still loading
-                if (response.status === 503) {
-                    const data = await response.json();
-                    const waitTime = data.estimated_time || 20;
-                    console.log(`⏳ Model is loading, waiting ${waitTime}s... (attempt ${attempts}/${maxAttempts})`);
-                    await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
-                    continue;
-                }
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`API error ${response.status}: ${errorText}`);
-                }
-
-                // Get the image as array buffer
-                const arrayBuffer = await response.arrayBuffer();
+                // Convert Blob to Buffer
+                const arrayBuffer = await blob.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
 
                 if (buffer.length < 1000) {
                     // Probably an error response, not an image
                     const text = buffer.toString('utf-8');
-                    throw new Error(`Invalid response: ${text}`);
+                    throw new Error(`Invalid response or too small: ${text}`);
                 }
 
                 console.log(`✅ Received image: ${buffer.length} bytes`);
                 return buffer;
 
-            } catch (error: any) {
-                lastError = error;
-                console.error(`❌ Attempt ${attempts} failed:`, error.message);
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                lastError = error instanceof Error ? error : new Error(errorMessage);
+                console.error(`❌ Attempt ${attempts} failed:`, errorMessage);
 
                 if (attempts < maxAttempts) {
                     console.log(`🔄 Retrying in 5 seconds...`);
@@ -185,9 +167,6 @@ class HuggingFaceImageService {
         tags: string[],
         config?: HFImageConfig
     ): string {
-        // Get style modifiers
-        const styleModifiers = this.getStyleModifiers(config?.style || "minimal");
-
         // Build a concise but effective prompt
         const prompt = `
 Create a high-quality YouTube thumbnail in a dark futuristic engineering style.
