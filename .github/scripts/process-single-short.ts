@@ -19,7 +19,7 @@ import Redis from 'ioredis';
 import { renderScenes } from '../../workers/video-scene-renderer/src/index';
 import { generateVoiceOvers } from '../../workers/voice-over-generation/src/index';
 import { assembleVideo } from '../../workers/video-assembler/src/index';
-import { uploadToYouTube } from '../../workers/youtube-upload/src/index';
+import { uploadToYouTube, formatYouTubeTitle } from '../../workers/youtube-upload/src/index';
 import { validateConfig } from '../../shared/config';
 import { getShortsPublishTimeByRank } from '../../shared/services/shorts-publish-time-service';
 
@@ -81,9 +81,10 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
     console.error(`\n📱 Processing short ${shortIndex + 1}/${shorts.length}: ${short.hook || '(no hook)'}`);
 
     // Derive title: use hook field if present, otherwise fall back to first scene narration or short id
-    const shortTitle = short.hook
+    const rawTitle = short.hook
         || short.scenes.find(s => s.narration)?.narration.slice(0, 60)
         || shortId;
+    const shortTitle = formatYouTubeTitle(rawTitle, 100);
 
     const isAiRender = (process.env.SCENE_RENDER_METHOD || '').toLowerCase() === 'ai';
 

@@ -6,7 +6,7 @@
 import { renderScenes } from '../../workers/video-scene-renderer/src/index';
 import { generateVoiceOvers } from '../../workers/voice-over-generation/src/index';
 import { assembleVideo } from '../../workers/video-assembler/src/index';
-import { uploadToYouTube } from '../../workers/youtube-upload/src/index';
+import { uploadToYouTube, formatYouTubeTitle } from '../../workers/youtube-upload/src/index';
 import { validateConfig } from '../../shared/config';
 import { getShortsPublishTimeByRank } from '../../shared/services/shorts-publish-time-service';
 
@@ -71,9 +71,10 @@ async function processAllShorts(videoId: string, scriptData: string) {
         console.error(`\n📱 Processing short ${i + 1}/${shorts.length}: ${short.hook || '(no hook)'}`);
 
         // Derive title: use hook field if present, otherwise fall back to first scene narration or shortId
-        const shortTitle = short.hook
+        const rawTitle = short.hook
             || short.scenes.find(s => s.narration)?.narration.slice(0, 60)
             || shortId;
+        const shortTitle = formatYouTubeTitle(rawTitle, 100);
 
         // 1. Render all scenes for short (hook + content)
         console.error(`🎬 Rendering ${short.scenes.length} scenes for short ${i + 1}...`);

@@ -1,6 +1,9 @@
 import { YouTubeService } from './services/youtube-service';
 import { validateConfig } from '../../../shared/config';
 import { generateTimestamps, canGenerateTimestamps } from './utils/timestamp-generator';
+import { formatYouTubeTitle, YOUTUBE_MAX_TITLE_LENGTH } from './utils/title-formatter';
+
+export { formatYouTubeTitle, YOUTUBE_MAX_TITLE_LENGTH };
 
 /**
  * Pure function: uploads a video to YouTube and returns the YouTube videoId
@@ -61,6 +64,7 @@ export async function uploadToYouTube({
 }): Promise<{ videoId: string }> {
     validateConfig(['youtube']);
 
+    const finalTitle = formatYouTubeTitle(title, 100);
     let finalDescription = description;
 
     // Generate timestamps for long-form videos only (not shorts)
@@ -94,7 +98,7 @@ export async function uploadToYouTube({
         jobId,
         videoUrl,
         isShort,
-        title,
+        title: finalTitle,
         description: finalDescription,  // Use description with timestamps
         tags,
         thumbnailUrl,

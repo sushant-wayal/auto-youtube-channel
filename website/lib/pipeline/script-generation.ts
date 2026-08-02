@@ -3,6 +3,7 @@ import { VideoScript } from "./types";
 import { promises as fs } from "fs";
 import path from "path";
 import { SeriesContext, buildSeriesContextPrompt } from "./series-context";
+import { formatYouTubeTitle } from "@/lib/title-formatter";
 
 class ScriptGenerationService {
   private gemini: GeminiService;
@@ -121,7 +122,7 @@ REQUIRED OUTPUT FORMAT
 ========================
 
 {
-  "title": "SEO-friendly title under 60 characters",
+  "title": "Compelling, high-CTR YouTube title (STRICTLY <= 100 characters, recommended 50-70 chars for mobile)",
   "description": "2-3 sentence YouTube description",
   "tags": ["tag1", "tag2", "tag3"],
 
@@ -619,7 +620,7 @@ If the format is violated, the output will be rejected.
       const narration = parsed.scenes.map((scene: any) => scene.narration).join(" [PAUSE=8s] ");
 
       const script = {
-        title: parsed.title || videoIdea,
+        title: formatYouTubeTitle(parsed.title || videoIdea, 100),
         description: parsed.description || "",
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
         narration: this.preprocessNarration(narration),
@@ -627,6 +628,7 @@ If the format is violated, the output will be rejected.
         shorts: Array.isArray(parsed.shorts)
           ? parsed.shorts.slice(0, 5).map((short: any) => ({
               ...short,
+              hook: short.hook ? formatYouTubeTitle(short.hook, 100) : short.hook,
               instagramCaption: this.normalizeInstagramCaption(short.instagramCaption),
             }))
           : [], // Max 5 shorts

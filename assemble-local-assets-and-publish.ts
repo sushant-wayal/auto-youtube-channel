@@ -10,6 +10,7 @@ import VideoAssemblyService from './workers/video-assembler/src/lib/video/video-
 import { getVideoDuration } from './workers/video-assembler/src/lib/video/ffmpeg-utils';
 import { validateConfig } from './shared/config';
 import { generateTimestamps, canGenerateTimestamps } from './workers/youtube-upload/src/utils/timestamp-generator';
+import { formatYouTubeTitle } from './shared/utils/title-formatter';
 
 dotenv.config({ path: path.join(process.cwd(), '.env.local') });
 
@@ -233,11 +234,16 @@ async function uploadLocalVideoToYouTube({
     status.publishAt = scheduledPublishTime;
   }
 
+  const safeTitle = formatYouTubeTitle(title, 100);
+  if (title && title.length > 100) {
+    console.warn(`⚠️ Warning: Video title (${title.length} chars) exceeded YouTube's 100-character limit! Truncated to: "${safeTitle}" (${safeTitle.length} chars).`);
+  }
+
   const response = await youtube.videos.insert({
     part: ['snippet', 'status'],
     requestBody: {
       snippet: {
-        title,
+        title: safeTitle,
         description,
         tags,
         categoryId: '28',

@@ -12,3 +12,6 @@ export {
     getShortsPublishTime,
     setShortsPublishTime,
 } from './services/shorts-publish-time-service';
+
+// Title formatting utilities
+export { formatYouTubeTitle, YOUTUBE_MAX_TITLE_LENGTH } from './utils/title-formatter';

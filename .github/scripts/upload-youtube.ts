@@ -3,7 +3,7 @@
  * Called by: upload-youtube job
  */
 
-import { uploadToYouTube } from '../../workers/youtube-upload/src/index';
+import { uploadToYouTube, formatYouTubeTitle } from '../../workers/youtube-upload/src/index';
 import { validateConfig } from '../../shared/config';
 import { getLongFormPublishTime } from '../../shared/services/shorts-publish-time-service';
 import { setJobStatus, setMetadata } from './utils/status-updater';
@@ -56,8 +56,9 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
     validateConfig(['youtube']);
 
     const data: ScriptData = JSON.parse(scriptData);
+    const videoTitle = formatYouTubeTitle(data.script.title, 100);
 
-    console.error(`📤 Uploading video to YouTube: ${data.script.title}`);
+    console.error(`📤 Uploading video to YouTube: ${videoTitle} (${videoTitle.length}/100 chars)`);
     if (thumbnailUrl) {
         console.error(`🖼️  Thumbnail URL: ${thumbnailUrl}`);
     }
@@ -104,7 +105,7 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
     const result = await uploadToYouTube({
         videoUrl,
         isShort: false,
-        title: data.script.title,
+        title: videoTitle,
         description: data.script.description,
         tags: data.script.tags,
         thumbnailUrl: thumbnailUrl || undefined,

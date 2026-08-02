@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from "path";
 import { pipeline } from "stream/promises";
 import { getShortsPublishTimes } from "../../../../shared/services/shorts-publish-time-service";
+import { formatYouTubeTitle } from "../utils/title-formatter";
 
 /**
  * Calculate the publish time based on configured IST time
@@ -250,8 +251,13 @@ export class YouTubeService {
     privacyStatus: string,
     scheduledPublishTime?: string
   ): Promise<string> {
+    const safeTitle = formatYouTubeTitle(title, 100);
+    if (title && title.length > 100) {
+      console.warn(`⚠️ Warning: Title (${title.length} chars) exceeded YouTube's 100-character limit! Truncated from "${title}" to "${safeTitle}" (${safeTitle.length} chars).`);
+    }
+
     console.error(`📹 Preparing video metadata...`);
-    console.error(`   Title: ${title}`);
+    console.error(`   Title: ${safeTitle} (${safeTitle.length}/100 chars)`);
     console.error(`   Type: ${isShort ? 'YouTube Short' : 'Regular Video'}`);
     console.error(`   Privacy: ${privacyStatus}`);
     if (scheduledPublishTime) {
@@ -259,7 +265,7 @@ export class YouTubeService {
     }
 
     const snippet: any = {
-      title,
+      title: safeTitle,
       description,
       tags,
       categoryId: "28", // Science & Technology

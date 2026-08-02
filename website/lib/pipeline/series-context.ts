@@ -26,6 +26,6 @@ CRITICAL INDEPENDENCE RULES:
 - Keep the introduction focused purely on the immediate tension of this specific topic.
 
 TITLE & DESCRIPTION RULE:
-- Ensure the video title naturally includes the series name in parentheses, like "Understanding IAM (${context.seriesTitle})".
+- Ensure the video title naturally includes the series name in parentheses, like "Understanding IAM (${context.seriesTitle})". The total title length MUST be strictly <= 100 characters.
 `;
 }
