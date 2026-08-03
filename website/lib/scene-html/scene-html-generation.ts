@@ -7,20 +7,48 @@ export interface SceneHtmlGenerationInput {
   duration?: number;
 }
 
+/** Sound types must match the filenames in workers/video-assembler/src/lib/assests/sfx/ */
+export type SfxType =
+  | 'whoosh'
+  | 'pop'
+  | 'chime'
+  | 'swipe'
+  | 'swoosh'
+  | 'typewriter'
+  | 'tick'
+  | 'expand'
+  | 'ping'
+  | 'data';
+
+export interface SoundEvent {
+  /** Seconds from scene start when this sound should play */
+  t: number;
+  /** Which SFX to trigger */
+  type: SfxType;
+  /** 0–1 relative intensity (default 0.7) */
+  intensity?: number;
+}
+
+export interface SceneHtmlGenerationResult {
+  html: string;
+  soundEvents: SoundEvent[];
+}
+
 const BASE_SYSTEM_PROMPT = `You are an elite motion designer and front-end visualization engineer.
 
-Your task is to generate a SINGLE self-contained HTML file that visually explains the provided narration segment.
+Your task is to generate a SINGLE self-contained HTML file that visually explains the provided narration segment, AND a list of sound events that describe the micro-sounds that should accompany your animations.
 
 GOAL:
 Create highly engaging technology explainer visuals suitable for a modern educational YouTube channel.
 
 OUTPUT RULES:
 
-- Output ONLY valid HTML.
+- Output ONLY a valid JSON object with exactly two keys: "html" and "soundEvents".
 - Do not wrap output in markdown.
 - Do not explain anything.
 - Do not include code fences.
-- Return a complete HTML document.
+- "html" must be a complete, self-contained HTML document as a JSON string.
+- "soundEvents" must be a JSON array of sound event objects (see SOUND EVENTS section below).
 
 TECHNICAL REQUIREMENTS:
 
@@ -92,6 +120,34 @@ Animation style:
 - make the animations such that it perfectly time the narration timing
 - avoid looping over of things; make sure everything is run exactly once in the one cycle of duration
 
+SOUND EVENTS:
+
+For each significant animation moment in your scene, add an entry to the "soundEvents" array.
+Each event must have:
+  "t"         - float, seconds from scene start when the sound plays
+  "type"      - one of the 10 allowed types listed below
+  "intensity" - float 0.0–1.0 (how prominent the sound should be; default 0.7)
+
+Allowed sound types and when to use them:
+  "whoosh"     - elements sliding in from the side or fading with motion
+  "pop"        - icons, badges, or small elements appearing instantly
+  "chime"      - success states, checkmarks, completion indicators
+  "swipe"      - horizontal reveals or card-flip transitions
+  "swoosh"     - large-scale transitions or major element entries
+  "typewriter" - code blocks, text being typed out character-by-character
+  "tick"       - counter increments, progress dots, small step indicators
+  "expand"     - cards, panels, or boxes expanding outward
+  "ping"       - arrows appearing, highlights, connection points lighting up
+  "data"       - data packets moving, network nodes activating, query results
+
+Rules for sound events:
+- Match each "t" to an actual animation start time in your HTML
+- Use no more than 8 sound events per scene
+- Do not place two events within 0.15 seconds of each other
+- Prefer lower intensity (0.4–0.6) for background/ambient animations
+- Prefer higher intensity (0.7–1.0) for primary focus animations
+- Return an empty array [] for a silent/static scene
+
 EXPLANATION RULES:
 
 Do NOT merely display text.
@@ -152,15 +208,15 @@ Use the narration only as guidance for what concept to visualize.`;
 export class SceneHtmlGenerationService {
   private gemini = new GeminiService();
 
-  async generateSceneHtml(input: SceneHtmlGenerationInput): Promise<string> {
+  async generateSceneHtml(input: SceneHtmlGenerationInput): Promise<SceneHtmlGenerationResult> {
     const prompt = this.buildPrompt(input);
-    const response = await this.gemini.generateText(prompt, {
+    const rawResponse = await this.gemini.generateText(prompt, {
       model: "gemini-3-flash-preview",
       temperature: 0.75,
       topP: 0.95
     });
 
-    return sanitizeGeneratedHtml(response, input);
+    return parseSceneHtmlResponse(rawResponse, input);
   }
 
   private buildPrompt(input: SceneHtmlGenerationInput): string {
@@ -202,6 +258,74 @@ TIMING:
 NARRATION SEGMENT:
 ${input.narration || "(silent scene; create a visual-only motion hook)"}`;
   }
+}
+
+/**
+ * Parse Gemini's response, which should be JSON: { html: string, soundEvents: SoundEvent[] }.
+ * Falls back to treating the entire response as raw HTML with empty soundEvents.
+ */
+function parseSceneHtmlResponse(
+  raw: string,
+  input: Partial<SceneHtmlGenerationInput>,
+): SceneHtmlGenerationResult {
+  // Strip markdown fences if present
+  let cleaned = raw.trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  // Try to parse as JSON first
+  if (cleaned.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(cleaned) as { html?: string; soundEvents?: unknown[] };
+      if (typeof parsed.html === "string" && parsed.html.trim().length > 0) {
+        const soundEvents = validateSoundEvents(parsed.soundEvents);
+        const html = sanitizeGeneratedHtml(parsed.html, input);
+        console.log(`[SceneHtml] Parsed ${soundEvents.length} sound event(s) from AI response`);
+        return { html, soundEvents };
+      }
+    } catch (parseErr) {
+      console.error("[SceneHtml] JSON parse failed, falling back to raw HTML:", parseErr);
+    }
+  }
+
+  // Fallback: treat entire response as HTML, no sound events
+  console.error("[SceneHtml] Response was not valid JSON — treating as raw HTML, soundEvents=[]");
+  return {
+    html: sanitizeGeneratedHtml(raw, input),
+    soundEvents: [],
+  };
+}
+
+/** Validate and coerce the raw soundEvents from Gemini into typed SoundEvent[]. */
+const VALID_SFX_TYPES = new Set<string>([
+  'whoosh', 'pop', 'chime', 'swipe', 'swoosh',
+  'typewriter', 'tick', 'expand', 'ping', 'data',
+]);
+
+function validateSoundEvents(raw: unknown[] | undefined): SoundEvent[] {
+  if (!Array.isArray(raw)) return [];
+
+  const valid: SoundEvent[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const e = item as Record<string, unknown>;
+    const t = typeof e.t === 'number' ? e.t : parseFloat(String(e.t));
+    if (isNaN(t) || t < 0) continue;
+    const type = String(e.type ?? '');
+    if (!VALID_SFX_TYPES.has(type)) continue;
+    const intensity = typeof e.intensity === 'number'
+      ? Math.min(1, Math.max(0, e.intensity))
+      : 0.7;
+    valid.push({ t, type: type as SfxType, intensity });
+  }
+
+  // Sort by time, deduplicate events within 150ms of each other
+  valid.sort((a, b) => a.t - b.t);
+  return valid.filter((e, i) => {
+    if (i === 0) return true;
+    return e.t - valid[i - 1].t >= 0.15;
+  });
 }
 
 export function sanitizeGeneratedHtml(raw: string, input: Partial<SceneHtmlGenerationInput> = {}): string {

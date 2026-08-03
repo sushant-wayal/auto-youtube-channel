@@ -137,6 +137,7 @@ jobs:
       clips_urls: ${{ steps.scenes.outputs.clips_urls }}
       clips_timings: ${{ steps.scenes.outputs.clips_timings }}
       animation_stop_times: ${{ steps.scenes.outputs.animation_stop_times }}
+      per_scene_sound_events: ${{ steps.scenes.outputs.per_scene_sound_events }}
     
     steps:
       - name: Checkout code
@@ -292,6 +293,7 @@ jobs:
           CLIPS_URLS: ${{ needs.render-scenes.outputs.clips_urls }}
           CLIPS_TIMINGS: ${{ needs.render-scenes.outputs.clips_timings }}
           ANIMATION_STOP_TIMES: ${{ needs.render-scenes.outputs.animation_stop_times }}
+          PER_SCENE_SOUND_EVENTS: ${{ needs.render-scenes.outputs.per_scene_sound_events }}
           VOICEOVER_URLS: ${{ needs.generate-voiceover.outputs.voiceover_data }}
           VOICEOVER_PROVIDER: ${{ needs.pipeline-settings.outputs.voiceover_provider }}
           REDIS_URL: ${{ secrets.REDIS_URL }}

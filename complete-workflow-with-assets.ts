@@ -378,6 +378,7 @@ async function main() {
                     clips: renderResult.urls,
                     clipTimings: renderResult.timings,
                     animationStopTimes: renderResult.animationStopTimes,
+                    perSceneSoundEvents: renderResult.perSceneSoundEvents,
                     isShort: false,
                     voiceoverProvider: config.voiceover.provider,
                 });
@@ -584,6 +585,7 @@ async function main() {
                     clips: shortRenderResult.urls,
                     clipTimings: shortRenderResult.timings,
                     animationStopTimes: shortRenderResult.animationStopTimes,
+                    perSceneSoundEvents: shortRenderResult.perSceneSoundEvents,
                     isShort: true,
                     voiceoverProvider: config.voiceover.provider,
                 });

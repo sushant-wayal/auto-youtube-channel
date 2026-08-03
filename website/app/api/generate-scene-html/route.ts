@@ -83,14 +83,17 @@ export async function POST(request: NextRequest) {
     // 4. Call Gemini
     const service = new SceneHtmlGenerationService();
     console.log(`[Queue] Ticket ${ticket} invoking Gemini html generation...`);
-    let html;
+    let html: string;
+    let soundEvents: unknown[] = [];
     try {
-      html = await service.generateSceneHtml({
+      const result = await service.generateSceneHtml({
         narration,
         isShort: body.isShort === true,
         sceneId: typeof body.sceneId === "string" ? body.sceneId : undefined,
         duration: typeof body.duration === "number" ? body.duration : undefined,
       });
+      html = result.html;
+      soundEvents = result.soundEvents;
     } finally {
       keepLeaseAlive = false;
       clearInterval(leaseInterval);
@@ -103,8 +106,8 @@ export async function POST(request: NextRequest) {
       console.log(`[Queue] Ticket ${ticket} ensured final lease is at least 30 seconds.`);
     }
 
-    // Return HTML and ticket immediately (let worker handle cooldown/advancement)
-    return NextResponse.json({ html, ticket });
+    // Return HTML, sound events and ticket immediately (let worker handle cooldown/advancement)
+    return NextResponse.json({ html, soundEvents, ticket });
   } catch (error) {
     console.error("Scene HTML generation error:", error);
 

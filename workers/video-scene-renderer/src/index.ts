@@ -1,6 +1,7 @@
 import { ClipsRenderService } from './lib/actios-to-clips';
 import { SceneIR } from './types';
 import { config, validateConfig } from '../../../shared/config';
+import type { SoundEvent } from '../../video-assembler/src/lib/assests/sfx-mixer';
 import path from 'path';
 
 /**
@@ -8,7 +9,7 @@ import path from 'path';
  * @param scenes SceneIR[]
  * @param videoId string (for output folder naming)
  * @param isShort boolean (default: false) - whether video is short form
- * @returns { urls: string[], timings: number[], animationStopTimes: number[] }
+ * @returns { urls, timings, animationStopTimes, perSceneSoundEvents }
  */
 export async function renderScenes({
     scenes,
@@ -18,7 +19,7 @@ export async function renderScenes({
     scenes: SceneIR[];
     isShort?: boolean;
     videoId: string;
-}): Promise<{ urls: string[]; timings: number[]; animationStopTimes: number[] }> {
+}): Promise<{ urls: string[]; timings: number[]; animationStopTimes: number[]; perSceneSoundEvents: SoundEvent[][] }> {
     const renderMethod = config.sceneRendering.method === 'ai' ? 'ai' : 'code';
     validateConfig(renderMethod === 'ai' ? ['cloudinary', 'website'] : ['cloudinary']);
 

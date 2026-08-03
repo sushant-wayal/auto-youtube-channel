@@ -113,7 +113,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
 
     // ── 1. Render scenes ─────────────────────────────────────────────────────
     console.error(`🎬 Rendering ${short.scenes.length} scenes...`);
-    const { urls: clips, timings, animationStopTimes } = await renderScenes({
+    const { urls: clips, timings, animationStopTimes, perSceneSoundEvents } = await renderScenes({
         scenes: short.scenes,
         isShort: true,
         videoId: shortId,
@@ -142,6 +142,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         clips,
         clipTimings: timings,
         animationStopTimes,
+        perSceneSoundEvents: perSceneSoundEvents,
         isShort: true,
         voiceoverProvider: process.env.VOICEOVER_PROVIDER,
     });

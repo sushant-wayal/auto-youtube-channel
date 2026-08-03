@@ -6,6 +6,7 @@ import { SceneHtmlRenderer } from "./scene-rendring/action-flow-to-html";
 import { HtmlToVideoService } from "./scene-rendring/htmlToVideoService";
 import { SceneIR } from "../types";
 import CloudinaryService from '../../../../shared/services/cloudinary-service';
+import type { SoundEvent } from '../../../../workers/video-assembler/src/lib/assests/sfx-mixer';
 
 export class ClipsRenderService {
   private htmlRenderer;
@@ -42,13 +43,14 @@ export class ClipsRenderService {
     height: number,
     fps: number,
     outputDir: string
-  ): Promise<{ urls: string[]; timings: number[]; animationStopTimes: number[] }> {
+  ): Promise<{ urls: string[]; timings: number[]; animationStopTimes: number[]; perSceneSoundEvents: SoundEvent[][] }> {
 
     fs.mkdirSync(outputDir, { recursive: true });
 
     const urls: string[] = [];
     const timings: number[] = [];
     const animationStopTimes: number[] = [];
+    const perSceneSoundEvents: SoundEvent[][] = [];
 
     const redis = new Redis(process.env.REDIS_URL!);
 
@@ -63,6 +65,15 @@ export class ClipsRenderService {
           urls.push(cached.url);
           timings.push(Number(cached.timing));
           animationStopTimes.push(Number(cached.animationStopTime));
+          // Restore sound events from cache (stored as JSON string)
+          try {
+            const cachedEvents: SoundEvent[] = cached.soundEvents
+              ? JSON.parse(cached.soundEvents)
+              : [];
+            perSceneSoundEvents.push(cachedEvents);
+          } catch {
+            perSceneSoundEvents.push([]);
+          }
           if (!this.isShort) {
             await redis.rpush('pipeline:status:sceneUrls', cached.url);
             await redis.expire('pipeline:status:sceneUrls', 86400 * 7);
@@ -78,13 +89,13 @@ export class ClipsRenderService {
 
         const sceneDuration = scene.baseDuration + (scene.holdDuration ?? 0);
         const duration = this.renderMethod === "ai" ? Math.min(sceneDuration, 120) : sceneDuration;
-        const { html, animationStopTime } = this.renderMethod === "ai"
+        const { html, animationStopTime, soundEvents } = this.renderMethod === "ai"
           ? await this.generateAiSceneHtml(scene, duration)
-          : this.htmlRenderer.render({
-            duration: scene.baseDuration,
-            actions: scene.actions,
-            sceneTheme: resolvedTheme,
-          }, height, width);
+          : { ...this.htmlRenderer.render({
+              duration: scene.baseDuration,
+              actions: scene.actions,
+              sceneTheme: resolvedTheme,
+            }, height, width), soundEvents: [] as SoundEvent[] };
 
         const outPath = path.join(
           outputDir,
@@ -111,11 +122,13 @@ export class ClipsRenderService {
         urls.push(result.secureUrl);
         timings.push(duration);
         animationStopTimes.push(animationStopTime);
+        perSceneSoundEvents.push(soundEvents);
 
         await redis.hset(cacheKey, {
           url: result.secureUrl,
           timing: duration,
-          animationStopTime: animationStopTime
+          animationStopTime: animationStopTime,
+          soundEvents: JSON.stringify(soundEvents),
         });
         await redis.expire(cacheKey, 86400); // 1 day expiration for safety
         if (!this.isShort) {
@@ -142,13 +155,13 @@ export class ClipsRenderService {
       await Promise.all(this.pendingCleanups);
     }
 
-    return { urls, timings, animationStopTimes };
+    return { urls, timings, animationStopTimes, perSceneSoundEvents };
   }
 
   private async generateAiSceneHtml(
     scene: SceneIR,
     duration: number
-  ): Promise<{ html: string; animationStopTime: number }> {
+  ): Promise<{ html: string; animationStopTime: number; soundEvents: SoundEvent[] }> {
     const response = await fetch(`${this.websiteDomain}/api/generate-scene-html`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -166,7 +179,7 @@ export class ClipsRenderService {
       throw new Error(`AI scene HTML generation failed (${response.status}): ${errorBody || response.statusText}`);
     }
 
-    const data = await response.json() as { html?: string; ticket?: number; error?: string };
+    const data = await response.json() as { html?: string; soundEvents?: SoundEvent[]; ticket?: number; error?: string };
     if (!data.html) {
       throw new Error(data.error || "AI scene HTML generation returned no HTML");
     }
@@ -202,6 +215,7 @@ export class ClipsRenderService {
 
     return {
       html: data.html,
+      soundEvents: Array.isArray(data.soundEvents) ? data.soundEvents : [],
       // AI scenes often render a long looping/timeline visual. Let assembly
       // choose the final length from narration audio instead of visual length.
       animationStopTime: -1,

@@ -76,6 +76,9 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
         console.error(`[DEBUG] About to output animation_stop_times with ${result.animationStopTimes?.length || 0} times`);
         console.log(`animation_stop_times=${Buffer.from(JSON.stringify(result.animationStopTimes)).toString('hex')}`);
         console.error(`[DEBUG] Wrote animation_stop_times`);
+        console.error(`[DEBUG] About to output per_scene_sound_events with ${result.perSceneSoundEvents?.length || 0} scenes`);
+        console.log(`per_scene_sound_events=${Buffer.from(JSON.stringify(result.perSceneSoundEvents ?? [])).toString('hex')}`);
+        console.error(`[DEBUG] Wrote per_scene_sound_events`);
 
         process.exit(0);
     } catch (error) {

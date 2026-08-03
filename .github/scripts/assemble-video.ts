@@ -23,7 +23,8 @@ async function assembleMainVideo(
     clipsUrls: string,
     clipsTimings: string,
     animationStopTimes: string,
-    voiceoverUrls: string
+    voiceoverUrls: string,
+    perSceneSoundEvents: string
 ) {
     validateConfig(['cloudinary']);
 
@@ -32,6 +33,7 @@ async function assembleMainVideo(
     const timings: number[] = JSON.parse(clipsTimings);
     const stopTimes: number[] = JSON.parse(animationStopTimes);
     const voiceovers: string[] = JSON.parse(voiceoverUrls);
+    const soundEvents = JSON.parse(perSceneSoundEvents) as unknown[][];
 
     console.error(`🧩 Assembling video ${videoId}`);
 
@@ -44,6 +46,7 @@ async function assembleMainVideo(
         clips,
         clipTimings: timings,
         animationStopTimes: stopTimes,
+        perSceneSoundEvents: soundEvents as any,
         isShort: false,
         voiceoverProvider: process.env.VOICEOVER_PROVIDER,
     });
@@ -61,6 +64,7 @@ async function assembleMainVideo(
         const clipsTimingsEncoded = process.env.CLIPS_TIMINGS;
         const animationStopTimesEncoded = process.env.ANIMATION_STOP_TIMES;
         const voiceoverUrlsEncoded = process.env.VOICEOVER_URLS;
+        const perSceneSoundEventsEncoded = process.env.PER_SCENE_SOUND_EVENTS;
 
         if (!videoId) {
             throw new Error('Missing required: videoId');
@@ -86,6 +90,10 @@ async function assembleMainVideo(
         const clipsTimings = Buffer.from(clipsTimingsEncoded, 'hex').toString('utf-8');
         const animationStopTimes = Buffer.from(animationStopTimesEncoded, 'hex').toString('utf-8');
         const voiceoverUrls = Buffer.from(voiceoverUrlsEncoded, 'hex').toString('utf-8');
+        // Decode sound events — optional, fall back to empty arrays per scene
+        const perSceneSoundEvents = perSceneSoundEventsEncoded && perSceneSoundEventsEncoded.trim()
+            ? Buffer.from(perSceneSoundEventsEncoded, 'hex').toString('utf-8')
+            : JSON.stringify([]);
 
         await setJobStatus('assembleLongForm', 'running');
         const result = await assembleMainVideo(
@@ -94,7 +102,8 @@ async function assembleMainVideo(
             clipsUrls,
             clipsTimings,
             animationStopTimes,
-            voiceoverUrls
+            voiceoverUrls,
+            perSceneSoundEvents,
         );
         await setMetadata({ videoUrl: result.outputUrl });
         await setJobStatus('assembleLongForm', 'success');
