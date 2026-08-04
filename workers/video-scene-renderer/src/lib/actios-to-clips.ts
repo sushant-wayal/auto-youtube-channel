@@ -89,20 +89,20 @@ export class ClipsRenderService {
 
         const sceneDuration = scene.baseDuration + (scene.holdDuration ?? 0);
         const duration = this.renderMethod === "ai" ? Math.min(sceneDuration, 120) : sceneDuration;
-        const { html, animationStopTime, soundEvents } = this.renderMethod === "ai"
+        const { html, animationStopTime } = this.renderMethod === "ai"
           ? await this.generateAiSceneHtml(scene, duration)
           : { ...this.htmlRenderer.render({
               duration: scene.baseDuration,
               actions: scene.actions,
               sceneTheme: resolvedTheme,
-            }, height, width), soundEvents: [] as SoundEvent[] };
+            }, height, width) };
 
         const outPath = path.join(
           outputDir,
           `scene_${String(i).padStart(3, "0")}.mp4`
         );
 
-        await this.videoRenderer.render({
+        const renderRes = await this.videoRenderer.render({
           html,
           width: width,
           height: height,
@@ -110,6 +110,8 @@ export class ClipsRenderService {
           duration,
           output: outPath
         });
+
+        const soundEvents = renderRes?.soundEvents || [];
 
         const result = await this.cloudinaryService.uploadVideo(
           outPath,
@@ -161,7 +163,7 @@ export class ClipsRenderService {
   private async generateAiSceneHtml(
     scene: SceneIR,
     duration: number
-  ): Promise<{ html: string; animationStopTime: number; soundEvents: SoundEvent[] }> {
+  ): Promise<{ html: string; animationStopTime: number }> {
     const response = await fetch(`${this.websiteDomain}/api/generate-scene-html`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -215,7 +217,6 @@ export class ClipsRenderService {
 
     return {
       html: data.html,
-      soundEvents: Array.isArray(data.soundEvents) ? data.soundEvents : [],
       // AI scenes often render a long looping/timeline visual. Let assembly
       // choose the final length from narration audio instead of visual length.
       animationStopTime: -1,

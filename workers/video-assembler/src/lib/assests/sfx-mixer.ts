@@ -39,6 +39,8 @@ export interface SoundEvent {
   type: SfxType;
   /** 0–1 relative intensity (applied as a per-event volume multiplier) */
   intensity?: number;
+  /** Duration in seconds for continuous sounds (e.g. typewriter, data stream) */
+  duration?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -58,6 +60,24 @@ const SFX_FILE_MAP: Record<SfxType, string> = {
   expand:     'expand-bloom.wav',
   ping:       'digital-ping.wav',
   data:       'data-blip.wav',
+};
+
+/**
+ * Measured lead times (ms) to peak amplitude for each SFX WAV file.
+ * Subtracting this lead time ensures the peak impact of the sound aligns
+ * perfectly with the visual animation timestamp t.
+ */
+const SFX_PEAK_OFFSETS_MS: Record<SfxType, number> = {
+  typewriter: 56,
+  tick:       65,
+  chime:      74,
+  data:       146,
+  whoosh:     162,
+  swipe:      189,
+  pop:        202,
+  ping:       237,
+  swoosh:     430,
+  expand:     564,
 };
 
 /** Global SFX volume (applied on top of per-event intensity) */
@@ -90,9 +110,10 @@ function fileExists(p: string): boolean {
  *
  * Algorithm:
  *  1. Filter out events whose SFX file is missing on disk.
- *  2. For each surviving event, use FFmpeg's `adelay` filter to delay the
- *     clip by `t * 1000` ms, then scale its amplitude by `intensity`.
- *  3. Mix all delayed clips together with `amix`, padded to `duration`
+ *  2. For each surviving event, calculate the peak-aligned delay:
+ *     delayMs = max(0, t*1000 - SFX_PEAK_OFFSETS_MS[type])
+ *  3. Use FFmpeg's `adelay` filter to delay the clip, then scale its amplitude.
+ *  4. Mix all delayed clips together with `amix`, padded to `duration`
  *     seconds of silence.
  *
  * @param events     Sound events for this scene.
@@ -150,10 +171,22 @@ export async function buildSfxLayer(
 
   valid.forEach((e, idx) => {
     const inputIdx = idx + 1; // 0 is the silence source
-    const delayMs = Math.round(Math.max(0, e.t) * 1000);
+    const peakOffsetMs = SFX_PEAK_OFFSETS_MS[e.type] ?? 0;
+    const targetMs = Math.round(Math.max(0, e.t) * 1000);
+    const delayMs = Math.max(0, targetMs - peakOffsetMs);
     const vol = ((e.intensity ?? 0.7) * SFX_BASE_VOLUME).toFixed(4);
     const label = `[e${idx}]`;
-    delayFilters.push(`[${inputIdx}]volume=${vol},adelay=${delayMs}|${delayMs}${label}`);
+
+    let chain = `[${inputIdx}]`;
+
+    // If duration is specified, loop the sound sample and trim it to duration
+    if (typeof e.duration === 'number' && e.duration > 0) {
+      const durSec = e.duration.toFixed(3);
+      chain += `aloop=loop=-1:size=2e+09,atrim=0:${durSec},`;
+    }
+
+    chain += `volume=${vol},adelay=${delayMs}|${delayMs}${label}`;
+    delayFilters.push(chain);
     mixInputs.push(label);
   });
 

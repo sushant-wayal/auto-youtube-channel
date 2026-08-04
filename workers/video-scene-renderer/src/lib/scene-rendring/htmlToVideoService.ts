@@ -14,7 +14,7 @@ interface RenderOptions {
 }
 
 export class HtmlToVideoService {
-  async render(opts: RenderOptions): Promise<void> {
+  async render(opts: RenderOptions): Promise<{ soundEvents: any[] }> {
     const { html, width, height, fps, duration, output } = opts;
 
     const totalFrames = Math.ceil(duration * fps);
@@ -35,6 +35,12 @@ export class HtmlToVideoService {
     await page.waitForFunction(
       "typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded'"
     );
+
+    // Freeze CSS keyframes so they do not auto-play on wall-clock time
+    await page.addStyleTag({
+      content: `* { animation-play-state: paused !important; }`
+    });
+
     await page.evaluate(() => {
       // @ts-ignore
       if (typeof window.renderFrame !== "function") {
@@ -42,6 +48,14 @@ export class HtmlToVideoService {
         window.renderFrame = () => { };
       }
     });
+
+    // Extract sound events embedded in HTML by Gemini (window.SOUND_EVENTS)
+    const soundEvents = await page.evaluate(() => {
+      // @ts-ignore
+      const raw = window.SOUND_EVENTS;
+      if (!Array.isArray(raw)) return [];
+      return raw.filter((item: any) => item && typeof item.t === 'number' && typeof item.type === 'string');
+    }).catch(() => []);
 
     // crash early if renderer JS errors
     page.on("pageerror", (err: any) => {
@@ -51,7 +65,7 @@ export class HtmlToVideoService {
       throw new Error("Scene JS error: " + message);
     });
 
-    console.error(`🎥 Starting frame rendering: ${totalFrames} frames at ${fps} fps`);
+    console.error(`🎥 Starting frame rendering: ${totalFrames} frames at ${fps} fps (found ${soundEvents.length} SFX events)`);
 
     for (let frame = 0; frame < totalFrames; frame++) {
       const time = frame / fps;
@@ -59,6 +73,18 @@ export class HtmlToVideoService {
       await page.evaluate((t: number) => {
         // @ts-ignore
         window.renderFrame(t);
+
+        // Force Web Animations API seeking to exact millisecond t * 1000
+        // @ts-ignore
+        if (typeof document !== 'undefined' && document.getAnimations) {
+          // @ts-ignore
+          document.getAnimations().forEach((anim: any) => {
+            try {
+              anim.pause();
+              anim.currentTime = t * 1000;
+            } catch (e) {}
+          });
+        }
       }, time);
 
       const framePath = path.join(
@@ -74,6 +100,8 @@ export class HtmlToVideoService {
     await this.encodeVideo(framesDir, fps, output);
 
     fs.rmSync(framesDir, { recursive: true, force: true });
+
+    return { soundEvents };
   }
 
   private encodeVideo(
