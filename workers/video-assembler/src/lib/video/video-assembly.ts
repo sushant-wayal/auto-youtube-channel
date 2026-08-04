@@ -576,7 +576,6 @@ export class VideoAssemblyService {
         const narrationDuration = await getVideoDuration(narrationPath);
         console.error(`  Narration duration: ${narrationDuration.toFixed(2)}s`);
         console.error(`  Total video duration: ${videoDuration.toFixed(2)}s`);
-
         // Calculate outro duration (time after narration ends)
         const outroDuration = Math.max(0, videoDuration - narrationDuration);
         console.error(`  Outro duration: ${outroDuration.toFixed(2)}s`);
