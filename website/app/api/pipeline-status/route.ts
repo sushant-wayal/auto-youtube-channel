@@ -44,7 +44,7 @@ async function sendPushNotification(
         sound: 'default',
         title,
         body,
-        data: { youtubeId: youtubeId ?? null, videoId },
+        data: { youtubeId: youtubeId ?? null, videoId, screen: 'Pipeline' },
         channelId: 'pipeline',
     };
 

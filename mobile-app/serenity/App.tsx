@@ -150,19 +150,78 @@ export default function App() {
         })();
     }, []);
 
+    const pendingRouteRef = React.useRef<{ name: string; index: number } | null>(null);
+    const lastHandledIdRef = React.useRef<string | null>(null);
+
+    const navigateToScreen = React.useCallback((routeName: string, tabIndex: number) => {
+        if (navigationRef.isReady()) {
+            setActiveTab(tabIndex);
+            navigationRef.navigate(routeName as never);
+        } else {
+            pendingRouteRef.current = { name: routeName, index: tabIndex };
+        }
+    }, [navigationRef]);
+
+    const handleNotificationResponse = React.useCallback((response: any) => {
+        if (!response) return;
+
+        const identifier =
+            response.notification?.request?.identifier ||
+            String(response.notification?.date ?? '');
+
+        if (identifier && lastHandledIdRef.current === identifier) {
+            return;
+        }
+        if (identifier) {
+            lastHandledIdRef.current = identifier;
+        }
+
+        console.log('[Push] Notification clicked!', response.notification?.request?.content?.title);
+
+        const targetScreen = response.notification?.request?.content?.data?.screen ?? 'Pipeline';
+        const screenTabMap: Record<string, number> = {
+            Ideas: 0,
+            Series: 1,
+            Schedule: 2,
+            Pipeline: 3,
+        };
+        const tabIndex = screenTabMap[targetScreen] ?? 3;
+
+        navigateToScreen(targetScreen, tabIndex);
+    }, [navigateToScreen]);
+
+    const handleNavigationReady = React.useCallback(() => {
+        if (pendingRouteRef.current) {
+            const { name, index } = pendingRouteRef.current;
+            pendingRouteRef.current = null;
+            setActiveTab(index);
+            navigationRef.navigate(name as never);
+        }
+    }, [navigationRef]);
+
     React.useEffect(() => {
         const Notifications = getNotifications();
         if (!Notifications) return;
 
+        // Check if app was launched by clicking a push notification (cold start)
+        Notifications.getLastNotificationResponseAsync()
+            .then(response => {
+                if (response) {
+                    console.log('[Push] Found cold start notification response');
+                    handleNotificationResponse(response);
+                }
+            })
+            .catch(err => {
+                console.error('[Push] Error getting last notification response:', err);
+            });
+
+        // Listen for notification clicks while app is running or in background
         const subscription = Notifications.addNotificationResponseReceivedListener(response => {
-            console.log('[Push] Notification clicked!', response.notification.request.content.title);
-            if (navigationRef.isReady()) {
-                navigationRef.navigate('Pipeline' as never);
-            }
+            handleNotificationResponse(response);
         });
 
         return () => subscription.remove();
-    }, [navigationRef]);
+    }, [handleNotificationResponse]);
 
     const screenWidth = Dimensions.get('window').width;
     const innerWidth = screenWidth - spacing.md * 2;
@@ -225,6 +284,7 @@ export default function App() {
 
                 <NavigationContainer
                     ref={navigationRef}
+                    onReady={handleNavigationReady}
                     onStateChange={(state) => {
                         const index = state?.index;
                         if (index !== undefined) {
