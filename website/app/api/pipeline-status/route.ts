@@ -83,12 +83,22 @@ export async function POST(req: NextRequest) {
             videoId,
             videoTitle,
             youtubeId,
+            videoUrl,
+            thumbnailUrl,
+            description,
+            scriptData,
+            runId,
             jobs,
         }: {
             overallStatus: 'success' | 'failure';
             videoId: string;
             videoTitle?: string;
             youtubeId?: string;
+            videoUrl?: string;
+            thumbnailUrl?: string;
+            description?: string;
+            scriptData?: any;
+            runId?: string | number;
             jobs?: Record<string, string>;
         } = body;
 
@@ -101,6 +111,24 @@ export async function POST(req: NextRequest) {
         // Persist final overall status (handled by Redis status tracking)
         await redis.set('pipeline:status:overall', overallStatus, 'EX', 60 * 60 * 24 * 7);
 
+        // Persist metadata including runId
+        const metaFields: Record<string, string> = {
+            videoId,
+            videoTitle: videoTitle || videoId,
+            ranAt: new Date().toISOString(),
+        };
+        if (youtubeId) metaFields.youtubeId = youtubeId;
+        if (videoUrl) metaFields.videoUrl = videoUrl;
+        if (thumbnailUrl) metaFields.thumbnailUrl = thumbnailUrl;
+        if (description) metaFields.description = description;
+        if (runId) metaFields.runId = String(runId);
+        if (scriptData) metaFields.scriptData = typeof scriptData === 'string' ? scriptData : JSON.stringify(scriptData);
+
+        for (const [k, v] of Object.entries(metaFields)) {
+            await redis.hset('pipeline:status:metadata', k, v);
+        }
+        await redis.expire('pipeline:status:metadata', 60 * 60 * 24 * 7);
+
         // Persist final job statuses from the pipeline summary
         if (jobs) {
             for (const [jobName, jobStatus] of Object.entries(jobs)) {
@@ -108,6 +136,7 @@ export async function POST(req: NextRequest) {
                     await redis.hset('pipeline:status:jobs', jobName, jobStatus);
                 }
             }
+            await redis.expire('pipeline:status:jobs', 60 * 60 * 24 * 7);
         }
 
         // Send push notification if a token is registered
@@ -181,9 +210,16 @@ export async function GET() {
             }
         }
 
+        const isAnyJobRunning = Object.values(jobs).some(j => j === 'running');
+        let computedOverall = overall;
+        if (isAnyJobRunning) {
+            computedOverall = 'running';
+        }
+
         const status = {
-            overallStatus: overall,
+            overallStatus: computedOverall,
             ranAt: metadata.ranAt || new Date().toISOString(),
+            runId: metadata.runId || null,
             videoId: metadata.videoId,
             videoTitle: metadata.videoTitle || metadata.videoId,
             youtubeId: metadata.youtubeId || null,

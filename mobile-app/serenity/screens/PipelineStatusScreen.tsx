@@ -678,6 +678,9 @@ export default function PipelineStatusScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [rerunning, setRerunning] = useState(false);
+    const [rerunError, setRerunError] = useState<string | null>(null);
+    const [rerunSuccess, setRerunSuccess] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setError(null);
@@ -690,6 +693,49 @@ export default function PipelineStatusScreen() {
         }
     }, []);
 
+    const handleRerunFailed = async () => {
+        if (rerunning) return;
+        setRerunning(true);
+        setRerunError(null);
+        setRerunSuccess(null);
+
+        try {
+            const res = await pipelineApi.rerunFailedJobs(status?.runId);
+            if (res.ok) {
+                triggerLayoutAnim();
+                setRerunSuccess(res.message || 'Rerun initiated on GitHub Actions!');
+                // Optimistically mark failed jobs as running for instant responsive UI
+                setStatus((prev) => {
+                    if (!prev) return prev;
+                    const updatedJobs = { ...prev.jobs };
+                    for (const k of Object.keys(updatedJobs) as (keyof typeof updatedJobs)[]) {
+                        if (updatedJobs[k] === 'failure') {
+                            updatedJobs[k] = 'running';
+                        }
+                    }
+                    return {
+                        ...prev,
+                        overallStatus: 'running',
+                        jobs: updatedJobs,
+                    };
+                });
+                // Fetch latest server status after slight delay for GitHub to initialize
+                setTimeout(() => {
+                    load();
+                }, 3000);
+                setTimeout(() => {
+                    setRerunSuccess(null);
+                }, 6000);
+            } else {
+                setRerunError(res.error || 'Failed to trigger rerun');
+            }
+        } catch (err: any) {
+            setRerunError(err.message || 'Error communicating with server');
+        } finally {
+            setRerunning(false);
+        }
+    };
+
     useEffect(() => {
         let isMounted = true;
 
@@ -700,24 +746,26 @@ export default function PipelineStatusScreen() {
             }
         };
 
-        // If pipeline is finished, stop polling to save resources.
-        if (status?.overallStatus === 'success' || status?.overallStatus === 'failure') {
-            return;
-        }
-
         // Fetch immediately
         fetchStatus();
 
-        // Poll every 10 seconds
-        const intervalId = setInterval(() => {
-            fetchStatus();
-        }, 10000);
+        // If pipeline is running, poll every 8 seconds
+        const isAnyRunning = status?.overallStatus === 'running' || Object.values(status?.jobs || {}).some((j) => j === 'running');
+        if (isAnyRunning) {
+            const intervalId = setInterval(() => {
+                fetchStatus();
+            }, 8000);
+
+            return () => {
+                isMounted = false;
+                clearInterval(intervalId);
+            };
+        }
 
         return () => {
             isMounted = false;
-            clearInterval(intervalId);
         };
-    }, [load, status?.overallStatus]);
+    }, [load, status?.overallStatus, status?.jobs]);
 
     const handleRefresh = async () => {
         setRefreshing(true);
@@ -729,7 +777,9 @@ export default function PipelineStatusScreen() {
         return <SkeletonLoader variant="pipeline" />;
     }
 
-    const isSuccess = status?.overallStatus === 'success';
+    const isRunning = status?.overallStatus === 'running' || Object.values(status?.jobs || {}).some((j) => j === 'running');
+    const isSuccess = !isRunning && status?.overallStatus === 'success';
+    const isFailed = !isRunning && (status?.overallStatus === 'failure' || Object.values(status?.jobs || {}).some((j) => j === 'failure'));
 
     return (
         <ScrollView
@@ -767,26 +817,57 @@ export default function PipelineStatusScreen() {
             {/* Overall status dashboard glass card */}
             {status && (
                 <LinearGradient
-                    colors={isSuccess ? ['#05241C', '#0E1729'] : ['#2D1318', '#0E1729']}
+                    colors={
+                        isRunning
+                            ? ['#1E133A', '#0E1729']
+                            : isSuccess
+                            ? ['#05241C', '#0E1729']
+                            : ['#2D1318', '#0E1729']
+                    }
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={[
                         styles.card,
                         styles.overallCard,
-                        { borderLeftColor: isSuccess ? colors.successGlow : colors.destructive },
+                        {
+                            borderLeftColor: isRunning
+                                ? colors.primary
+                                : isSuccess
+                                ? colors.successGlow
+                                : colors.destructive,
+                        },
                     ]}
                 >
                     <View style={styles.overallRow}>
-                        <View style={[styles.statusBigIcon, { backgroundColor: isSuccess ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)' }]}>
-                            <Ionicons
-                                name={isSuccess ? 'checkmark-circle' : 'alert-circle'}
-                                size={26}
-                                color={isSuccess ? colors.successGlow : colors.destructive}
-                            />
+                        <View
+                            style={[
+                                styles.statusBigIcon,
+                                {
+                                    backgroundColor: isRunning
+                                        ? 'rgba(139, 92, 246, 0.16)'
+                                        : isSuccess
+                                        ? 'rgba(16, 185, 129, 0.12)'
+                                        : 'rgba(244, 63, 94, 0.12)',
+                                },
+                            ]}
+                        >
+                            {isRunning ? (
+                                <AnimatedRotateIcon name="sync" size={24} color={colors.primary} />
+                            ) : (
+                                <Ionicons
+                                    name={isSuccess ? 'checkmark-circle' : 'alert-circle'}
+                                    size={26}
+                                    color={isSuccess ? colors.successGlow : colors.destructive}
+                                />
+                            )}
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.overallTitle}>
-                                {isSuccess ? 'Pipeline Succeeded' : 'Pipeline Failed'}
+                                {isRunning
+                                    ? 'Pipeline Running...'
+                                    : isSuccess
+                                    ? 'Pipeline Succeeded'
+                                    : 'Pipeline Failed'}
                             </Text>
                             {status.videoTitle ? (
                                 <Text style={styles.videoTitleText} numberOfLines={2}>
@@ -800,6 +881,51 @@ export default function PipelineStatusScreen() {
                             ) : null}
                         </View>
                     </View>
+                    {/* Rerun Failed Jobs Action inside failed card */}
+                    {isFailed && (
+                        <View style={styles.rerunContainer}>
+                            {rerunError ? (
+                                <View style={styles.rerunErrorBox}>
+                                    <Ionicons name="warning" size={14} color={colors.destructive} />
+                                    <Text style={styles.rerunErrorText}>{rerunError}</Text>
+                                </View>
+                            ) : null}
+
+                            {rerunSuccess ? (
+                                <View style={styles.rerunSuccessBox}>
+                                    <Ionicons name="checkmark-circle" size={14} color={colors.successGlow} />
+                                    <Text style={styles.rerunSuccessText}>{rerunSuccess}</Text>
+                                </View>
+                            ) : null}
+
+                            <TouchableOpacity
+                                style={[styles.rerunBtn, rerunning && styles.rerunBtnDisabled]}
+                                onPress={handleRerunFailed}
+                                disabled={rerunning}
+                                activeOpacity={0.85}
+                            >
+                                <LinearGradient
+                                    colors={['#E11D48', '#BE123C']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.rerunBtnGradient}
+                                >
+                                    {rerunning ? (
+                                        <AnimatedRotateIcon name="sync" size={16} color="#FFFFFF" />
+                                    ) : (
+                                        <Ionicons name="refresh" size={16} color="#FFFFFF" />
+                                    )}
+                                    <Text style={styles.rerunBtnText}>
+                                        {rerunning ? 'Starting Rerun on GitHub...' : 'Rerun Failed Jobs'}
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                            <Text style={styles.rerunNote}>
+                                Re-executes only the failed steps of this pipeline run on GitHub Actions
+                            </Text>
+                        </View>
+                    )}
+
                     {status.youtubeId ? (
                         <View style={styles.overallYoutubeRow}>
                             <YouTubeButton youtubeId={status.youtubeId} />
@@ -1682,5 +1808,75 @@ const styles = StyleSheet.create({
         fontSize: typography.fontSizeSm,
         fontWeight: typography.fontWeightSemibold,
         color: colors.foreground,
+    },
+    rerunContainer: {
+        marginTop: spacing.md,
+        paddingTop: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.08)',
+        gap: spacing.sm,
+    },
+    rerunBtn: {
+        borderRadius: borderRadius.sm,
+        overflow: 'hidden',
+        ...shadows.sm,
+    },
+    rerunBtnDisabled: {
+        opacity: 0.65,
+    },
+    rerunBtnGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
+    },
+    rerunBtnText: {
+        fontSize: typography.fontSizeSm,
+        fontWeight: typography.fontWeightBold,
+        color: '#FFFFFF',
+        letterSpacing: 0.3,
+    },
+    rerunNote: {
+        fontSize: typography.fontSizeXs,
+        color: colors.foregroundMuted,
+        textAlign: 'center',
+    },
+    rerunErrorBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        backgroundColor: 'rgba(244, 63, 94, 0.12)',
+        borderColor: 'rgba(244, 63, 94, 0.3)',
+        borderWidth: 1,
+        borderRadius: borderRadius.sm,
+        padding: spacing.sm,
+    },
+    rerunErrorText: {
+        fontSize: typography.fontSizeXs,
+        color: colors.destructive,
+        flex: 1,
+    },
+    rerunSuccessBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+        borderColor: 'rgba(16, 185, 129, 0.3)',
+        borderWidth: 1,
+        borderRadius: borderRadius.sm,
+        padding: spacing.sm,
+    },
+    rerunSuccessText: {
+        fontSize: typography.fontSizeXs,
+        color: colors.successGlow,
+        flex: 1,
+    },
+    bottomRerunCard: {
+        marginTop: spacing.xl,
+        paddingTop: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
     },
 });

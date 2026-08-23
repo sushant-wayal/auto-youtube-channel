@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 
 // ─── Pipeline Types ────────────────────────────────────────────────────────────
-type JobResult = 'success' | 'failure' | 'skipped' | 'cancelled' | null;
+type JobResult = 'success' | 'failure' | 'skipped' | 'cancelled' | 'running' | null;
 
 type ShortResult = {
     shortIndex: number;
@@ -46,8 +46,9 @@ type ShortResult = {
 };
 
 type PipelineStatus = {
-    overallStatus: 'success' | 'failure';
+    overallStatus: 'success' | 'failure' | 'running';
     ranAt: string;
+    runId?: string | number;
     videoId: string;
     videoTitle: string;
     description?: string;
@@ -105,6 +106,7 @@ function StatusBadge({ result }: { result: JobResult }) {
         failure: { classes: 'bg-red-100 text-red-700', icon: <XCircle size={12} />, label: 'failed' },
         skipped: { classes: 'bg-gray-100 text-gray-500', icon: <MinusCircle size={12} />, label: 'skipped' },
         cancelled: { classes: 'bg-yellow-100 text-yellow-700', icon: <AlertCircle size={12} />, label: 'cancelled' },
+        running: { classes: 'bg-purple-100 text-purple-700', icon: <RefreshCw size={12} className="animate-spin" />, label: 'running' },
     };
     const c = config[result];
     return (
@@ -381,6 +383,8 @@ function PipelineSection() {
     const [status, setStatus] = useState<PipelineStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [rerunning, setRerunning] = useState(false);
+    const [rerunMsg, setRerunMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
     const load = useCallback(async () => {
         setError(null);
@@ -397,6 +401,29 @@ function PipelineSection() {
         }
     }, []);
 
+    const handleRerunFailed = async () => {
+        setRerunning(true);
+        setRerunMsg(null);
+        try {
+            const res = await fetch('/api/rerun-failed-jobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ runId: status?.runId }),
+            });
+            const data = await res.json();
+            if (data.ok) {
+                setRerunMsg({ type: 'success', text: data.message || 'Rerun triggered successfully on GitHub Actions!' });
+                load();
+            } else {
+                setRerunMsg({ type: 'error', text: data.error || 'Failed to trigger rerun' });
+            }
+        } catch (err: any) {
+            setRerunMsg({ type: 'error', text: String(err) });
+        } finally {
+            setRerunning(false);
+        }
+    };
+
     useEffect(() => {
         load().finally(() => setLoading(false));
     }, [load]);
@@ -407,7 +434,9 @@ function PipelineSection() {
         setLoading(false);
     };
 
-    const isSuccess = status?.overallStatus === 'success';
+    const isRunning = status?.overallStatus === 'running' || Object.values(status?.jobs || {}).some(j => j === 'running');
+    const isSuccess = !isRunning && status?.overallStatus === 'success';
+    const isFailed = !isRunning && (status?.overallStatus === 'failure' || Object.values(status?.jobs || {}).some(j => j === 'failure'));
 
     const jobItems = status ? [
         {
@@ -528,27 +557,76 @@ function PipelineSection() {
                 {status && (
                     <div className="space-y-4">
                         {/* Overall status banner */}
-                        <div className={`flex items-start gap-3 p-4 rounded-lg border-l-4 ${isSuccess ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
-                            {isSuccess
-                                ? <CheckCircle2 size={28} className="text-green-600 shrink-0 mt-0.5" />
-                                : <XCircle size={28} className="text-red-600 shrink-0 mt-0.5" />
-                            }
-                            <div className="flex-1 min-w-0">
-                                <p className={`font-bold text-base ${isSuccess ? 'text-green-800' : 'text-red-800'}`}>
-                                    {isSuccess ? 'Pipeline Succeeded ✅' : 'Pipeline Failed ❌'}
-                                </p>
-                                {status.videoTitle && (
-                                    <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">{status.videoTitle}</p>
-                                )}
-                                {status.ranAt && (
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                        {formatRelativeTime(status.ranAt)} · {new Date(status.ranAt).toLocaleString()}
+                        <div className={`p-4 rounded-lg border-l-4 ${
+                            isRunning
+                                ? 'bg-purple-50 border-purple-500'
+                                : isSuccess
+                                ? 'bg-green-50 border-green-500'
+                                : 'bg-red-50 border-red-500'
+                        }`}>
+                            <div className="flex items-start gap-3">
+                                {isRunning
+                                    ? <RefreshCw size={28} className="text-purple-600 shrink-0 mt-0.5 animate-spin" />
+                                    : isSuccess
+                                    ? <CheckCircle2 size={28} className="text-green-600 shrink-0 mt-0.5" />
+                                    : <XCircle size={28} className="text-red-600 shrink-0 mt-0.5" />
+                                }
+                                <div className="flex-1 min-w-0">
+                                    <p className={`font-bold text-base ${
+                                        isRunning
+                                            ? 'text-purple-800'
+                                            : isSuccess
+                                            ? 'text-green-800'
+                                            : 'text-red-800'
+                                    }`}>
+                                        {isRunning
+                                            ? 'Pipeline Running... ⏳'
+                                            : isSuccess
+                                            ? 'Pipeline Succeeded ✅'
+                                            : 'Pipeline Failed ❌'}
                                     </p>
+                                    {status.videoTitle && (
+                                        <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">{status.videoTitle}</p>
+                                    )}
+                                    {status.ranAt && (
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            {formatRelativeTime(status.ranAt)} · {new Date(status.ranAt).toLocaleString()}
+                                        </p>
+                                    )}
+                                </div>
+                                {status.youtubeId && (
+                                    <div className="shrink-0">
+                                        <YouTubeButton youtubeId={status.youtubeId} />
+                                    </div>
                                 )}
                             </div>
-                            {status.youtubeId && (
-                                <div className="shrink-0">
-                                    <YouTubeButton youtubeId={status.youtubeId} />
+
+                            {/* Rerun Failed Jobs Action */}
+                            {isFailed && (
+                                <div className="mt-3 pt-3 border-t border-red-200/60 flex flex-wrap items-center justify-between gap-2">
+                                    <div className="text-xs text-red-700">
+                                        Re-run only failed jobs on GitHub Actions without restarting the whole pipeline.
+                                    </div>
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        disabled={rerunning}
+                                        onClick={handleRerunFailed}
+                                        className="bg-red-600 hover:bg-red-700 text-white gap-1.5 shadow-sm"
+                                    >
+                                        <RefreshCw size={14} className={rerunning ? "animate-spin" : ""} />
+                                        {rerunning ? "Rerunning on GitHub..." : "Rerun Failed Jobs"}
+                                    </Button>
+                                </div>
+                            )}
+
+                            {rerunMsg && (
+                                <div className={`mt-2 text-xs p-2 rounded ${
+                                    rerunMsg.type === 'success'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-red-100 text-red-800'
+                                }`}>
+                                    {rerunMsg.text}
                                 </div>
                             )}
                         </div>

@@ -12,8 +12,9 @@ export type ShortResult = {
 };
 
 export type PipelineStatus = {
-    overallStatus: 'success' | 'failure';
+    overallStatus: 'success' | 'failure' | 'running';
     ranAt: string; // ISO timestamp
+    runId?: string | number;       // GitHub Actions workflow run ID
     videoId: string;
     videoTitle: string;
     description?: string;          // YouTube description from script
@@ -48,6 +49,13 @@ export type PipelineStatusResponse = {
 
 export type SavePushTokenResponse = {
     ok: boolean;
+    error?: string;
+};
+
+export type RerunFailedJobsResponse = {
+    ok: boolean;
+    message?: string;
+    runId?: string | number;
     error?: string;
 };
 
@@ -407,6 +415,24 @@ export const pipelineApi = {
             return data;
         } catch (error: any) {
             console.error('[API] Error fetching pipeline status:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    // Rerun failed jobs for the latest or specific workflow run
+    rerunFailedJobs: async (runId?: string | number): Promise<RerunFailedJobsResponse> => {
+        try {
+            console.log('[API] Triggering rerun for failed jobs, runId:', runId);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/rerun-failed-jobs`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ runId }),
+            }, 20000);
+            const data = await response.json();
+            console.log('[API] Rerun response:', data);
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error triggering rerun:', error.message || error);
             return { ok: false, error: error.message || String(error) };
         }
     },

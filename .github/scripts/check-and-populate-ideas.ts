@@ -28,7 +28,7 @@ async function checkQueueAndPopulate(): Promise<void> {
     const seriesManager = new SeriesManager();
 
     try {
-        await initPipeline('pending...', 'Initializing Pipeline...');
+        await initPipeline('pending...', 'Initializing Pipeline...', process.env.GITHUB_RUN_ID);
         await setJobStatus('populateIdeas', 'running');
 
         // Check current queue size

@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import { initPipeline } from './utils/status-updater';
 
 const VOICEOVER_PROVIDER_KEY = 'settings:voiceover_provider';
 const SCENE_RENDER_METHOD_KEY = 'settings:scene_render_method';
@@ -32,6 +33,13 @@ async function main(): Promise<void> {
     try {
         if (!process.env.REDIS_URL) {
             throw new Error('REDIS_URL is not configured');
+        }
+
+        // Initialize pipeline status to 'running' right at workflow startup
+        try {
+            await initPipeline('generating...', 'Daily Video Pipeline', process.env.GITHUB_RUN_ID);
+        } catch (initErr) {
+            console.error('[resolve-pipeline-settings] Non-fatal initPipeline error:', initErr);
         }
 
         redis = new Redis(process.env.REDIS_URL, {

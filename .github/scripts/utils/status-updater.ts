@@ -9,7 +9,7 @@ function getClient(): Redis {
     return new Redis(process.env.REDIS_URL);
 }
 
-export async function initPipeline(videoId: string, videoTitle?: string) {
+export async function initPipeline(videoId: string, videoTitle?: string, runId?: string) {
     const redis = getClient();
     try {
         // Clear existing status keys
@@ -21,11 +21,13 @@ export async function initPipeline(videoId: string, videoTitle?: string) {
         // Set initial state
         const pipeline = redis.multi();
         pipeline.set('pipeline:status:overall', 'running', 'EX', TTL);
-        pipeline.hset('pipeline:status:metadata', {
+        const meta: Record<string, string> = {
             videoId,
             videoTitle: videoTitle || videoId,
             ranAt: new Date().toISOString()
-        });
+        };
+        if (runId) meta.runId = String(runId);
+        pipeline.hset('pipeline:status:metadata', meta);
         pipeline.expire('pipeline:status:metadata', TTL);
         await pipeline.exec();
     } finally {

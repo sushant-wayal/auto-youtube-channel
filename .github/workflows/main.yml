@@ -41,6 +41,7 @@ jobs:
         id: settings
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
           VOICEOVER_PROVIDER: ${{ vars.VOICEOVER_PROVIDER }}
           SCENE_RENDER_METHOD: ${{ vars.SCENE_RENDER_METHOD }}
         run: npx tsx .github/scripts/resolve-pipeline-settings.ts >> "$GITHUB_OUTPUT"
@@ -70,6 +71,7 @@ jobs:
         id: populate
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
@@ -470,6 +472,7 @@ jobs:
         env:
           WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           PIPELINE_WEBHOOK_SECRET: ${{ secrets.PIPELINE_WEBHOOK_SECRET }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
           VIDEO_ID: ${{ needs.generate-script.outputs.video_id }}
           VIDEO_TITLE: ${{ needs.generate-script.outputs.video_title }}
@@ -522,6 +525,7 @@ jobs:
 
           # Build JSON payload using jq for proper escaping
           PAYLOAD=$(jq -n \
+            --arg runId "$GITHUB_RUN_ID" \
             --arg overallStatus "$OVERALL" \
             --arg videoId "$VIDEO_ID" \
             --arg videoTitle "$VIDEO_TITLE" \
@@ -545,6 +549,7 @@ jobs:
             --arg shortsProcessing "${{ needs['process-short'].result }}" \
             --argjson scriptData "$RAW_SCRIPT" \
             '{
+              runId: $runId,
               overallStatus: $overallStatus,
               videoId: $videoId,
               videoTitle: $videoTitle,
