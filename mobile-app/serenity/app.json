@@ -38,6 +38,15 @@
       "expo-audio",
       "expo-asset"
     ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/294f6e06-d643-47b7-92a6-8701a374abf0",
+      "enabled": true,
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
+    },
     "extra": {
       "eas": {
         "projectId": "294f6e06-d643-47b7-92a6-8701a374abf0"

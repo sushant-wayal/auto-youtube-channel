@@ -7,7 +7,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "get-ip": "node get-local-ip.js"
+    "get-ip": "node get-local-ip.js",
+    "update:preview": "eas update --branch preview --message",
+    "update:production": "eas update --branch production --message"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -27,6 +29,7 @@
     "expo-notifications": "~0.32.17",
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
+    "expo-updates": "~29.0.20",
     "expo-video": "~3.0.16",
     "react": "19.1.0",
     "react-native": "0.81.5",
