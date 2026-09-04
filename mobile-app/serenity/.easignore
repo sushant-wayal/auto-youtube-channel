@@ -1,0 +1,29 @@
+node_modules/
+.expo/
+.expo-shared/
+npm-debug.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+dist/
+
+# Android
+android/app/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+android/*.iml
+android/*.hprof
+android/.cxx/
+
+# Environment
+.env*
+
+# IDEs & System
+.DS_Store
+.vscode/
+.idea/

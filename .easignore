@@ -1,0 +1,47 @@
+# Monorepo: Exclude non-mobile projects, documentation, and media
+/docs
+/videos
+/website
+/motioncraft-landing
+/workers
+/shared
+/scratch
+/htmls
+*.mp4
+*.wav
+*.mp3
+*.webm
+*.avi
+*.mkv
+
+# Dependencies & Source Control
+.git/
+.github/
+.vscode/
+.idea/
+**/node_modules/
+
+# Logs & temp files
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+/tmp/
+
+# Mobile build caches & local configs
+**/.expo/
+**/.expo-shared/
+**/dist/
+**/web-build/
+**/android/app/build/
+**/android/.gradle/
+**/android/local.properties
+**/android/.idea/
+**/android/*.iml
+**/android/*.hprof
+**/android/.cxx/
+**/ios/build/
+**/ios/Pods/
+
+# Environment files
+.env*
