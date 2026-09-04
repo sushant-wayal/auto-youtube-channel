@@ -38,9 +38,7 @@
       "expo-audio",
       "expo-asset"
     ],
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.1",
     "updates": {
       "url": "https://u.expo.dev/294f6e06-d643-47b7-92a6-8701a374abf0",
       "enabled": true,
