@@ -55,6 +55,34 @@ export class YouTubeDataService {
     }
 
     /**
+     * Fetch channel statistics overview
+     */
+    async fetchChannelOverview(): Promise<{
+        title: string;
+        subscriberCount: number;
+        viewCount: number;
+        videoCount: number;
+    }> {
+        try {
+            const response = await this.youtube.channels.list({
+                part: ['snippet', 'statistics'],
+                mine: true,
+            });
+
+            const channel = response.data.items?.[0];
+            return {
+                title: channel?.snippet?.title || '',
+                subscriberCount: Number(channel?.statistics?.subscriberCount) || 0,
+                viewCount: Number(channel?.statistics?.viewCount) || 0,
+                videoCount: Number(channel?.statistics?.videoCount) || 0,
+            };
+        } catch (error) {
+            console.error('❌ Error fetching channel overview:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Fetch recent channel videos
      */
     async fetchRecentVideos(maxResults: number = 50): Promise<YouTubeVideo[]> {

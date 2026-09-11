@@ -124,6 +124,8 @@ export async function POST(req: NextRequest) {
         if (runId) metaFields.runId = String(runId);
         if (scriptData) metaFields.scriptData = typeof scriptData === 'string' ? scriptData : JSON.stringify(scriptData);
 
+        if (body.errorSummary) metaFields.errorSummary = body.errorSummary;
+
         for (const [k, v] of Object.entries(metaFields)) {
             await redis.hset('pipeline:status:metadata', k, v);
         }
@@ -139,18 +141,71 @@ export async function POST(req: NextRequest) {
             await redis.expire('pipeline:status:jobs', 60 * 60 * 24 * 7);
         }
 
-        // Send push notification if a token is registered
+        // Archive to historical runs list for Jarvis and analytics (keep latest 50 runs)
+        try {
+            const historyEntry = {
+                videoId,
+                videoTitle: videoTitle || videoId,
+                overallStatus,
+                youtubeId: youtubeId || null,
+                videoUrl: videoUrl || null,
+                thumbnailUrl: thumbnailUrl || null,
+                ranAt: metaFields.ranAt,
+                runId: runId ? String(runId) : null,
+                jobs: jobs || {},
+                errorSummary: body.errorSummary || null,
+            };
+            await redis.lpush('pipeline:history', JSON.stringify(historyEntry));
+            await redis.ltrim('pipeline:history', 0, 49);
+        } catch (histErr: any) {
+            console.error('[pipeline-status] Failed to archive run to history:', histErr.message);
+        }
+
+        // Send push notification if a mobile token is registered
         const pushToken = await redis.get(PUSH_TOKEN_KEY);
         if (pushToken) {
             try {
                 const scheduledTime = await redis.get(LONG_FORM_TIME_KEY); // e.g. "20:00"
                 await sendPushNotification(pushToken, overallStatus, videoId, videoTitle ?? videoId, scheduledTime, youtubeId);
             } catch (pushErr: any) {
-                // Non-fatal — log but don't fail the request
                 console.error('[pipeline-status] Push notification error:', pushErr.message);
             }
         } else {
             console.log('[pipeline-status] No push token registered, skipping notification');
+        }
+
+        // Proactively alert Jarvis webhook if configured
+        const jarvisWebhookUrl = process.env.JARVIS_WEBHOOK_URL;
+        if (jarvisWebhookUrl) {
+            try {
+                const jarvisPayload = {
+                    event: overallStatus === 'success' ? 'pipeline.completed' : 'pipeline.failed',
+                    overallStatus,
+                    videoId,
+                    videoTitle: videoTitle || videoId,
+                    youtubeId: youtubeId || null,
+                    videoUrl: videoUrl || null,
+                    thumbnailUrl: thumbnailUrl || null,
+                    description: description || null,
+                    runId: runId ? String(runId) : null,
+                    jobs: jobs || {},
+                    errorSummary: body.errorSummary || null,
+                    ranAt: metaFields.ranAt,
+                };
+
+                fetch(jarvisWebhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(process.env.JARVIS_API_KEY ? { 'X-Jarvis-Key': process.env.JARVIS_API_KEY } : {}),
+                    },
+                    body: JSON.stringify(jarvisPayload),
+                }).catch((webhookErr) => {
+                    console.error('[pipeline-status] Jarvis webhook error:', webhookErr.message);
+                });
+            } catch (webhookDispatchErr: any) {
+                console.error('[pipeline-status] Failed to dispatch Jarvis webhook:', webhookDispatchErr.message);
+            }
         }
 
         return NextResponse.json({ ok: true });
@@ -234,6 +289,7 @@ export async function GET() {
             ideasAdded: ideasAdded || [],
             scriptData: parsedScriptData,
             shorts,
+            errorSummary: metadata.errorSummary || null,
             jobs: {
                 populateIdeas: jobs.populateIdeas ?? null,
                 generateScript: jobs.generateScript ?? null,

@@ -463,4 +463,8 @@ npm run dev
 
 ---
 
-## Next: [07-mobile-app.md](./07-mobile-app.md)
+## Related Documentation
+
+- [07-mobile-app.md](./07-mobile-app.md) — Mobile application reference
+- [JARVIS_INTEGRATION.md](./JARVIS_INTEGRATION.md) — Complete Jarvis AI Integration Specification & API Reference
+

@@ -678,4 +678,13 @@ Potential improvements:
 
 ---
 
+## 📚 Documentation
+
+- **[Jarvis AI Integration Specification](docs/JARVIS_INTEGRATION.md)** — Complete API, context awareness, action endpoints, and LLM tool definitions for Jarvis.
+- **[Complete Repository Documentation](docs/COMPLETE_DOCUMENTATION.md)** — In-depth architectural breakdown across workers, pipeline, and mobile app.
+- **[Website & API Routes](docs/06-website-api.md)** — REST API endpoint reference.
+
+---
+
 **🎉 The pipeline is production-ready! No configuration needed beyond GitHub Secrets.**
+
