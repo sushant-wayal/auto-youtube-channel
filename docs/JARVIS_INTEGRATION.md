@@ -18,7 +18,6 @@ graph TD
     API -->|Workflow Dispatch: video_idea| GHA[GitHub Actions Orchestrator]
     GHA -->|Executes Workers| Pipeline[1. Idea -> 2. Script -> 3. Scenes -> 4. Voiceover -> 5. Assemble -> 6. Thumbnail -> 7. YouTube -> 8. Shorts]
     Pipeline -->|POST /api/pipeline-status| API
-    API -->|POST Proactive Webhook| JarvisWebhook[Jarvis Webhook URL]
 ```
 
 ### Jarvis Operating Principles
@@ -477,40 +476,7 @@ Generates a stylized thumbnail via AI and uploads it to Cloudinary.
 
 ---
 
-## 5. Proactive Jarvis Webhooks (Server-to-Jarvis Push)
-
-When configured with `JARVIS_WEBHOOK_URL`, the server automatically fires an HTTP POST notification to Jarvis whenever a video completes or fails.
-
-### Webhook Event Payload:
-```json
-{
-  "event": "pipeline.completed", // "pipeline.completed" | "pipeline.failed"
-  "overallStatus": "success",
-  "videoId": "video-1741740000",
-  "videoTitle": "Why Redis is Misused in Production",
-  "youtubeId": "dQw4w9WgXcQ",
-  "videoUrl": "https://res.cloudinary.com/.../final_video.mp4",
-  "thumbnailUrl": "https://res.cloudinary.com/.../thumbnail.jpg",
-  "description": "Video description with timestamps...",
-  "runId": "1234567890",
-  "errorSummary": null,
-  "jobs": {
-    "populateIdeas": "success",
-    "generateScript": "success",
-    "renderScenes": "success",
-    "generateVoiceover": "success",
-    "assembleLongForm": "success",
-    "generateThumbnail": "success",
-    "uploadYoutube": "success",
-    "shortsProcessing": "success"
-  },
-  "ranAt": "2026-09-12T01:00:00.000Z"
-}
-```
-
----
-
-## 6. Ready-to-Use LLM Tool / Function Calling Schemas
+## 5. Ready-to-Use LLM Tool / Function Calling Schemas
 
 Register these function schemas directly into Jarvis's LLM engine (compatible with OpenAI function calling, Gemini Tools, and Anthropic Tool definitions):
 

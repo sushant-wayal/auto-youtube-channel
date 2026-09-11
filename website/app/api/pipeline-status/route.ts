@@ -174,40 +174,6 @@ export async function POST(req: NextRequest) {
             console.log('[pipeline-status] No push token registered, skipping notification');
         }
 
-        // Proactively alert Jarvis webhook if configured
-        const jarvisWebhookUrl = process.env.JARVIS_WEBHOOK_URL;
-        if (jarvisWebhookUrl) {
-            try {
-                const jarvisPayload = {
-                    event: overallStatus === 'success' ? 'pipeline.completed' : 'pipeline.failed',
-                    overallStatus,
-                    videoId,
-                    videoTitle: videoTitle || videoId,
-                    youtubeId: youtubeId || null,
-                    videoUrl: videoUrl || null,
-                    thumbnailUrl: thumbnailUrl || null,
-                    description: description || null,
-                    runId: runId ? String(runId) : null,
-                    jobs: jobs || {},
-                    errorSummary: body.errorSummary || null,
-                    ranAt: metaFields.ranAt,
-                };
-
-                fetch(jarvisWebhookUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(process.env.JARVIS_API_KEY ? { 'X-Jarvis-Key': process.env.JARVIS_API_KEY } : {}),
-                    },
-                    body: JSON.stringify(jarvisPayload),
-                }).catch((webhookErr) => {
-                    console.error('[pipeline-status] Jarvis webhook error:', webhookErr.message);
-                });
-            } catch (webhookDispatchErr: any) {
-                console.error('[pipeline-status] Failed to dispatch Jarvis webhook:', webhookDispatchErr.message);
-            }
-        }
-
         return NextResponse.json({ ok: true });
     } catch (err: any) {
         console.error('[pipeline-status] Error:', err);
