@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Redis from 'ioredis';
+import { verifyJarvisAuth } from '@/lib/jarvis-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,11 @@ function getRedisClient() {
  *   - limit: number of runs to return (default: 10, max: 50)
  */
 export async function GET(req: NextRequest) {
+    const auth = verifyJarvisAuth(req);
+    if (!auth.authorized) {
+        return NextResponse.json({ ok: false, error: auth.reason }, { status: 401 });
+    }
+
     let redis: Redis | null = null;
     try {
         redis = getRedisClient();

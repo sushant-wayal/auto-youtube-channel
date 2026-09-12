@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { YouTubeDataService } from '@/lib/youtube-data-service';
+import { verifyJarvisAuth } from '@/lib/jarvis-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,11 @@ export const dynamic = 'force-dynamic';
  *   - daysBack: time window for analytics in days (default: 30)
  */
 export async function GET(req: NextRequest) {
+    const auth = verifyJarvisAuth(req);
+    if (!auth.authorized) {
+        return NextResponse.json({ ok: false, error: auth.reason }, { status: 401 });
+    }
+
     if (!process.env.YT_CLIENT_ID || !process.env.YT_CLIENT_SECRET || !process.env.YT_REFRESH_TOKEN) {
         return NextResponse.json(
             {

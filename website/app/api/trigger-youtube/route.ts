@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Redis from 'ioredis';
+import { verifyJarvisAuth } from '@/lib/jarvis-auth';
 
 async function dispatchWorkflow(videoIdea?: string) {
     const owner = process.env.GITHUB_OWNER || 'sushant-wayal';
@@ -59,6 +60,11 @@ async function dispatchWorkflow(videoIdea?: string) {
 }
 
 export async function POST(req: NextRequest) {
+    const auth = verifyJarvisAuth(req);
+    if (!auth.authorized) {
+        return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
+    }
+
     try {
         const body = await req.json().catch(() => ({}));
         const videoIdea = body?.videoIdea;
@@ -73,7 +79,17 @@ export async function POST(req: NextRequest) {
     }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret) {
+        const authHeader = req.headers.get('authorization');
+        const isCron = authHeader === `Bearer ${cronSecret}`;
+        const isJarvis = verifyJarvisAuth(req).authorized;
+        if (!isCron && !isJarvis) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+    }
+
     try {
         const result = await dispatchWorkflow();
         return NextResponse.json(result);
