@@ -83,12 +83,13 @@ export async function GET(req: NextRequest) {
     const cronSecret = process.env.CRON_SECRET;
     if (cronSecret) {
         const authHeader = req.headers.get('authorization');
-        const isCron = authHeader === `Bearer ${cronSecret}`;
+        const isCron = authHeader === `Bearer ${cronSecret}` || req.headers.get('x-vercel-cron') === '1';
         const isJarvis = verifyJarvisAuth(req).authorized;
         if (!isCron && !isJarvis) {
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
     }
+
 
     try {
         const result = await dispatchWorkflow();
