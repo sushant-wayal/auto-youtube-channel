@@ -58,6 +58,11 @@ export const config = {
     thumbnail: {
         enabled: process.env.ENABLE_THUMBNAIL_GENERATION === 'true',
     },
+    commentReply: {
+        enabled: process.env.ENABLE_AUTO_COMMENT_REPLY !== 'false',
+        dryRun: process.env.AUTO_COMMENT_DRY_RUN === 'true',
+        maxRepliesPerRun: parseInt(process.env.AUTO_COMMENT_MAX_REPLIES || '5', 10),
+    },
     workDir: process.env.WORK_DIR || path.join(process.cwd(), 'videos'),
 };
 
@@ -113,6 +118,13 @@ export function validateConfig(required: string[] = []): void {
 
     if (required.includes('website')) {
         if (!config.website.domain) errors.push('WEBSITE_DOMAIN is required');
+    }
+
+    if (required.includes('commentReply')) {
+        if (!config.youtube.clientId) errors.push('YT_CLIENT_ID is required for comment reply');
+        if (!config.youtube.clientSecret) errors.push('YT_CLIENT_SECRET is required for comment reply');
+        if (!config.youtube.refreshToken) errors.push('YT_REFRESH_TOKEN is required for comment reply');
+        if (!config.gemini.apiKey1 && !config.gemini.apiKey) errors.push('GEMINI_API_KEY_1 or GEMINI_API_KEY is required for comment reply');
     }
 
     if (errors.length > 0) {

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { settingsApi } from '../services/api';
+import { settingsApi, commentsApi } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
 import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
 
@@ -122,6 +122,8 @@ function OptionButton({ label, selected, onPress, icon, description, badge, disa
 export default function SettingsScreen() {
     const [voiceoverProvider, setVoiceoverProvider] = useState<'gemini' | 'f5'>('f5');
     const [sceneRenderMethod, setSceneRenderMethod] = useState<'code' | 'ai'>('code');
+    const [commentReplyEnabled, setCommentReplyEnabled] = useState(true);
+    const [commentReplyDryRun, setCommentReplyDryRun] = useState(false);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -158,13 +160,22 @@ export default function SettingsScreen() {
         setLoading(true);
         setError(null);
         try {
-            const response = await settingsApi.getSettings();
+            const [response, commentRes] = await Promise.all([
+                settingsApi.getSettings(),
+                commentsApi.getSettings(),
+            ]);
+
             if (response.ok && response.voiceoverProvider && response.sceneRenderMethod) {
                 triggerLayoutAnim();
                 setVoiceoverProvider(response.voiceoverProvider);
                 setSceneRenderMethod(response.sceneRenderMethod);
-            } else {
+            } else if (!response.ok) {
                 setError(response.error || 'Failed to load settings');
+            }
+
+            if (commentRes.ok && commentRes.settings) {
+                setCommentReplyEnabled(commentRes.settings.enabled);
+                setCommentReplyDryRun(commentRes.settings.dryRun);
             }
         } catch (err: any) {
             setError(err.message || String(err));
@@ -177,19 +188,76 @@ export default function SettingsScreen() {
         setRefreshing(true);
         setError(null);
         try {
-            const response = await settingsApi.getSettings();
+            const [response, commentRes] = await Promise.all([
+                settingsApi.getSettings(),
+                commentsApi.getSettings(),
+            ]);
+
             if (response.ok && response.voiceoverProvider && response.sceneRenderMethod) {
                 triggerLayoutAnim();
                 setVoiceoverProvider(response.voiceoverProvider);
                 setSceneRenderMethod(response.sceneRenderMethod);
                 showToast('Settings refreshed');
-            } else {
+            } else if (!response.ok) {
                 setError(response.error || 'Failed to refresh settings');
+            }
+
+            if (commentRes.ok && commentRes.settings) {
+                setCommentReplyEnabled(commentRes.settings.enabled);
+                setCommentReplyDryRun(commentRes.settings.dryRun);
             }
         } catch (err: any) {
             setError(err.message || String(err));
         } finally {
             setRefreshing(false);
+        }
+    };
+
+    const handleToggleCommentEnabled = async (enabled: boolean) => {
+        if (updating || enabled === commentReplyEnabled) return;
+        setUpdating(true);
+        setError(null);
+        triggerLayoutAnim();
+        setCommentReplyEnabled(enabled);
+
+        try {
+            const res = await commentsApi.updateSettings({ enabled });
+            if (res.ok && res.settings) {
+                setCommentReplyEnabled(res.settings.enabled);
+                showToast(`Auto comment reply ${enabled ? 'ENABLED' : 'PAUSED'}`);
+            } else {
+                setCommentReplyEnabled(!enabled); // Revert
+                setError(res.error || 'Failed to update comment setting');
+            }
+        } catch (err: any) {
+            setCommentReplyEnabled(!enabled); // Revert
+            setError(err.message || String(err));
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    const handleToggleCommentDryRun = async (dryRun: boolean) => {
+        if (updating || dryRun === commentReplyDryRun) return;
+        setUpdating(true);
+        setError(null);
+        triggerLayoutAnim();
+        setCommentReplyDryRun(dryRun);
+
+        try {
+            const res = await commentsApi.updateSettings({ dryRun });
+            if (res.ok && res.settings) {
+                setCommentReplyDryRun(res.settings.dryRun);
+                showToast(`Dry-run mode ${dryRun ? 'ACTIVATED' : 'DEACTIVATED'}`);
+            } else {
+                setCommentReplyDryRun(!dryRun); // Revert
+                setError(res.error || 'Failed to update dry-run mode');
+            }
+        } catch (err: any) {
+            setCommentReplyDryRun(!dryRun); // Revert
+            setError(err.message || String(err));
+        } finally {
+            setUpdating(false);
         }
     };
 
@@ -375,6 +443,55 @@ export default function SettingsScreen() {
                             </View>
                         </View>
 
+                        {/* Auto Comment Reply Mode */}
+                        <View style={styles.card}>
+                            <View style={styles.cardHeader}>
+                                <View style={styles.cardHeaderIcon}>
+                                    <Ionicons name="chatbubbles-outline" size={20} color={colors.gradientTo} />
+                                </View>
+                                <View style={styles.cardHeaderText}>
+                                    <Text style={styles.cardTitle}>Auto Comment Reply</Text>
+                                    <Text style={styles.cardSubtitle}>Automated viewer engagement via Gemini and YouTube Data API.</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.optionsList}>
+                                <OptionButton
+                                    label="Live Mode"
+                                    icon="checkmark-circle-outline"
+                                    badge="POSTS TO YT"
+                                    description="Active replies are posted directly to YouTube video comments."
+                                    selected={commentReplyEnabled && !commentReplyDryRun}
+                                    onPress={() => {
+                                        handleToggleCommentEnabled(true);
+                                        handleToggleCommentDryRun(false);
+                                    }}
+                                    disabled={updating}
+                                />
+                                <OptionButton
+                                    label="Dry-Run Mode"
+                                    icon="flask-outline"
+                                    badge="SIMULATED"
+                                    description="Simulate and log AI replies to the audit feed without posting to YouTube."
+                                    selected={commentReplyEnabled && commentReplyDryRun}
+                                    onPress={() => {
+                                        handleToggleCommentEnabled(true);
+                                        handleToggleCommentDryRun(true);
+                                    }}
+                                    disabled={updating}
+                                />
+                                <OptionButton
+                                    label="Paused"
+                                    icon="pause-circle-outline"
+                                    badge="DISABLED"
+                                    description="Disable all automated comment replies and skip Vercel/GitHub scheduled runs."
+                                    selected={!commentReplyEnabled}
+                                    onPress={() => handleToggleCommentEnabled(false)}
+                                    disabled={updating}
+                                />
+                            </View>
+                        </View>
+
                         {/* Dashboard config summary */}
                         <LinearGradient
                             colors={gradients.card}
@@ -400,11 +517,18 @@ export default function SettingsScreen() {
                                         {sceneRenderMethod === 'code' ? 'Code · Deterministic' : 'AI · Direct HTML'}
                                     </Text>
                                 </View>
+                                <View style={styles.summaryDivider} />
+                                <View style={styles.summaryCell}>
+                                    <Text style={styles.summaryLabel}>COMMENT REPLY</Text>
+                                    <Text style={styles.summaryValue}>
+                                        {!commentReplyEnabled ? 'Paused' : commentReplyDryRun ? 'Dry-Run · Simulated' : 'Live · Automated'}
+                                    </Text>
+                                </View>
                             </View>
                             {updating && (
                                 <View style={styles.updatingOverlay}>
                                     <ActivityIndicator size="small" color={colors.gradientTo} />
-                                    <Text style={styles.updatingText}>Saving pipeline settings...</Text>
+                                    <Text style={styles.updatingText}>Saving settings...</Text>
                                 </View>
                             )}
                         </LinearGradient>

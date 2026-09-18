@@ -12,6 +12,7 @@ import ScheduleTimesScreen from './screens/ScheduleTimesScreen';
 import PipelineStatusScreen from './screens/PipelineStatusScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import SeriesScreen from './screens/SeriesScreen';
+import CommentsScreen from './screens/CommentsScreen';
 import { borderRadius, colors, gradients, motion, shadows, spacing, typography } from './theme';
 import { pipelineApi } from './services/api';
 
@@ -25,7 +26,7 @@ const getNotifications = () =>
     isExpoGo ? null : (require('expo-notifications') as typeof import('expo-notifications'));
 
 const Tab = createMaterialTopTabNavigator();
-const NUM_TABS = 4;
+const NUM_TABS = 5;
 
 type TabItemProps = {
     icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -260,8 +261,8 @@ export default function App() {
                                     width: tabWidth - 8,
                                     transform: [{
                                         translateX: indicatorPosition.interpolate({
-                                            inputRange: [0, 1, 2, 3],
-                                            outputRange: [0, tabWidth, tabWidth * 2, tabWidth * 3],
+                                            inputRange: [0, 1, 2, 3, 4],
+                                            outputRange: [0, tabWidth, tabWidth * 2, tabWidth * 3, tabWidth * 4],
                                         }),
                                     }],
                                 },
@@ -279,6 +280,7 @@ export default function App() {
                         <TabItem icon="layers-outline" isActive={activeTab === 1} onPress={() => handleTabPress(1, 'Series')} />
                         <TabItem icon="time-outline" isActive={activeTab === 2} onPress={() => handleTabPress(2, 'Schedule')} />
                         <TabItem icon="git-branch-outline" isActive={activeTab === 3} onPress={() => handleTabPress(3, 'Pipeline')} />
+                        <TabItem icon="chatbubbles-outline" isActive={activeTab === 4} onPress={() => handleTabPress(4, 'Comments')} />
                     </View>
                 </LinearGradient>
 
@@ -308,6 +310,7 @@ export default function App() {
                         <Tab.Screen name="Series" component={SeriesScreen} options={{}} />
                         <Tab.Screen name="Schedule" component={ScheduleTimesScreen} options={{}} />
                         <Tab.Screen name="Pipeline" component={PipelineStatusScreen} options={{}} />
+                        <Tab.Screen name="Comments" component={CommentsScreen} options={{}} />
                     </Tab.Navigator>
                 </NavigationContainer>
 

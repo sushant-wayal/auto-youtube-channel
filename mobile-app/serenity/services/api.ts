@@ -574,3 +574,138 @@ export const seriesApi = {
         }
     }
 };
+
+// Auto Comment Reply Types
+export type CommentReplySettings = {
+    enabled: boolean;
+    dryRun: boolean;
+    maxRepliesPerRun: number;
+    tone: 'friendly' | 'professional' | 'technical' | 'enthusiastic';
+    customInstructions?: string;
+    replyToQuestionsOnly?: boolean;
+};
+
+export type ReplyHistoryEntry = {
+    id: string;
+    threadId: string;
+    commentId: string;
+    videoId: string;
+    videoTitle: string;
+    authorName: string;
+    commentText: string;
+    replyText: string;
+    category: string;
+    sentiment: string;
+    status: 'posted' | 'dry_run' | 'skipped' | 'failed';
+    error?: string;
+    timestamp: string;
+};
+
+export type CommentsHistoryResponse = {
+    ok: boolean;
+    settings?: CommentReplySettings;
+    stats?: {
+        totalLiveReplies: number;
+        totalDryRunReplies: number;
+        totalFailed: number;
+    };
+    history?: ReplyHistoryEntry[];
+    error?: string;
+};
+
+export type CommentsSettingsResponse = {
+    ok: boolean;
+    settings?: CommentReplySettings;
+    error?: string;
+};
+
+export type CommentsProcessResponse = {
+    ok: boolean;
+    result?: {
+        success: boolean;
+        totalChecked: number;
+        repliesSent: number;
+        repliesDryRun: number;
+        repliesSkipped: number;
+        errors: string[];
+    };
+    error?: string;
+};
+
+export type CommentsDispatchResponse = {
+    success: boolean;
+    message?: string;
+    error?: string;
+};
+
+// Auto Comment Reply API
+export const commentsApi = {
+    getHistory: async (limit: number = 30): Promise<CommentsHistoryResponse> => {
+        try {
+            console.log('[API] Fetching comments history');
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/history?limit=${limit}`);
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error fetching comments history:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    getSettings: async (): Promise<CommentsSettingsResponse> => {
+        try {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/settings`);
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error fetching comments settings:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    updateSettings: async (settings: Partial<CommentReplySettings>): Promise<CommentsSettingsResponse> => {
+        try {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings),
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error updating comments settings:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    processNow: async (options?: { dryRun?: boolean; maxReplies?: number }): Promise<CommentsProcessResponse> => {
+        try {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/process`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...options, force: true }),
+            }, 60000); // 60s timeout for full AI batch
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error processing comments:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    dispatchGitHub: async (options?: { dryRun?: boolean; maxReplies?: number }): Promise<CommentsDispatchResponse> => {
+        try {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/cron/auto-comment-reply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...options, force: true }),
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error dispatching comments workflow:', error.message || error);
+            return { success: false, error: error.message || String(error) };
+        }
+    },
+};
+

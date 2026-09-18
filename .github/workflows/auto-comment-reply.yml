@@ -1,0 +1,64 @@
+name: Auto Comment Reply Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run mode (generates and logs replies without posting to YouTube)'
+        required: false
+        type: boolean
+        default: false
+      max_replies:
+        description: 'Maximum replies to send in this run'
+        required: false
+        type: string
+        default: '5'
+      force:
+        description: 'Force execution even if disabled in settings'
+        required: false
+        type: boolean
+        default: false
+  # Scheduled via Vercel Cron -> /api/cron/auto-comment-reply -> GitHub Actions dispatch
+  # schedule:
+  #   - cron: '0 */6 * * *'
+
+jobs:
+  reply-to-comments:
+    name: Auto Reply to YouTube Comments
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Auto Comment Reply Worker
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="$ARGS --force"
+          fi
+          if [ -n "${{ github.event.inputs.max_replies }}" ]; then
+            ARGS="$ARGS --limit ${{ github.event.inputs.max_replies }}"
+          fi
+
+          npx tsx .github/scripts/auto-comment-reply.ts $ARGS

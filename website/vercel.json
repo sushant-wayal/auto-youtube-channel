@@ -3,6 +3,10 @@
     {
       "path": "/api/trigger-youtube",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/auto-comment-reply",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
