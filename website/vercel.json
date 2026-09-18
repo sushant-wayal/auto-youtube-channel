@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/auto-comment-reply",
-      "schedule": "0 */12 * * *"
+      "schedule": "0 12 * * *"
     }
   ]
 }
