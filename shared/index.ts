@@ -15,3 +15,7 @@ export {
 
 // Title formatting utilities
 export { formatYouTubeTitle, YOUTUBE_MAX_TITLE_LENGTH } from './utils/title-formatter';
+
+// High-quality autonomous thumbnail composer
+export { ThumbnailComposer } from './services/thumbnail-composer';
+export type { ThumbnailComposeOptions, ThumbnailComposeResult } from './services/thumbnail-composer';

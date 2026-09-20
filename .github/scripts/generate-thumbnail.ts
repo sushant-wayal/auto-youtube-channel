@@ -16,50 +16,68 @@ interface ScriptData {
 }
 
 async function generateThumbnail(videoId: string, scriptData: string) {
-    validateConfig(['website']);
-
     const data: ScriptData = JSON.parse(scriptData);
+    console.error(`🖼️ Generating high-quality thumbnail for: ${data.script.title}`);
 
-    console.error(`🖼️ Generating thumbnail for: ${data.script.title}`);
+    let thumbnailUrl: string | undefined;
 
-    const websiteDomain = process.env.WEBSITE_DOMAIN || 'http://localhost:3000';
+    // 1. First try website API if WEBSITE_DOMAIN is provided
+    const websiteDomain = process.env.WEBSITE_DOMAIN;
+    if (websiteDomain) {
+        try {
+            console.error(`[DEBUG] Attempting generation via website API: ${websiteDomain}/api/generate-thumbnail`);
+            const requestBody = {
+                videoId,
+                title: data.script.title,
+                description: data.script.description,
+                narration: data.script.narration || 'No narration provided.',
+                tags: data.script.tags || [],
+            };
 
-    const requestBody = {
-        videoId,
-        title: data.script.title,
-        description: data.script.description,
-        narration: data.script.narration || 'No narration provided.',
-        tags: data.script.tags || [],
-    };
+            const response = await fetch(`${websiteDomain}/api/generate-thumbnail`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
+            });
 
-    console.error(`[DEBUG] API endpoint: ${websiteDomain}/api/generate-thumbnail`);
-    console.error(`[DEBUG] Request body:`, JSON.stringify(requestBody, null, 2));
-
-    // Call the thumbnail generation API
-    const response = await fetch(`${websiteDomain}/api/generate-thumbnail`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-    });
-
-    console.error(`[DEBUG] Response status: ${response.status} ${response.statusText}`);
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[DEBUG] Response body: ${errorText}`);
-        throw new Error(`Thumbnail generation failed: ${response.status} ${response.statusText} - ${errorText}`);
+            if (response.ok) {
+                const result = await response.json();
+                thumbnailUrl = result.thumbnail?.thumbnailPath || result.thumbnailUrl;
+            } else {
+                console.error(`⚠️ Website thumbnail API failed (${response.status}), falling back to direct composer.`);
+            }
+        } catch (apiErr) {
+            console.error('⚠️ Website thumbnail API error, falling back to direct composer:', apiErr);
+        }
     }
 
-    const result = await response.json();
-    const thumbnailUrl = result.thumbnail?.thumbnailPath || result.thumbnailUrl;
-    console.error(`✅ Thumbnail generated: ${thumbnailUrl}`);
+    // 2. If website API was skipped or failed, use local ThumbnailComposer
+    if (!thumbnailUrl) {
+        console.error('🎨 Generating thumbnail using direct Autonomous Thumbnail Composer...');
+        const { ThumbnailComposer } = await import('../../shared/services/thumbnail-composer');
+        const composer = ThumbnailComposer.getInstance();
+        const result = await composer.compose({
+            videoId,
+            title: data.script.title,
+            description: data.script.description,
+            narration: data.script.narration,
+            tags: data.script.tags || []
+        });
+        thumbnailUrl = result.thumbnailUrl;
+    }
+
+    if (!thumbnailUrl) {
+        throw new Error('Failed to generate thumbnail: no URL returned');
+    }
+
+    console.error(`✅ High-quality thumbnail generated: ${thumbnailUrl}`);
 
     // Output for GitHub Actions (hex encoded to avoid secret detection patterns)
     console.log(`thumbnail_url=${Buffer.from(thumbnailUrl).toString('hex')}`);
 
     await setMetadata({ thumbnailUrl });
 
-    return result;
+    return { thumbnailUrl };
 }
 
 // Main execution

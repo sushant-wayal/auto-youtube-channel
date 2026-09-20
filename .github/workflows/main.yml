@@ -245,6 +245,14 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      - name: Install system dependencies (for Puppeteer thumbnail rendering)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+            libxkbcommon0 libxcomposite1 libxrandr2 libgbm1 \
+            libpangocairo-1.0-0 libasound2t64
+
       - name: Install dependencies
         run: npm install
 
@@ -254,6 +262,12 @@ jobs:
           WEBSITE_DOMAIN: ${{ vars.WEBSITE_DOMAIN }}
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
           npx tsx .github/scripts/generate-thumbnail.ts "${{ needs.generate-script.outputs.video_id }}" >> $GITHUB_OUTPUT
 
@@ -431,10 +445,50 @@ jobs:
         run: |
           npx tsx .github/scripts/process-single-short.ts "${{ needs.generate-script.outputs.video_id }}"
 
+  # Step 8: Link Shorts to Long-form Video
+  # Runs after both the long-form video (upload-youtube) and shorts (process-short) finish
+  link-shorts-to-longform:
+    name: Link Shorts to Long-form
+    needs: [generate-script, upload-youtube, process-short]
+    if: always() && needs.generate-script.result == 'success' && needs.upload-youtube.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install system dependencies (for Puppeteer if UI automation runs)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+            libxkbcommon0 libxcomposite1 libxrandr2 libgbm1 \
+            libpangocairo-1.0-0 libasound2t64
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Link Shorts to Long-form Video
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YOUTUBE_STUDIO_COOKIES: ${{ secrets.YOUTUBE_STUDIO_COOKIES }}
+        run: |
+          npx tsx .github/scripts/link-shorts-to-longform.ts "${{ needs.generate-script.outputs.video_id }}" "${{ needs.upload-youtube.outputs.youtube_id }}"
+
   # Summary job
   pipeline-summary:
     name: Pipeline Summary
-    needs: [pipeline-settings, populate-ideas, generate-script, render-scenes, generate-voiceover, assemble-video, upload-youtube, shorts-matrix-setup, process-short, generate-thumbnail]
+    needs: [pipeline-settings, populate-ideas, generate-script, render-scenes, generate-voiceover, assemble-video, upload-youtube, shorts-matrix-setup, process-short, generate-thumbnail, link-shorts-to-longform]
     runs-on: ubuntu-latest
     if: always()
     
@@ -467,6 +521,7 @@ jobs:
           echo "- YouTube Upload: ${{ needs['upload-youtube'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Shorts Matrix Setup: ${{ needs['shorts-matrix-setup'].result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Shorts Processing (parallel): ${{ needs['process-short'].result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Shorts Linked to Long-form: ${{ needs['link-shorts-to-longform'].result }}" >> $GITHUB_STEP_SUMMARY
       - name: Send pipeline status to app
         if: always()
         env:
@@ -547,6 +602,7 @@ jobs:
             --arg generateThumbnail "${{ needs['generate-thumbnail'].result }}" \
             --arg uploadYoutube   "${{ needs['upload-youtube'].result }}" \
             --arg shortsProcessing "${{ needs['process-short'].result }}" \
+            --arg linkShorts      "${{ needs['link-shorts-to-longform'].result }}" \
             --argjson scriptData "$RAW_SCRIPT" \
             '{
               runId: $runId,
@@ -572,7 +628,8 @@ jobs:
                 assembleLongForm: $assembleLongForm,
                 generateThumbnail: $generateThumbnail,
                 uploadYoutube:    $uploadYoutube,
-                shortsProcessing: $shortsProcessing
+                shortsProcessing: $shortsProcessing,
+                linkShorts:       $linkShorts
               }
             }')
 
