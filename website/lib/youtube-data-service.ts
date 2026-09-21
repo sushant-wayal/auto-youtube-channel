@@ -24,6 +24,12 @@ export interface YouTubeAnalytics {
     isShort: boolean;
 }
 
+export interface SlotRetentionStat {
+    estimatedRetention: number;
+    sampleCount: number;
+    isCalibrating?: boolean;
+}
+
 /**
  * YouTube Data API Service
  * Fetches channel videos and analytics automatically
@@ -217,5 +223,127 @@ export class YouTubeDataService {
         const seconds = parseInt(match[3] || '0');
 
         return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    /**
+     * Fetch empirical retention percentage for shorts published within ±30 mins of target slot times.
+     * Computes the average retention of the last up to 30 shorts published in that time window.
+     */
+    async fetchShortsRetentionStats(slotTimes: string[]): Promise<Record<string, SlotRetentionStat>> {
+        const results: Record<string, SlotRetentionStat> = {};
+
+        // Default all slots to calibrating
+        for (const slot of slotTimes) {
+            results[slot] = {
+                estimatedRetention: 0,
+                sampleCount: 0,
+                isCalibrating: true,
+            };
+        }
+
+        try {
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 120);
+            const endDate = new Date();
+            // 2 days ago to account for YouTube Analytics 24-48h reporting latency
+            endDate.setDate(endDate.getDate() - 2);
+
+            // Fetch video analytics in bulk (single request for up to 200 videos)
+            const analyticsRes = await this.youtubeAnalytics.reports.query({
+                ids: 'channel==MINE',
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+                metrics: 'views,averageViewPercentage',
+                dimensions: 'video',
+                maxResults: 200,
+                sort: '-views',
+            });
+
+            const rows = analyticsRes.data.rows || [];
+            if (rows.length === 0) {
+                return results;
+            }
+
+            const videoIds = rows.map((r: any[]) => r[0]).filter(Boolean);
+
+            // Fetch video metadata in chunks of 50 to get duration and publishedAt
+            const chunks: string[][] = [];
+            for (let i = 0; i < videoIds.length; i += 50) {
+                chunks.push(videoIds.slice(i, i + 50));
+            }
+
+            const vidsResponses = await Promise.all(
+                chunks.map(chunk =>
+                    this.youtube.videos.list({
+                        part: ['contentDetails', 'snippet'],
+                        id: chunk,
+                    })
+                )
+            );
+
+            const allVideos = vidsResponses.flatMap(res => res.data.items || []);
+            const analyticsMap = new Map(rows.map((r: any[]) => [r[0], { views: Number(r[1]) || 0, retention: Number(r[2]) || 0 }]));
+
+            // Filter to Shorts (duration <= 60 seconds)
+            const shorts = allVideos.filter(v => {
+                const dur = v.contentDetails?.duration || '';
+                const seconds = this.parseDuration(dur);
+                return seconds > 0 && seconds <= 60;
+            });
+
+            for (const slotTime of slotTimes) {
+                const parts = slotTime.split(':').map(Number);
+                if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) continue;
+
+                const slotMin = parts[0] * 60 + parts[1];
+                const matching: { publishedAt: string; retention: number }[] = [];
+
+                for (const short of shorts) {
+                    if (!short.snippet?.publishedAt) continue;
+                    const pub = new Date(short.snippet.publishedAt);
+                    // Convert UTC to IST (+5:30 = 330 minutes)
+                    const istMin = (pub.getUTCHours() * 60 + pub.getUTCMinutes() + 330) % 1440;
+                    let diff = Math.abs(istMin - slotMin);
+                    if (diff > 720) diff = 1440 - diff;
+
+                    // Window of ±30 minutes around slot time
+                    if (diff <= 30) {
+                        const ana = analyticsMap.get(short.id!);
+                        if (ana && ana.retention > 0) {
+                            matching.push({
+                                publishedAt: short.snippet.publishedAt,
+                                retention: ana.retention,
+                            });
+                        }
+                    }
+                }
+
+                // Sort newest to oldest
+                matching.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+                // Take last up to 30 shorts
+                const sample = matching.slice(0, 30);
+
+                if (sample.length >= 3) {
+                    const avg = sample.reduce((acc, s) => acc + s.retention, 0) / sample.length;
+                    results[slotTime] = {
+                        estimatedRetention: Math.round(avg * 10) / 10,
+                        sampleCount: sample.length,
+                        isCalibrating: false,
+                    };
+                } else {
+                    results[slotTime] = {
+                        estimatedRetention: 0,
+                        sampleCount: sample.length,
+                        isCalibrating: true,
+                    };
+                }
+            }
+
+            return results;
+        } catch (error) {
+            console.error('❌ Error computing shorts retention stats:', error);
+            return results;
+        }
     }
 }

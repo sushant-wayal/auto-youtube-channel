@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Redis from 'ioredis';
+import { YouTubeDataService, SlotRetentionStat } from '@/lib/youtube-data-service';
 
 const redis = new Redis(process.env.REDIS_URL!);
 
 const SHORTS_TIMES_KEY = 'shorts:publish-times';
 const LONG_FORM_TIME_KEY = 'longform:publish-time';
+const RETENTION_STATS_KEY = 'shorts:retention-stats';
 
 const DEFAULT_SHORTS_TIMES = [
     '16:30', // Rank 1 (Best)
@@ -18,21 +20,50 @@ const DEFAULT_LONG_FORM_TIME = '18:30';
 
 /**
  * GET /api/schedule-times
- * Returns both shorts and long-form schedule times
+ * Returns both shorts and long-form schedule times, alongside
+ * empirical YouTube Analytics retention statistics for shorts slots.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
+        const { searchParams } = new URL(req.url);
+        const forceRefresh = searchParams.get('refresh') === 'true';
+
         const shortsTimesJson = await redis.get(SHORTS_TIMES_KEY);
         const longFormTime = await redis.get(LONG_FORM_TIME_KEY);
 
-        const shortsTimes = shortsTimesJson
+        const shortsTimes: string[] = shortsTimesJson
             ? JSON.parse(shortsTimesJson)
             : DEFAULT_SHORTS_TIMES;
+
+        let retentionStats: Record<string, SlotRetentionStat> = {};
+
+        // Try getting cached retention stats from Redis
+        const cachedRetentionJson = await redis.get(RETENTION_STATS_KEY);
+        if (cachedRetentionJson && !forceRefresh) {
+            try {
+                retentionStats = JSON.parse(cachedRetentionJson);
+            } catch {
+                retentionStats = {};
+            }
+        }
+
+        // If not cached or refresh requested, compute empirical retention from YouTube Analytics
+        if (!cachedRetentionJson || forceRefresh || Object.keys(retentionStats).length === 0) {
+            try {
+                const ytService = new YouTubeDataService();
+                retentionStats = await ytService.fetchShortsRetentionStats(shortsTimes);
+                // Cache for 6 hours (21600 seconds)
+                await redis.set(RETENTION_STATS_KEY, JSON.stringify(retentionStats), 'EX', 21600);
+            } catch (err: any) {
+                console.error('⚠️ Could not compute retention stats from YouTube:', err.message || err);
+            }
+        }
 
         return NextResponse.json({
             ok: true,
             shortsTimes,
             longFormTime: longFormTime || DEFAULT_LONG_FORM_TIME,
+            retentionStats,
         });
     } catch (error: any) {
         return NextResponse.json({
@@ -75,6 +106,8 @@ export async function POST(req: NextRequest) {
             }
 
             await redis.set(SHORTS_TIMES_KEY, JSON.stringify(shortsTimes));
+            // Invalidate retention stats cache so it recalculates for new times
+            await redis.del(RETENTION_STATS_KEY);
         }
 
         // Update long-form time if provided
