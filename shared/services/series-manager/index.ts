@@ -89,7 +89,7 @@ export class SeriesManager {
     /**
      * Finds the next series that should be scheduled and pushes an episode to the global queue
      */
-    async scheduleNextEpisode(): Promise<boolean> {
+    async scheduleNextEpisode(): Promise<{ scheduled: true; topic: string; seriesTitle?: string } | false> {
         const activeIds = await this.redis.getActiveSeriesIds();
         if (activeIds.length === 0) {
             return false;
@@ -161,7 +161,11 @@ export class SeriesManager {
         // Push to global video:ideas queue
         await this.redis.pushToGlobalQueue(nextItemPayload);
         console.error(`Scheduled episode "${nextItemPayload.topic}" (ID: ${nextItemPayload.seriesContext.episodeId}) for series "${nextItemPayload.seriesContext.seriesTitle}"`);
-        return true;
+        return {
+            scheduled: true,
+            topic: nextItemPayload.topic,
+            seriesTitle: nextItemPayload.seriesContext?.seriesTitle,
+        };
     }
 
     /**

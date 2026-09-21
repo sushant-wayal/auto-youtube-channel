@@ -31,59 +31,67 @@ async function checkQueueAndPopulate(): Promise<void> {
         await initPipeline('pending...', 'Initializing Pipeline...', process.env.GITHUB_RUN_ID);
         await setJobStatus('populateIdeas', 'running');
 
-        // Check current queue size
-        const queueSize = await redis.llen(QUEUE_KEY);
-        console.error(`📊 Current ideas queue size: ${queueSize}`);
+        const addedTopics: string[] = [];
 
-        if (queueSize >= MIN_QUEUE_SIZE) {
-            console.error(`✅ Queue has sufficient ideas (${queueSize}), skipping idea generation`);
-            await setJobStatus('populateIdeas', 'success');
-            await redis.quit();
-            await seriesManager.close();
-            return;
+        // Check current queue size
+        const initialQueueSize = await redis.llen(QUEUE_KEY);
+        console.error(`📊 Initial ideas queue size: ${initialQueueSize}`);
+
+        // 1. Always evaluate if a new series should be auto-initiated by AI Strategist
+        try {
+            console.error(`🧠 Checking series strategist auto-initiation...`);
+            await seriesManager.autoInitiateSeriesIfNeeded();
+        } catch (stratErr) {
+            console.error(`⚠️ Series strategist check failed:`, stratErr);
         }
 
-        console.error(`⚠️  Queue is below threshold (${queueSize}/${MIN_QUEUE_SIZE}), populating...`);
+        // 2. Schedule next episodes from any active series that have pending episodes ready
+        console.error(`📚 Checking active series to schedule next episodes into queue...`);
+        let scheduleMore = true;
+        while (scheduleMore) {
+            try {
+                const scheduledSeries = await seriesManager.scheduleNextEpisode();
+                if (scheduledSeries && typeof scheduledSeries === 'object' && scheduledSeries.topic) {
+                    console.error(`✅ Scheduled series episode: "${scheduledSeries.topic}" (Series: ${scheduledSeries.seriesTitle || 'Active'})`);
+                    addedTopics.push(scheduledSeries.topic);
+                    await pushArrayItem('ideasAdded', scheduledSeries.topic);
+                } else {
+                    scheduleMore = false;
+                }
+            } catch (seriesErr) {
+                console.error(`⚠️ Error scheduling series episode:`, seriesErr);
+                scheduleMore = false;
+            }
+        }
 
-        // Check if we need to launch a new series (Strategist AI)
-        await seriesManager.autoInitiateSeriesIfNeeded();
+        // 3. Check queue size after series scheduling
+        let currentSize = await redis.llen(QUEUE_KEY);
+        console.error(`📊 Queue size after series scheduling: ${currentSize}`);
 
-        // Fetch existing queue ideas to avoid duplicates
+        // Fetch existing queue ideas to avoid duplicates during standalone generation
         let existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
         if (existingIdeas.length > 0) {
-            console.error(`📋 Existing queue ideas (${existingIdeas.length}):`);
+            console.error(`📋 Current queue topics (${existingIdeas.length}):`);
             existingIdeas.forEach((idea, i) => {
-                console.error(`   ${i + 1}. ${idea}`);
+                let label = idea;
+                try {
+                    const parsed = JSON.parse(idea);
+                    if (parsed.topic) label = parsed.topic;
+                } catch {}
+                console.error(`   ${i + 1}. ${label}`);
             });
         }
 
-        // Loop until the queue reaches MIN_QUEUE_SIZE
-        let currentSize = queueSize;
-        const addedTopics: string[] = [];
+        // 4. If the queue is still below MIN_QUEUE_SIZE, populate with standalone topics using idea-selector
         while (currentSize < MIN_QUEUE_SIZE) {
-            console.error(`\n🚀 Populating idea (${currentSize}/${MIN_QUEUE_SIZE} ideas)...`);
-
-            // 1. Try to schedule a series episode first
-            const scheduledSeries = await seriesManager.scheduleNextEpisode();
-            
-            if (scheduledSeries) {
-                // scheduleNextEpisode already pushed the payload to video:ideas.
-                // We just need to refresh our loop state.
-                console.error(`✅ Scheduled series episode.`);
-                existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
-                currentSize = existingIdeas.length;
-                addedTopics.push("series-episode-scheduled");
-                continue;
-            }
-
-            // 2. If no series episode to schedule, fallback to standalone idea generation
-            console.error(`🤖 Running idea-selector worker for standalone idea...`);
+            console.error(`\n🚀 Populating standalone idea (${currentSize}/${MIN_QUEUE_SIZE} ideas)...`);
             const result = await runIdeaSelector({
                 existingQueueIdeas: existingIdeas,
             });
 
             if (!result.success || !result.selectedTopic) {
-                throw new Error('Idea selector did not return a valid topic');
+                console.error('⚠️ Idea selector did not return a valid topic, stopping standalone replenishment');
+                break;
             }
 
             const topic = result.selectedTopic.topic;
@@ -101,7 +109,7 @@ async function checkQueueAndPopulate(): Promise<void> {
             currentSize = existingIdeas.length;
         }
 
-        console.error(`\n✅ Queue filled to ${currentSize} ideas`);
+        console.error(`\n✅ Finished idea population. Queue size: ${currentSize}. New ideas added this run: ${addedTopics.length}`);
 
         // Output added topics for GitHub Actions pipeline-summary
         console.log(`ideas_added=${JSON.stringify(addedTopics)}`);
@@ -109,7 +117,7 @@ async function checkQueueAndPopulate(): Promise<void> {
         await redis.quit();
         await seriesManager.close();
         await setJobStatus('populateIdeas', 'success');
-        console.error(`✅ Ideas queue populated successfully`);
+        console.error(`✅ Ideas queue check & populate completed successfully`);
 
     } catch (error) {
         await redis.quit();

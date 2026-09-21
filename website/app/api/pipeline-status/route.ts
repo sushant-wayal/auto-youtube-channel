@@ -205,6 +205,25 @@ export async function GET() {
         const sceneUrls = await redis.lrange('pipeline:status:sceneUrls', 0, -1);
         const voiceoverUrls = await redis.lrange('pipeline:status:voiceoverUrls', 0, -1);
         const ideasAdded = await redis.lrange('pipeline:status:ideasAdded', 0, -1);
+        const queuedIdeasRaw = await redis.lrange('video:ideas', 0, -1);
+        const queuedIdeas = queuedIdeasRaw.map(raw => {
+            try {
+                const parsed = JSON.parse(raw);
+                return {
+                    topic: parsed.topic || parsed.idea || raw,
+                    isSeries: !!(parsed.isSeries || parsed.seriesContext),
+                    seriesTitle: parsed.seriesContext?.seriesTitle || null,
+                    learningObjective: parsed.seriesContext?.learningObjective || null,
+                };
+            } catch {
+                return {
+                    topic: raw,
+                    isSeries: false,
+                    seriesTitle: null,
+                    learningObjective: null,
+                };
+            }
+        });
         
         const shortsRaw = await redis.lrange(`pipeline:shorts:${metadata.videoId}`, 0, -1);
         const shorts = shortsRaw.map(s => {
@@ -253,6 +272,7 @@ export async function GET() {
             shortHooks,
             shortCaptions,
             ideasAdded: ideasAdded || [],
+            queuedIdeas: queuedIdeas || [],
             scriptData: parsedScriptData,
             shorts,
             errorSummary: metadata.errorSummary || null,
