@@ -68,28 +68,6 @@ class ThumbnailService {
         console.log(`📹 Video ID: ${videoId}`);
         console.log(`🔧 Provider: ${provider}`);
 
-        // Try high-quality Autonomous Thumbnail Composer first
-        try {
-            const { ThumbnailComposer } = await import("../../../shared/services/thumbnail-composer");
-            const composer = ThumbnailComposer.getInstance();
-            const composed = await composer.compose({
-                videoId,
-                title,
-                description,
-                narration,
-                tags
-            });
-
-            return {
-                thumbnailPath: composed.thumbnailUrl,
-                prompt: composed.hook,
-                videoId,
-                provider: "huggingface",
-                model: composed.badge
-            };
-        } catch (composerErr) {
-            console.error("⚠️ Autonomous Thumbnail Composer encountered error, falling back:", composerErr);
-        }
 
         let result: ThumbnailResult;
         if (provider === "gemini") {
