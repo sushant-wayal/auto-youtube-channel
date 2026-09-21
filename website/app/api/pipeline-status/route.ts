@@ -228,7 +228,7 @@ export async function GET() {
         const shortsRaw = await redis.lrange(`pipeline:shorts:${metadata.videoId}`, 0, -1);
         const shorts = shortsRaw.map(s => {
             try { return JSON.parse(s); } catch { return null; }
-        }).filter(Boolean);
+        }).filter(Boolean).sort((a: any, b: any) => (a.shortIndex ?? 0) - (b.shortIndex ?? 0));
 
         let parsedScriptData = null;
         let sceneNarrations: string[] = [];
