@@ -33,3 +33,68 @@ export async function GET(req: NextRequest) {
         );
     }
 }
+
+export async function PATCH(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { id, replyText } = body;
+        if (!id || typeof replyText !== 'string') {
+            return NextResponse.json(
+                { ok: false, error: 'id and replyText are required' },
+                { status: 400 }
+            );
+        }
+
+        const stateService = new CommentStateService();
+        const updated = await stateService.updateReplyText(id, replyText);
+        await stateService.close();
+
+        return NextResponse.json({
+            ok: true,
+            updated,
+            message: 'Comment reply updated successfully',
+        });
+    } catch (error: any) {
+        return NextResponse.json(
+            { ok: false, error: error?.message || 'Failed to update comment reply' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(req: NextRequest) {
+    try {
+        const { searchParams } = new URL(req.url);
+        let id = searchParams.get('id');
+
+        if (!id) {
+            try {
+                const body = await req.json();
+                id = body.id;
+            } catch {}
+        }
+
+        if (!id) {
+            return NextResponse.json(
+                { ok: false, error: 'id is required' },
+                { status: 400 }
+            );
+        }
+
+        const stateService = new CommentStateService();
+        const deleted = await stateService.deleteReplyHistoryItem(id);
+        await stateService.close();
+
+        return NextResponse.json({
+            ok: true,
+            deleted,
+            message: 'Comment history item deleted successfully',
+        });
+    } catch (error: any) {
+        return NextResponse.json(
+            { ok: false, error: error?.message || 'Failed to delete comment history item' },
+            { status: 500 }
+        );
+    }
+}
+

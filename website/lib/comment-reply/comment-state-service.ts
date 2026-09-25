@@ -225,6 +225,93 @@ export class CommentStateService {
         }
     }
 
+    async updateReplyText(identifier: string, replyText: string): Promise<boolean> {
+        try {
+            const items = await this.redis.lrange(HISTORY_LIST_KEY, 0, -1);
+            let updated = false;
+            let targetKey: string | null = null;
+
+            const parsedList: ReplyHistoryEntry[] = [];
+            for (const raw of items) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (parsed.id === identifier || parsed.commentId === identifier || parsed.threadId === identifier) {
+                        parsed.replyText = replyText;
+                        updated = true;
+                        targetKey = this.getCommentKey(parsed);
+                    }
+                    parsedList.push(parsed);
+                } catch {}
+            }
+
+            if (targetKey) {
+                for (const entry of parsedList) {
+                    if (this.getCommentKey(entry) === targetKey) {
+                        entry.replyText = replyText;
+                    }
+                }
+            }
+
+            if (updated) {
+                const multi = this.redis.multi();
+                multi.del(HISTORY_LIST_KEY);
+                if (parsedList.length > 0) {
+                    multi.rpush(HISTORY_LIST_KEY, ...parsedList.map((e) => JSON.stringify(e)));
+                }
+                await multi.exec();
+            }
+            return updated;
+        } catch (e) {
+            console.error('⚠️ Redis error updating reply text:', e);
+            return false;
+        }
+    }
+
+    async deleteReplyHistoryItem(identifier: string): Promise<boolean> {
+        try {
+            const items = await this.redis.lrange(HISTORY_LIST_KEY, 0, -1);
+            let deleted = false;
+            let targetKey: string | null = null;
+            let commentIdToDelete: string | null = null;
+
+            const remaining: ReplyHistoryEntry[] = [];
+            for (const raw of items) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (parsed.id === identifier || parsed.commentId === identifier || parsed.threadId === identifier) {
+                        deleted = true;
+                        targetKey = this.getCommentKey(parsed);
+                        if (parsed.commentId && !parsed.commentId.startsWith('c-')) {
+                            commentIdToDelete = parsed.commentId;
+                        }
+                    } else {
+                        remaining.push(parsed);
+                    }
+                } catch {}
+            }
+
+            const finalFiltered = targetKey
+                ? remaining.filter((entry) => this.getCommentKey(entry) !== targetKey)
+                : remaining;
+
+            if (deleted) {
+                const multi = this.redis.multi();
+                multi.del(HISTORY_LIST_KEY);
+                if (finalFiltered.length > 0) {
+                    multi.rpush(HISTORY_LIST_KEY, ...finalFiltered.map((e) => JSON.stringify(e)));
+                }
+                if (commentIdToDelete) {
+                    multi.del(`${REPLIED_KEY_PREFIX}${commentIdToDelete}`);
+                }
+                await multi.exec();
+            }
+            return deleted;
+        } catch (e) {
+            console.error('⚠️ Redis error deleting reply history item:', e);
+            return false;
+        }
+    }
+
     async getCachedVideoMeta(videoId: string): Promise<VideoMetadata | null> {
         try {
             const data = await this.redis.get(`${VIDEO_META_PREFIX}${videoId}`);
