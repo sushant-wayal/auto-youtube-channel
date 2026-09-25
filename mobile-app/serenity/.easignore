@@ -11,14 +11,8 @@ npm-debug.*
 web-build/
 dist/
 
-# Android
-android/app/build/
-android/.gradle/
-android/local.properties
-android/.idea/
-android/*.iml
-android/*.hprof
-android/.cxx/
+# Android (CNG / Clean Cloud Prebuild)
+android/
 
 # Environment
 .env*
