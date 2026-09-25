@@ -99,6 +99,38 @@ export class CommentStateService {
         }
     }
 
+    async updateHistoryEntryStatus(identifier: string, status: 'posted' | 'failed', error?: string): Promise<boolean> {
+        try {
+            const items = await this.redis.lrange(HISTORY_LIST_KEY, 0, -1);
+            let updated = false;
+            const newItems = items.map((raw) => {
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (parsed.id === identifier || parsed.commentId === identifier || parsed.threadId === identifier) {
+                        parsed.status = status;
+                        if (error) parsed.error = error;
+                        updated = true;
+                    }
+                    return JSON.stringify(parsed);
+                } catch {
+                    return raw;
+                }
+            });
+            if (updated) {
+                const multi = this.redis.multi();
+                multi.del(HISTORY_LIST_KEY);
+                if (newItems.length > 0) {
+                    multi.rpush(HISTORY_LIST_KEY, ...newItems);
+                }
+                await multi.exec();
+            }
+            return updated;
+        } catch (e) {
+            console.error('⚠️ Redis error updating reply history entry status:', e);
+            return false;
+        }
+    }
+
     async getCachedVideoMeta(videoId: string): Promise<VideoMetadata | null> {
         try {
             const data = await this.redis.get(`${VIDEO_META_PREFIX}${videoId}`);
