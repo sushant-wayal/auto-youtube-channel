@@ -65,7 +65,13 @@ export class YouTubeCommentService {
             rawItems = res.data.items || [];
         } catch (error: any) {
             console.warn(`⚠️ allThreadsRelatedToChannelId query failed: ${error?.message}. Trying video-by-video fallback...`);
-            rawItems = await this.fetchCommentsPerRecentVideo(5, maxResults);
+            rawItems = await this.fetchCommentsPerRecentVideo(30, maxResults);
+        }
+
+        // If primary returned 0 comments, try the video-by-video scan as well
+        if (rawItems.length === 0) {
+            console.warn('⚠️ No threads returned by channel query; checking recent videos directly...');
+            rawItems = await this.fetchCommentsPerRecentVideo(30, maxResults);
         }
 
         const parsedThreads: YouTubeCommentThread[] = [];
@@ -135,14 +141,28 @@ export class YouTubeCommentService {
             const playlistRes = await this.youtube.playlistItems.list({
                 part: ['contentDetails'],
                 playlistId: uploadsId,
-                maxResults: videoCount,
+                maxResults: Math.min(videoCount, 50),
             });
 
             const videoIds = (playlistRes.data.items || [])
                 .map((i) => i.contentDetails?.videoId)
                 .filter((id): id is string => Boolean(id));
 
-            for (const vId of videoIds) {
+            if (videoIds.length === 0) return [];
+
+            // Batch fetch statistics to find which videos actually have comments
+            const statsRes = await this.youtube.videos.list({
+                part: ['statistics'],
+                id: videoIds,
+            });
+
+            const videosWithComments = (statsRes.data.items || [])
+                .filter((v) => Number(v.statistics?.commentCount || 0) > 0)
+                .map((v) => v.id!);
+
+            console.error(`🔍 Found ${videosWithComments.length} recent videos with comments out of ${videoIds.length} scanned.`);
+
+            for (const vId of videosWithComments) {
                 if (results.length >= maxResults) break;
                 try {
                     const commentRes = await this.youtube.commentThreads.list({

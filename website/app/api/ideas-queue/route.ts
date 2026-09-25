@@ -36,7 +36,12 @@ export async function POST(request: Request) {
                 if (!idea || typeof idea !== 'string') {
                     return NextResponse.json({ ok: false, error: 'Idea is required' }, { status: 400 });
                 }
-                await redis.rpush(QUEUE_KEY, idea);
+                const { position } = body;
+                if (position === 'top' || position === 'first') {
+                    await redis.lpush(QUEUE_KEY, idea);
+                } else {
+                    await redis.rpush(QUEUE_KEY, idea);
+                }
                 const ideas = await redis.lrange(QUEUE_KEY, 0, -1);
                 return NextResponse.json({ ok: true, ideas, count: ideas.length });
             }

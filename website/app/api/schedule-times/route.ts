@@ -47,15 +47,23 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // If not cached or refresh requested, compute empirical retention from YouTube Analytics
-        if (!cachedRetentionJson || forceRefresh || Object.keys(retentionStats).length === 0) {
+        // If not cached, force refresh requested, or cached stats are empty, compute empirical retention from YouTube Analytics
+        const hasExistingStats = cachedRetentionJson && Object.keys(retentionStats).length > 0 && Object.values(retentionStats).some(s => s.sampleCount > 0);
+
+        if (!hasExistingStats || forceRefresh) {
             try {
-                const ytService = new YouTubeDataService();
-                retentionStats = await ytService.fetchShortsRetentionStats(shortsTimes);
-                // Cache for 6 hours (21600 seconds)
-                await redis.set(RETENTION_STATS_KEY, JSON.stringify(retentionStats), 'EX', 21600);
+                if (process.env.YT_CLIENT_ID && process.env.YT_CLIENT_SECRET && process.env.YT_REFRESH_TOKEN) {
+                    const ytService = new YouTubeDataService();
+                    const computedStats = await ytService.fetchShortsRetentionStats(shortsTimes);
+                    retentionStats = computedStats;
+                    // Cache for 24 hours (86400 seconds)
+                    await redis.set(RETENTION_STATS_KEY, JSON.stringify(retentionStats), 'EX', 86400);
+                } else {
+                    console.warn('⚠️ YouTube credentials not configured in current environment; retaining existing stats.');
+                }
             } catch (err: any) {
                 console.error('⚠️ Could not compute retention stats from YouTube:', err.message || err);
+                // Keep previously cached retentionStats if available
             }
         }
 
@@ -106,8 +114,19 @@ export async function POST(req: NextRequest) {
             }
 
             await redis.set(SHORTS_TIMES_KEY, JSON.stringify(shortsTimes));
-            // Invalidate retention stats cache so it recalculates for new times
-            await redis.del(RETENTION_STATS_KEY);
+            // Recalculate retention stats for new times if credentials exist
+            try {
+                if (process.env.YT_CLIENT_ID && process.env.YT_CLIENT_SECRET && process.env.YT_REFRESH_TOKEN) {
+                    const ytService = new YouTubeDataService();
+                    const updatedStats = await ytService.fetchShortsRetentionStats(shortsTimes);
+                    await redis.set(RETENTION_STATS_KEY, JSON.stringify(updatedStats), 'EX', 86400);
+                } else {
+                    // Invalidate so next authorized fetch recalculates
+                    await redis.del(RETENTION_STATS_KEY);
+                }
+            } catch (postCalcErr: any) {
+                console.error('⚠️ Could not recalculate retention stats on schedule change:', postCalcErr.message || postCalcErr);
+            }
         }
 
         // Update long-form time if provided

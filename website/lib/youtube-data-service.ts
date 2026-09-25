@@ -27,6 +27,7 @@ export interface YouTubeAnalytics {
 export interface SlotRetentionStat {
     estimatedRetention: number;
     sampleCount: number;
+    hasHistory?: boolean;
     isCalibrating?: boolean;
 }
 
@@ -232,12 +233,13 @@ export class YouTubeDataService {
     async fetchShortsRetentionStats(slotTimes: string[]): Promise<Record<string, SlotRetentionStat>> {
         const results: Record<string, SlotRetentionStat> = {};
 
-        // Default all slots to calibrating
+        // Default all slots with 0 samples and hasHistory: false
         for (const slot of slotTimes) {
             results[slot] = {
                 estimatedRetention: 0,
                 sampleCount: 0,
-                isCalibrating: true,
+                hasHistory: false,
+                isCalibrating: false,
             };
         }
 
@@ -306,8 +308,8 @@ export class YouTubeDataService {
                     let diff = Math.abs(istMin - slotMin);
                     if (diff > 720) diff = 1440 - diff;
 
-                    // Window of ±30 minutes around slot time
-                    if (diff <= 30) {
+                    // Window of ±35 minutes around slot time
+                    if (diff <= 35) {
                         const ana = analyticsMap.get(short.id!);
                         if (ana && ana.retention > 0) {
                             matching.push({
@@ -324,18 +326,20 @@ export class YouTubeDataService {
                 // Take last up to 30 shorts
                 const sample = matching.slice(0, 30);
 
-                if (sample.length >= 3) {
+                if (sample.length > 0) {
                     const avg = sample.reduce((acc, s) => acc + s.retention, 0) / sample.length;
                     results[slotTime] = {
                         estimatedRetention: Math.round(avg * 10) / 10,
                         sampleCount: sample.length,
+                        hasHistory: true,
                         isCalibrating: false,
                     };
                 } else {
                     results[slotTime] = {
                         estimatedRetention: 0,
-                        sampleCount: sample.length,
-                        isCalibrating: true,
+                        sampleCount: 0,
+                        hasHistory: false,
+                        isCalibrating: false,
                     };
                 }
             }
@@ -343,7 +347,7 @@ export class YouTubeDataService {
             return results;
         } catch (error) {
             console.error('❌ Error computing shorts retention stats:', error);
-            return results;
+            throw error;
         }
     }
 }

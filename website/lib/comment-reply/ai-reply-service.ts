@@ -77,13 +77,14 @@ Return ONLY a valid JSON object with this exact structure:
   "reason": "short explanation of the decision"
 }`;
 
-        const MAX_RETRIES = 3;
+        const CANDIDATE_MODELS = ['gemini-3-flash-preview', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
         const BASE_DELAY_MS = 1500;
 
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        for (let i = 0; i < CANDIDATE_MODELS.length; i++) {
+            const modelName = CANDIDATE_MODELS[i];
+            const attempt = i + 1;
             try {
                 const ai = this.getGenAI();
-                const modelName = attempt === 1 ? 'gemini-3-flash-preview' : 'gemini-2.5-flash';
                 const response = await ai.models.generateContent({
                     model: modelName,
                     contents: systemPrompt,
@@ -99,17 +100,17 @@ Return ONLY a valid JSON object with this exact structure:
                 const parsed = JSON.parse(text) as AIReplyDecision;
                 return parsed;
             } catch (error: any) {
-                console.error(`⚠️ Gemini reply attempt ${attempt}/${MAX_RETRIES} failed:`, error?.message || error);
-                if (attempt >= MAX_RETRIES) {
+                console.error(`⚠️ Gemini reply attempt ${attempt}/${CANDIDATE_MODELS.length} (${modelName}) failed:`, error?.message || error);
+                if (attempt >= CANDIDATE_MODELS.length) {
                     return {
                         shouldReply: false,
                         category: 'other',
                         sentiment: 'neutral',
                         confidence: 0,
-                        reason: `AI generation failed after ${MAX_RETRIES} attempts: ${error?.message || error}`,
+                        reason: `AI generation failed after ${CANDIDATE_MODELS.length} attempts: ${error?.message || error}`,
                     };
                 }
-                const delay = BASE_DELAY_MS * 2 ** (attempt - 1);
+                const delay = BASE_DELAY_MS * 2 ** i;
                 await new Promise((res) => setTimeout(res, delay));
             }
         }
