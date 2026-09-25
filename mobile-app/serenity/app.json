@@ -4,12 +4,12 @@
     "slug": "dashboard-app",
     "version": "1.0.1",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "icon": "./assets/images/icon.png",
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#110e08"
     },
     "ios": {
       "supportsTablet": true,
@@ -20,7 +20,7 @@
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#110e08"
       }
     },
     "plugins": [
