@@ -28,15 +28,17 @@ async function sendPushNotification(
     youtubeId?: string
 ) {
     const isSuccess = overallStatus === 'success';
-    const title = isSuccess ? '✅ Video scheduled' : '❌ Pipeline failed';
+    const title = isSuccess
+        ? '✦ Serenity Studio • Video Scheduled'
+        : '▲ Serenity Studio • Pipeline Alert';
 
     let body: string;
     if (!isSuccess) {
-        body = `"${videoTitle}" — check job details in the app`;
+        body = `"${videoTitle}" halted during generation. Tap to inspect telemetry.`;
     } else if (scheduledTime) {
-        body = `"${videoTitle}" will go live at ${scheduledTime} IST`;
+        body = `"${videoTitle}" is queued for broadcast • Goes live at ${scheduledTime} IST`;
     } else {
-        body = `"${videoTitle}" has been scheduled on YouTube`;
+        body = `"${videoTitle}" is rendered & scheduled for YouTube premiere`;
     }
 
     const message = {
@@ -44,8 +46,17 @@ async function sendPushNotification(
         sound: 'default',
         title,
         body,
-        data: { youtubeId: youtubeId ?? null, videoId, screen: 'Pipeline' },
+        subtitle: 'Studio Automation Telemetry',
+        data: {
+            screen: 'Pipeline',
+            targetScreen: 'Pipeline',
+            videoId,
+            youtubeId: youtubeId ?? null,
+            status: overallStatus,
+            videoTitle,
+        },
         channelId: 'pipeline',
+        priority: 'high',
     };
 
     const resp = await fetch(EXPO_PUSH_API, {
