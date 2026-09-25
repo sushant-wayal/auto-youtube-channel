@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+    <title>Serenity Studio — Auto Comment Reply &amp; Audience Engagement</title>
+    <!-- Tailwind CSS v3 with Forms & Container Plugins -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        serenity: {
+                            obsidian: '#110e08',
+                            surface: '#16130d',
+                            card: '#1f1b15',
+                            elevated: '#262119',
+                            border: '#332d23',
+                            sand: '#c8b29b',
+                            cashmere: '#d9c4af',
+                            linen: '#e6e2dc',
+                            muted: '#9c9489',
+                            sage: '#7a9e7e',
+                            amber: '#d4a359',
+                            coral: '#c86d6d',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style data-purpose="custom-scrollbars-and-glass">
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            background-color: #110e08;
+            color: #e6e2dc;
+        }
+
+        /* Smooth native mobile scrolling */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Subtle glow highlight on active borders */
+        .glow-warm {
+            box-shadow: 0 0 16px -2px rgba(200, 178, 155, 0.12);
+        }
+
+        .glow-cyan {
+            box-shadow: 0 0 20px -3px rgba(122, 158, 126, 0.2);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-serenity-obsidian text-serenity-linen min-h-screen antialiased flex justify-center selection:bg-serenity-sand/20 selection:text-serenity-cashmere">
+    <!-- BEGIN: Mobile Device Frame Wrap -->
+    <div
+        class="w-full max-w-md min-h-screen bg-serenity-obsidian flex flex-col relative border-x border-serenity-border/40 shadow-2xl">
+        <!-- BEGIN: iOS Native Status Bar Bar -->
+        <header
+            class="sticky top-0 z-30 bg-serenity-obsidian/95 backdrop-blur-md px-5 pt-3 pb-2 flex items-center justify-between border-b border-serenity-border/30">
+            <!-- Time indicator -->
+            <div class="text-[13px] font-semibold tracking-tight text-serenity-linen flex items-center gap-1.5">
+                <span>5:50</span>
+                <span
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-serenity-elevated text-serenity-sand border border-serenity-sand/20">
+                    <i class="w-2.5 h-2.5" data-lucide="sparkles"></i> Jarvis AI
+                </span>
+            </div>
+            <!-- Status icons -->
+            <div class="flex items-center space-x-2 text-serenity-linen text-xs">
+                <i class="w-3.5 h-3.5 text-serenity-muted" data-lucide="wifi"></i>
+                <i class="w-3.5 h-3.5 text-serenity-muted" data-lucide="signal"></i>
+                <div class="flex items-center gap-0.5 text-[11px] font-semibold text-serenity-sand">
+                    <span>94%</span>
+                    <i class="w-4 h-4" data-lucide="battery-medium"></i>
+                </div>
+            </div>
+        </header>
+        <!-- END: iOS Native Status Bar Bar -->
+        <!-- BEGIN: Top Navigation App Bar -->
+        <div
+            class="px-5 pt-3 pb-3 bg-serenity-surface border-b border-serenity-border/40 flex items-center justify-between">
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-lg font-bold tracking-wider text-serenity-linen uppercase">SERENITY</h1>
+                    <span
+                        class="text-[10px] uppercase font-bold tracking-wider text-serenity-sand/80 px-2 py-0.5 rounded bg-serenity-elevated border border-serenity-sand/20">
+                        Studio Engine
+                    </span>
+                </div>
+                <p class="text-[11px] text-serenity-muted mt-0.5">Autonomous Audience Agent</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button aria-label="Open Settings"
+                    class="w-9 h-9 rounded-full bg-serenity-card border border-serenity-border flex items-center justify-center text-serenity-muted hover:text-serenity-sand transition-colors"
+                    onclick="toggleSettingsModal(true)">
+                    <i class="w-4 h-4" data-lucide="settings"></i>
+                </button>
+            </div>
+        </div>
+        <!-- END: Top Navigation App Bar -->
+        <!-- BEGIN: Studio Category Icons Strip -->
+        <div
+            class="px-4 py-2.5 bg-serenity-surface/60 border-b border-serenity-border/30 overflow-x-auto no-scrollbar flex items-center justify-between gap-2">
+            <button
+                class="flex flex-col items-center justify-center py-1.5 px-3 rounded-lg text-serenity-muted hover:text-serenity-sand hover:bg-serenity-elevated/40 transition">
+                <i class="w-4 h-4" data-lucide="lightbulb"></i>
+                <span class="text-[9px] mt-1 font-medium whitespace-nowrap">Ideas</span>
+            </button>
+            <button
+                class="flex flex-col items-center justify-center py-1.5 px-3 rounded-lg text-serenity-muted hover:text-serenity-sand hover:bg-serenity-elevated/40 transition">
+                <i class="w-4 h-4" data-lucide="layers"></i>
+                <span class="text-[9px] mt-1 font-medium whitespace-nowrap">Series</span>
+            </button>
+            <button
+                class="flex flex-col items-center justify-center py-1.5 px-3 rounded-lg text-serenity-muted hover:text-serenity-sand hover:bg-serenity-elevated/40 transition">
+                <i class="w-4 h-4" data-lucide="clock"></i>
+                <span class="text-[9px] mt-1 font-medium whitespace-nowrap">Schedule</span>
+            </button>
+            <button
+                class="flex flex-col items-center justify-center py-1.5 px-3 rounded-lg text-serenity-muted hover:text-serenity-sand hover:bg-serenity-elevated/40 transition">
+                <i class="w-4 h-4" data-lucide="git-branch"></i>
+                <span class="text-[9px] mt-1 font-medium whitespace-nowrap">Pipelines</span>
+            </button>
+            <!-- Active Tab: Engage / Comments -->
+            <button
+                class="flex flex-col items-center justify-center py-1.5 px-3 rounded-lg text-serenity-cashmere bg-serenity-sand/15 border border-serenity-sand/30 font-semibold">
+                <i class="w-4 h-4 text-serenity-sand" data-lucide="message-square"></i>
+                <span class="text-[9px] mt-1 whitespace-nowrap">Auto Reply</span>
+            </button>
+        </div>
+        <!-- END: Studio Category Icons Strip -->
+        <!-- BEGIN: Main Scrollable Content -->
+        <main class="flex-1 overflow-y-auto px-4 pt-4 pb-36 space-y-4 no-scrollbar">
+            <!-- BEGIN: Header Title & Status -->
+            <div class="flex items-start justify-between">
+                <div>
+                    <h2 class="text-xl font-bold tracking-tight text-serenity-linen">Auto Comment Reply</h2>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <i class="w-3.5 h-3.5 text-serenity-sand" data-lucide="sparkles"></i>
+                        <span class="text-xs text-serenity-muted">Autonomous engagement by Gemini</span>
+                    </div>
+                </div>
+                <!-- Live Active status pill -->
+                <div
+                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-serenity-sage/15 border border-serenity-sage/40 text-serenity-sage text-xs font-semibold whitespace-nowrap">
+                    <span class="w-2 h-2 rounded-full bg-serenity-sage animate-pulse"></span>
+                    <span>Live Active</span>
+                </div>
+            </div>
+            <!-- END: Header Title & Status -->
+            <!-- BEGIN: Metrics KPI Cards Ribbon -->
+            <section class="grid grid-cols-3 gap-2.5" data-purpose="metrics-kpi-ribbon">
+                <!-- Live Sent Metric -->
+                <div
+                    class="bg-serenity-card border border-serenity-border/60 rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-sm">
+                    <span class="text-2xl font-bold text-serenity-linen tracking-tight">14</span>
+                    <span class="text-[11px] font-medium text-serenity-sage mt-0.5 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-serenity-sage"></span>
+                        Live Sent
+                    </span>
+                </div>
+                <!-- Dry Run / Simulated Metric -->
+                <div
+                    class="bg-serenity-card border border-serenity-border/60 rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-sm">
+                    <span class="text-2xl font-bold text-serenity-amber tracking-tight">28</span>
+                    <span class="text-[11px] font-medium text-serenity-amber/90 mt-0.5 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-serenity-amber"></span>
+                        Dry Run
+                    </span>
+                </div>
+                <!-- Failed Metric -->
+                <div
+                    class="bg-serenity-card border border-serenity-border/60 rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-sm">
+                    <span class="text-2xl font-bold text-serenity-muted tracking-tight">0</span>
+                    <span class="text-[11px] font-medium text-serenity-muted mt-0.5 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-serenity-border"></span>
+                        Failed
+                    </span>
+                </div>
+            </section>
+            <!-- END: Metrics KPI Cards Ribbon -->
+            <!-- BEGIN: Primary Actions Trigger Bar -->
+            <section class="flex items-center gap-2" data-purpose="primary-actions">
+                <!-- Primary Trigger Button -->
+                <button
+                    class="flex-1 bg-gradient-to-r from-serenity-sand to-serenity-cashmere text-serenity-obsidian font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform text-sm whitespace-nowrap">
+                    <i class="w-4 h-4 fill-serenity-obsidian" data-lucide="play"></i>
+                    <span>Process Now</span>
+                </button>
+                <!-- Secondary Dispatch Button -->
+                <button
+                    class="bg-serenity-card hover:bg-serenity-elevated border border-serenity-border text-serenity-linen font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-sm whitespace-nowrap active:scale-[0.98] transition-transform">
+                    <i class="w-4 h-4 text-serenity-sand" data-lucide="send"></i>
+                    <span>Dispatch</span>
+                </button>
+                <!-- Filter / Settings Button -->
+                <button aria-label="Comment Rules Configuration"
+                    class="w-11 h-11 bg-serenity-card hover:bg-serenity-elevated border border-serenity-border rounded-xl flex items-center justify-center text-serenity-muted hover:text-serenity-sand active:scale-[0.98] transition"
+                    onclick="toggleSettingsModal(true)">
+                    <i class="w-4 h-4" data-lucide="sliders-horizontal"></i>
+                </button>
+            </section>
+            <!-- END: Primary Actions Trigger Bar -->
+            <!-- BEGIN: Persona Instruction Banner Widget -->
+            <div
+                class="bg-serenity-surface border border-serenity-border/60 rounded-xl p-3 flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2 overflow-hidden pr-2">
+                    <div
+                        class="w-7 h-7 rounded-lg bg-serenity-sand/10 border border-serenity-sand/30 flex items-center justify-center flex-shrink-0">
+                        <i class="w-4 h-4 text-serenity-sand" data-lucide="bot"></i>
+                    </div>
+                    <div class="truncate">
+                        <div class="font-semibold text-serenity-linen text-[11px] truncate">Active Persona: Friendly
+                            Technical Peer</div>
+                        <div class="text-serenity-muted text-[10px] truncate">10 max replies/run • Questions priority
+                        </div>
+                    </div>
+                </div>
+                <button
+                    class="text-serenity-sand hover:underline text-[11px] font-semibold whitespace-nowrap px-2 py-1 rounded bg-serenity-elevated"
+                    onclick="toggleSettingsModal(true)">
+                    Tune
+                </button>
+            </div>
+            <!-- END: Persona Instruction Banner Widget -->
+            <!-- BEGIN: Activity Stream Section Header & Filters -->
+            <section class="pt-1" data-purpose="stream-header">
+                <div class="flex items-center justify-between mb-2.5">
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-serenity-muted">ACTIVITY LOG</h3>
+                        <span
+                            class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-serenity-elevated text-serenity-sand">42</span>
+                    </div>
+                    <button class="text-serenity-muted hover:text-serenity-sand transition-colors p-1"
+                        title="Refresh Feed">
+                        <i class="w-3.5 h-3.5" data-lucide="rotate-cw"></i>
+                    </button>
+                </div>
+                <!-- Filter Segmented Tabs -->
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs font-medium">
+                    <button
+                        class="px-3 py-1.5 rounded-lg bg-serenity-sand text-serenity-obsidian font-bold whitespace-nowrap">
+                        All (42)
+                    </button>
+                    <button
+                        class="px-3 py-1.5 rounded-lg bg-serenity-card border border-serenity-border/50 text-serenity-muted hover:text-serenity-linen whitespace-nowrap">
+                        Live Posted (14)
+                    </button>
+                    <button
+                        class="px-3 py-1.5 rounded-lg bg-serenity-card border border-serenity-border/50 text-serenity-muted hover:text-serenity-linen whitespace-nowrap">
+                        Simulated / Dry (28)
+                    </button>
+                    <button
+                        class="px-3 py-1.5 rounded-lg bg-serenity-card border border-serenity-border/50 text-serenity-muted hover:text-serenity-linen whitespace-nowrap">
+                        Review Queue (3)
+                    </button>
+                </div>
+            </section>
+            <!-- END: Activity Stream Section Header & Filters -->
+            <!-- BEGIN: Activity Stream Cards List -->
+            <div class="space-y-3.5" data-purpose="comment-cards-stream">
+                <!-- CARD 1: Live Sent Activity (Matching Reference 1) -->
+                <article
+                    class="bg-serenity-card border border-serenity-border/70 rounded-2xl p-4 shadow-md space-y-3 hover:border-serenity-sand/30 transition-all">
+                    <!-- Card Header: User, Live tag, timestamp -->
+                    <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="w-6 h-6 rounded-full bg-serenity-elevated flex items-center justify-center text-serenity-sand">
+                                <i class="w-3.5 h-3.5" data-lucide="user"></i>
+                            </div>
+                            <span class="font-bold text-serenity-linen">@Freddy78909</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-serenity-sage/20 text-serenity-sage border border-serenity-sage/30 whitespace-nowrap">
+                                Live
+                            </span>
+                            <span class="text-serenity-muted text-[11px] whitespace-nowrap">1d ago</span>
+                        </div>
+                    </div>
+                    <!-- Video Target Pill -->
+                    <div
+                        class="flex items-center gap-1.5 text-[11px] text-serenity-muted bg-serenity-surface px-2.5 py-1.5 rounded-lg border border-serenity-border/40 truncate">
+                        <i class="w-3 h-3 text-serenity-sand flex-shrink-0" data-lucide="video"></i>
+                        <span class="truncate">The Native App Lie: Why Rust GUIs are Wi...</span>
+                    </div>
+                    <!-- User's Original Comment -->
+                    <div
+                        class="bg-serenity-obsidian/70 rounded-xl p-3 border-l-2 border-serenity-sand/50 text-xs italic text-serenity-linen/90">
+                        “😂😂 Feel better! Too much Rust!”
+                    </div>
+                    <!-- AI Reply Block -->
+                    <div
+                        class="bg-serenity-elevated/80 border border-serenity-border/80 rounded-xl p-3 space-y-2 glow-warm">
+                        <div class="flex items-center justify-between text-[11px]">
+                            <div class="flex items-center gap-1.5 text-serenity-cashmere font-semibold">
+                                <i class="w-3.5 h-3.5 text-serenity-sand" data-lucide="sparkles"></i>
+                                <span>AI Reply (critique)</span>
+                            </div>
+                            <span
+                                class="text-[10px] uppercase font-semibold text-serenity-muted px-1.5 py-0.5 rounded bg-serenity-card border border-serenity-border/50">
+                                Negative Tone
+                            </span>
+                        </div>
+                        <p class="text-xs text-serenity-linen leading-relaxed">
+                            I totally get it, the Rust hype can feel like a lot sometimes! I just couldn't ignore those
+                            massive performance gains for desktop apps.
+                        </p>
+                        <!-- Card Bottom Micro Actions -->
+                        <div
+                            class="pt-1.5 flex items-center justify-between border-t border-serenity-border/40 text-[11px] text-serenity-muted">
+                            <span class="flex items-center gap-1 text-serenity-sage text-[10px] font-medium">
+                                <i class="w-3 h-3" data-lucide="check-check"></i> Synchronized to YouTube
+                            </span>
+                            <div class="flex items-center gap-3">
+                                <button class="hover:text-serenity-sand transition">Edit</button>
+                                <button class="hover:text-serenity-sand transition">Pin</button>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+                <!-- CARD 2: Simulated / Dry Run Card (Matching Reference 1 Card 2) -->
+                <article
+                    class="bg-serenity-card border border-serenity-border/70 rounded-2xl p-4 shadow-md space-y-3 hover:border-serenity-sand/30 transition-all">
+                    <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="w-6 h-6 rounded-full bg-serenity-elevated flex items-center justify-center text-serenity-sand">
+                                <i class="w-3.5 h-3.5" data-lucide="user"></i>
+                            </div>
+                            <span class="font-bold text-serenity-linen">@Freddy78909</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-serenity-amber/20 text-serenity-amber border border-serenity-amber/30 whitespace-nowrap">
+                                Simulated
+                            </span>
+                            <span class="text-serenity-muted text-[11px] whitespace-nowrap">1d ago</span>
+                        </div>
+                    </div>
+                    <!-- Video Target -->
+                    <div
+                        class="flex items-center gap-1.5 text-[11px] text-serenity-muted bg-serenity-surface px-2.5 py-1.5 rounded-lg border border-serenity-border/40 truncate">
+                        <i class="w-3 h-3 text-serenity-sand flex-shrink-0" data-lucide="video"></i>
+                        <span class="truncate">The Native App Lie: Why Rust GUIs are Wi...</span>
+                    </div>
+                    <!-- User's Original Comment -->
+                    <div
+                        class="bg-serenity-obsidian/70 rounded-xl p-3 border-l-2 border-serenity-amber/60 text-xs italic text-serenity-linen/90">
+                        “😂😂 Feel better! Too much Rust!”
+                    </div>
+                    <!-- AI Reply Block -->
+                    <div class="bg-serenity-elevated/80 border border-serenity-border/80 rounded-xl p-3 space-y-2">
+                        <div class="flex items-center justify-between text-[11px]">
+                            <div class="flex items-center gap-1.5 text-serenity-cashmere font-semibold">
+                                <i class="w-3.5 h-3.5 text-serenity-amber" data-lucide="sparkles"></i>
+                                <span>AI Reply (critique)</span>
+                            </div>
+                            <span
+                                class="text-[10px] uppercase font-semibold text-serenity-muted px-1.5 py-0.5 rounded bg-serenity-card border border-serenity-border/50">
+                                Negative Tone
+                            </span>
+                        </div>
+                        <p class="text-xs text-serenity-linen leading-relaxed">
+                            Rust fatigue is real! I just find the performance gains too cool not to talk about.
+                        </p>
+                        <!-- Direct Approval Action Button -->
+                        <div class="pt-2 flex items-center justify-between gap-2 border-t border-serenity-border/40">
+                            <button
+                                class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-serenity-sand text-serenity-obsidian hover:bg-serenity-cashmere flex items-center gap-1 whitespace-nowrap">
+                                <i class="w-3 h-3" data-lucide="check"></i> Post Live
+                            </button>
+                            <div class="flex items-center gap-2 text-serenity-muted text-xs">
+                                <button class="hover:text-serenity-linen">Regenerate</button>
+                                <span>•</span>
+                                <button class="hover:text-serenity-linen">Discard</button>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+                <!-- CARD 3: Simulated Clarification Request (Matching Reference 1 Card 3) -->
+                <article
+                    class="bg-serenity-card border border-serenity-border/70 rounded-2xl p-4 shadow-md space-y-3 hover:border-serenity-sand/30 transition-all">
+                    <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="w-6 h-6 rounded-full bg-serenity-elevated flex items-center justify-center text-serenity-sand">
+                                <i class="w-3.5 h-3.5" data-lucide="user"></i>
+                            </div>
+                            <span class="font-bold text-serenity-linen">@chrisharris2856</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-serenity-amber/20 text-serenity-amber border border-serenity-amber/30 whitespace-nowrap">
+                                Simulated
+                            </span>
+                            <span class="text-serenity-muted text-[11px] whitespace-nowrap">1d ago</span>
+                        </div>
+                    </div>
+                    <div
+                        class="flex items-center gap-1.5 text-[11px] text-serenity-muted bg-serenity-surface px-2.5 py-1.5 rounded-lg border border-serenity-border/40 truncate">
+                        <i class="w-3 h-3 text-serenity-sand flex-shrink-0" data-lucide="video"></i>
+                        <span class="truncate">NanoGPT: Training AI on a Budget</span>
+                    </div>
+                    <div
+                        class="bg-serenity-obsidian/70 rounded-xl p-3 border-l-2 border-serenity-border text-xs italic text-serenity-linen/90">
+                        “OK. One minute in and you've lost me”
+                    </div>
+                    <div class="bg-serenity-elevated/80 border border-serenity-border/80 rounded-xl p-3 space-y-2">
+                        <div class="flex items-center justify-between text-[11px]">
+                            <div class="flex items-center gap-1.5 text-serenity-cashmere font-semibold">
+                                <i class="w-3.5 h-3.5 text-serenity-amber" data-lucide="sparkles"></i>
+                                <span>AI Reply (supportive)</span>
+                            </div>
+                            <span
+                                class="text-[10px] uppercase font-semibold text-serenity-muted px-1.5 py-0.5 rounded bg-serenity-card border border-serenity-border/50">
+                                Needs Clarity
+                            </span>
+                        </div>
+                        <p class="text-xs text-serenity-linen leading-relaxed">
+                            I totally get it, these topics are pretty dense. Is there a specific part or term I can help
+                            clear up for you?
+                        </p>
+                        <div class="pt-2 flex items-center justify-between gap-2 border-t border-serenity-border/40">
+                            <button
+                                class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-serenity-sand text-serenity-obsidian hover:bg-serenity-cashmere flex items-center gap-1 whitespace-nowrap">
+                                <i class="w-3 h-3" data-lucide="check"></i> Post Live
+                            </button>
+                            <div class="flex items-center gap-2 text-serenity-muted text-xs">
+                                <button class="hover:text-serenity-linen">Regenerate</button>
+                                <span>•</span>
+                                <button class="hover:text-serenity-linen">Discard</button>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+            <!-- END: Activity Stream Cards List -->
+        </main>
+        <!-- END: Main Scrollable Content -->
+        <!-- BEGIN: Persistent Bottom Studio Navigation Bar -->
+        <nav class="fixed bottom-0 max-w-md w-full z-40 bg-serenity-obsidian/95 backdrop-blur-xl border-t border-serenity-border/60 px-4 py-2 flex items-center justify-between"
+            data-purpose="mobile-dock">
+            <!-- Tab 1: Ideas -->
+            <button
+                class="flex flex-col items-center justify-center py-1 px-2 text-serenity-muted hover:text-serenity-sand transition-colors">
+                <i class="w-5 h-5" data-lucide="lightbulb"></i>
+                <span class="text-[10px] font-medium mt-1">Ideas</span>
+            </button>
+            <!-- Tab 2: Series -->
+            <button
+                class="flex flex-col items-center justify-center py-1 px-2 text-serenity-muted hover:text-serenity-sand transition-colors">
+                <i class="w-5 h-5" data-lucide="film"></i>
+                <span class="text-[10px] font-medium mt-1">Series</span>
+            </button>
+            <!-- Tab 3: Schedule / Dispatch -->
+            <button
+                class="flex flex-col items-center justify-center py-1 px-2 text-serenity-muted hover:text-serenity-sand transition-colors">
+                <i class="w-5 h-5" data-lucide="calendar"></i>
+                <span class="text-[10px] font-medium mt-1">Schedule</span>
+            </button>
+            <!-- Tab 4: Pipeline -->
+            <button
+                class="flex flex-col items-center justify-center py-1 px-2 text-serenity-muted hover:text-serenity-sand transition-colors">
+                <i class="w-5 h-5" data-lucide="workflow"></i>
+                <span class="text-[10px] font-medium mt-1">Pipelines</span>
+            </button>
+            <!-- Tab 5: Community & Engagement (Active) -->
+            <button class="flex flex-col items-center justify-center py-1 px-2 text-serenity-sand font-bold">
+                <div class="relative">
+                    <i class="w-5 h-5 text-serenity-sand" data-lucide="message-square-code"></i>
+                    <span
+                        class="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-serenity-sage border-2 border-serenity-obsidian"></span>
+                </div>
+                <span class="text-[10px] font-semibold mt-1">Engage</span>
+            </button>
+        </nav>
+        <!-- END: Persistent Bottom Studio Navigation Bar -->
+        <!-- BEGIN: Settings Modal Overlay (Matching Reference 2 Image 19) -->
+        <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-end justify-center"
+            id="settings-modal">
+            <!-- Modal Sheet Container -->
+            <section
+                class="w-full max-w-md bg-serenity-surface border-t border-serenity-border/80 rounded-t-3xl p-5 space-y-4 max-h-[92vh] overflow-y-auto no-scrollbar shadow-2xl"
+                data-purpose="auto-reply-settings-drawer">
+                <!-- Sheet Handle & Header -->
+                <div>
+                    <div class="w-10 h-1 rounded-full bg-serenity-border mx-auto mb-3"></div>
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-base font-bold text-serenity-linen tracking-tight">Auto Reply Settings</h2>
+                        <button aria-label="Close Settings"
+                            class="w-8 h-8 rounded-full bg-serenity-card border border-serenity-border/60 flex items-center justify-center text-serenity-muted hover:text-serenity-sand"
+                            onclick="toggleSettingsModal(false)">
+                            <i class="w-4 h-4" data-lucide="x"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Toggles Section -->
+                <div class="space-y-3.5 pt-1">
+                    <!-- Toggle 1: Enable Auto Replies -->
+                    <div class="flex items-center justify-between py-1 border-b border-serenity-border/40 pb-3">
+                        <div>
+                            <div class="text-xs font-semibold text-serenity-linen">Enable Auto Replies</div>
+                            <div class="text-[11px] text-serenity-muted">Gemini evaluates new comments autonomously
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input checked="" class="sr-only peer" type="checkbox" />
+                            <div
+                                class="w-11 h-6 bg-serenity-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-serenity-sand after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-serenity-sand/40 border border-serenity-border">
+                            </div>
+                        </label>
+                    </div>
+                    <!-- Toggle 2: Dry-Run Mode -->
+                    <div class="flex items-center justify-between py-1 border-b border-serenity-border/40 pb-3">
+                        <div>
+                            <div class="text-xs font-semibold text-serenity-linen">Dry-Run Mode (Simulate)</div>
+                            <div class="text-[11px] text-serenity-muted">Logs replies without posting to YouTube
+                                directly</div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input class="sr-only peer" type="checkbox" />
+                            <div
+                                class="w-11 h-6 bg-serenity-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-serenity-muted after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-serenity-amber/40 border border-serenity-border">
+                            </div>
+                        </label>
+                    </div>
+                    <!-- Toggle 3: Reply to Questions Only -->
+                    <div class="flex items-center justify-between py-1 border-b border-serenity-border/40 pb-3">
+                        <div>
+                            <div class="text-xs font-semibold text-serenity-linen">Reply to Questions Only</div>
+                            <div class="text-[11px] text-serenity-muted">Ignore generic remarks and emojis</div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input class="sr-only peer" type="checkbox" />
+                            <div
+                                class="w-11 h-6 bg-serenity-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-serenity-muted after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-serenity-sand/40 border border-serenity-border">
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                <!-- Tone Selector Section -->
+                <div class="space-y-2 pt-1">
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-serenity-sand">
+                        Reply Tone
+                    </label>
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-serenity-sand text-serenity-obsidian whitespace-nowrap shadow-sm">
+                            Friendly
+                        </button>
+                        <button
+                            class="px-3.5 py-1.5 rounded-xl text-xs font-medium bg-serenity-card border border-serenity-border text-serenity-muted hover:text-serenity-linen whitespace-nowrap">
+                            Professional
+                        </button>
+                        <button
+                            class="px-3.5 py-1.5 rounded-xl text-xs font-medium bg-serenity-card border border-serenity-border text-serenity-muted hover:text-serenity-linen whitespace-nowrap">
+                            Technical
+                        </button>
+                        <button
+                            class="px-3.5 py-1.5 rounded-xl text-xs font-medium bg-serenity-card border border-serenity-border text-serenity-muted hover:text-serenity-linen whitespace-nowrap">
+                            Enthusiastic
+                        </button>
+                    </div>
+                </div>
+                <!-- Max Replies Input -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-serenity-sand" for="max-replies">
+                        Max Replies Per Run (1 - 20)
+                    </label>
+                    <div class="relative">
+                        <input
+                            class="w-full bg-serenity-card border border-serenity-border rounded-xl px-3.5 py-2.5 text-xs text-serenity-linen focus:border-serenity-sand focus:ring-1 focus:ring-serenity-sand outline-none font-semibold"
+                            id="max-replies" max="20" min="1" type="number" value="10" />
+                    </div>
+                </div>
+                <!-- Custom Persona Instructions Textarea -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold uppercase tracking-wider text-serenity-sand"
+                        for="persona-rules">
+                        Custom Persona Instructions
+                    </label>
+                    <textarea
+                        class="w-full bg-serenity-card border border-serenity-border rounded-xl p-3 text-xs text-serenity-linen focus:border-serenity-sand focus:ring-1 focus:ring-serenity-sand outline-none leading-relaxed resize-none"
+                        id="persona-rules"
+                        rows="3">Be friendly, concise, authentic, and genuinely helpful. Never speak like an AI or use generic boilerplate.</textarea>
+                </div>
+                <!-- Save Button -->
+                <div class="pt-2">
+                    <button
+                        class="w-full bg-gradient-to-r from-serenity-sand to-serenity-cashmere text-serenity-obsidian font-bold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider shadow-lg active:scale-[0.99] transition"
+                        onclick="toggleSettingsModal(false)">
+                        Save Settings
+                    </button>
+                </div>
+            </section>
+        </div>
+        <!-- END: Settings Modal Overlay -->
+    </div>
+    <!-- END: Mobile Device Frame Wrap -->
+    <!-- BEGIN: Interactive Modal Scripts -->
+    <script data-purpose="ui-interactions">
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Toggle Settings Modal
+        function toggleSettingsModal(show) {
+            const modal = document.getElementById('settings-modal');
+            if (show) {
+                modal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            } else {
+                modal.classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            }
+        }
+    </script>
+    <!-- END: Interactive Modal Scripts -->
+</body>
+
+</html>

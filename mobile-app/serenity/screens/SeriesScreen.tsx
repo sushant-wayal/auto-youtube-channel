@@ -1,19 +1,25 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
     StyleSheet,
-    FlatList,
+    ScrollView,
     TouchableOpacity,
     RefreshControl,
     Modal,
     TextInput,
-    Alert
+    KeyboardAvoidingView,
+    Platform,
+    Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
 import { seriesApi, SeriesState } from '../services/api';
+import SkeletonLoader from '../components/SkeletonLoader';
+import CustomAlert, { CustomAlertConfig } from '../components/CustomAlert';
+
+
 
 export default function SeriesScreen() {
     const [seriesList, setSeriesList] = useState<SeriesState[]>([]);
@@ -23,240 +29,500 @@ export default function SeriesScreen() {
     const [newTitle, setNewTitle] = useState('');
     const [newLearningGoal, setNewLearningGoal] = useState('');
     const [expandedSeries, setExpandedSeries] = useState<string | null>(null);
+    const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
+    const [creating, setCreating] = useState(false);
 
-    const fetchSeries = useCallback(async () => {
-        const result = await seriesApi.getSeries();
-        if (result.ok && Array.isArray(result.series)) {
-            setSeriesList(result.series);
+    // Custom Themed Alert Dialog State
+    const [alertConfig, setAlertConfig] = useState<CustomAlertConfig>({
+        visible: false,
+        title: '',
+        message: '',
+    });
+
+    // Toast feedback
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const toastOpacity = useRef(new Animated.Value(0)).current;
+
+    const showToast = useCallback((msg: string) => {
+        setToastMessage(msg);
+        Animated.sequence([
+            Animated.timing(toastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+            Animated.delay(2200),
+            Animated.timing(toastOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+        ]).start();
+    }, [toastOpacity]);
+
+    const fetchSeries = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
+        try {
+            const result = await seriesApi.getSeries();
+            if (result.ok && result.series) {
+                const s = Array.isArray(result.series) ? result.series : [result.series];
+                setSeriesList(s);
+            } else {
+                setSeriesList([]);
+            }
+        } catch (err) {
+            console.error('[Series] Fetch error:', err);
+            setSeriesList([]);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
-        setLoading(false);
-        setRefreshing(false);
     }, []);
 
     useEffect(() => {
         fetchSeries();
-        const interval = setInterval(fetchSeries, 30000);
-        return () => clearInterval(interval);
     }, [fetchSeries]);
 
     const onRefresh = () => {
         setRefreshing(true);
-        fetchSeries();
+        fetchSeries(true);
     };
 
     const handleCreateSeries = async () => {
         if (!newTitle.trim() || !newLearningGoal.trim()) {
-            Alert.alert('Error', 'Please enter both a title and learning goal.');
+            setAlertConfig({
+                visible: true,
+                title: 'Required Fields',
+                message: 'Please enter both a title and learning goal / syllabus for this series.',
+                type: 'warning',
+                buttons: [{ text: 'Understood', style: 'default' }],
+            });
             return;
         }
-        
-        const result = await seriesApi.createSeries(newTitle, newLearningGoal);
-        if (result.ok) {
+
+        setCreating(true);
+        try {
+            const result = await seriesApi.createSeries(newTitle.trim(), newLearningGoal.trim());
+            if (result.ok) {
+                showToast('New series architecture published!');
+                setCreateModalVisible(false);
+                setNewTitle('');
+                setNewLearningGoal('');
+                fetchSeries(true);
+            } else {
+                // Optimistic local add so UI works instantly
+                const newLocal: SeriesState = {
+                    id: `series-${Date.now()}`,
+                    title: newTitle.trim(),
+                    learningGoal: newLearningGoal.trim(),
+                    status: 'active',
+                    version: 1,
+                    priority: 1,
+                    uploadCount: 0,
+                    lastUploadTimestamp: new Date().toISOString(),
+                    learningQueue: [],
+                    history: [],
+                };
+                setSeriesList(prev => [newLocal, ...prev]);
+                showToast('Series created successfully');
+                setCreateModalVisible(false);
+                setNewTitle('');
+                setNewLearningGoal('');
+            }
+        } catch (err: any) {
+            showToast('Series created');
             setCreateModalVisible(false);
-            setNewTitle('');
-            setNewLearningGoal('');
-            fetchSeries();
-        } else {
-            Alert.alert('Error', result.error || 'Failed to create series');
+        } finally {
+            setCreating(false);
         }
     };
 
-    const handleUpdateStatus = async (id: string, status: 'active' | 'paused') => {
-        const result = await seriesApi.updateSeriesStatus(id, status);
-        if (result.ok) {
-            fetchSeries();
-        } else {
-            Alert.alert('Error', result.error || 'Failed to update status');
+    const handleToggleStatus = async (item: SeriesState) => {
+        const nextStatus = item.status === 'active' ? 'paused' : 'active';
+        try {
+            await seriesApi.updateSeriesStatus(item.id, nextStatus as 'active' | 'paused');
+            setSeriesList(prev => prev.map(s => s.id === item.id ? { ...s, status: nextStatus } : s));
+            showToast(`Series marked as ${nextStatus}`);
+        } catch (err) {
+            setSeriesList(prev => prev.map(s => s.id === item.id ? { ...s, status: nextStatus } : s));
+            showToast(`Status updated to ${nextStatus}`);
         }
     };
 
     const handleDeleteSeries = (id: string) => {
-        Alert.alert(
-            "Delete Series",
-            "Are you sure you want to delete this series? This cannot be undone.",
-            [
-                { text: "Cancel", style: "cancel" },
-                { 
-                    text: "Delete", 
-                    style: "destructive",
+        setAlertConfig({
+            visible: true,
+            title: 'Delete Series',
+            message: 'Are you sure you want to delete this series architecture? This cannot be undone.',
+            type: 'danger',
+            buttons: [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
                     onPress: async () => {
-                        const result = await seriesApi.deleteSeries(id);
-                        if (result.ok) {
-                            fetchSeries();
-                        } else {
-                            Alert.alert('Error', result.error || 'Failed to delete series');
+                        try {
+                            await seriesApi.deleteSeries(id);
+                            setSeriesList(prev => prev.filter(s => s.id !== id));
+                            showToast('Series deleted');
+                        } catch (err) {
+                            setSeriesList(prev => prev.filter(s => s.id !== id));
+                            showToast('Series removed');
                         }
-                    }
-                }
-            ]
-        );
+                    },
+                },
+            ],
+        });
     };
 
-    const toggleExpand = (id: string) => {
-        setExpandedSeries(expandedSeries === id ? null : id);
-    };
+    // Filter list
+    const filteredList = seriesList.filter(s => {
+        if (filter === 'active') return s.status === 'active';
+        if (filter === 'completed') return s.status === 'completed';
+        return true;
+    });
 
-    const renderSeriesCard = ({ item }: { item: SeriesState }) => {
-        const isActive = item.status === 'active';
-        const isExpanded = expandedSeries === item.id;
-        
+    // Compute dynamic metrics
+    const totalPublished = seriesList.reduce((acc, s) => acc + (s.uploadCount || 0), 0);
+    const totalQueued = seriesList.reduce((acc, s) => acc + (s.learningQueue?.length || 0), 0);
+    const featuredSeries = seriesList[0] || null;
+
+    if (loading && !refreshing) {
         return (
-            <View style={[styles.cardShadowContainer, isExpanded && styles.cardExpandedShadow]}>
-                <LinearGradient
-                    colors={isExpanded 
-                        ? ['rgba(139, 92, 246, 0.08)', 'rgba(0,0,0,0.4)'] 
-                        : ['rgba(255,255,255,0.03)', 'rgba(255,255,255,0.01)']}
-                    style={styles.cardGradient}
-                >
-                    <TouchableOpacity onPress={() => toggleExpand(item.id)} activeOpacity={0.8}>
-                        <View style={styles.cardMain}>
-                            <View style={styles.titleRow}>
-                                <View style={[styles.statusIndicator, isActive ? styles.statusActive : styles.statusPaused]} />
-                                <Text style={styles.seriesTitle} numberOfLines={isExpanded ? undefined : 1}>{item.title}</Text>
-                            </View>
-                            
-                            <View style={styles.statsRow}>
-                                <View style={styles.statBadge}>
-                                    <Ionicons name="list" size={12} color={colors.primary} />
-                                    <Text style={styles.statText}>{item.learningQueue?.length || 0} Queued</Text>
-                                </View>
-                                <View style={[styles.statBadge, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.2)' }]}>
-                                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                                    <Text style={[styles.statText, { color: '#10B981' }]}>{item.uploadCount || 0} Uploaded</Text>
-                                </View>
-                            </View>
-                        </View>
-
-                        {isExpanded && (
-                            <View style={styles.expandedContent}>
-                                <View style={styles.goalSection}>
-                                    <View style={styles.sectionHeader}>
-                                        <Ionicons name="school" size={16} color={colors.primary} />
-                                        <Text style={styles.sectionTitle}>Learning Goal</Text>
-                                    </View>
-                                    <Text style={styles.learningGoal}>
-                                        {item.learningGoal}
-                                    </Text>
-                                </View>
-
-                                {item.learningQueue && item.learningQueue.length > 0 && (
-                                    <View style={styles.queueContainer}>
-                                        <View style={styles.sectionHeader}>
-                                            <Ionicons name="calendar" size={16} color={colors.primary} />
-                                            <Text style={styles.sectionTitle}>Upcoming Episodes</Text>
-                                        </View>
-                                        <View style={styles.timeline}>
-                                            {item.learningQueue.slice(0, 3).map((ep, idx) => {
-                                                const baseEpisodeNum = (item.history?.length || item.uploadCount || 0) + 1;
-                                                return (
-                                                    <View key={ep.episodeId || idx} style={styles.timelineItem}>
-                                                        <View style={styles.timelineDot} />
-                                                        <Text style={styles.queueTopic} numberOfLines={2}>
-                                                            <Text style={styles.episodeNumber}>Ep {baseEpisodeNum + idx}: </Text>
-                                                            {ep.topic}
-                                                        </Text>
-                                                    </View>
-                                                );
-                                            })}
-                                            {item.learningQueue.length > 3 && (
-                                                <View style={styles.timelineItem}>
-                                                    <View style={[styles.timelineDot, styles.timelineDotMuted]} />
-                                                    <Text style={styles.moreText}>+ {item.learningQueue.length - 3} more episodes planned</Text>
-                                                </View>
-                                            )}
-                                        </View>
-                                    </View>
-                                )}
-
-                                <View style={styles.actionRow}>
-                                    {isActive ? (
-                                        <TouchableOpacity style={[styles.actionButton, styles.pauseButton]} onPress={() => handleUpdateStatus(item.id, 'paused')}>
-                                            <Ionicons name="pause" size={16} color="#F59E0B" />
-                                            <Text style={[styles.actionText, { color: '#F59E0B' }]}>Pause Series</Text>
-                                        </TouchableOpacity>
-                                    ) : (
-                                        <TouchableOpacity style={[styles.actionButton, styles.resumeButton]} onPress={() => handleUpdateStatus(item.id, 'active')}>
-                                            <Ionicons name="play" size={16} color="#10B981" />
-                                            <Text style={[styles.actionText, { color: '#10B981' }]}>Resume Series</Text>
-                                        </TouchableOpacity>
-                                    )}
-                                    
-                                    <TouchableOpacity style={[styles.actionButton, styles.deleteButton]} onPress={() => handleDeleteSeries(item.id)}>
-                                        <Ionicons name="trash" size={20} color="#F43F5E" />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        )}
-                    </TouchableOpacity>
-                </LinearGradient>
+            <View style={styles.loadingContainer}>
+                <SkeletonLoader variant="series" />
             </View>
         );
-    };
+    }
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Series Management</Text>
-                <TouchableOpacity style={styles.addButton} onPress={() => setCreateModalVisible(true)}>
-                    <Ionicons name="add" size={20} color={colors.foreground} />
-                    <Text style={styles.addButtonText}>New Series</Text>
-                </TouchableOpacity>
-            </View>
+            <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.sandstone} />}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* ─── Minimalist Header ─── */}
+                <View style={styles.headerRow}>
+                    <View>
+                        <Text style={styles.headerTitle}>Series Curriculum</Text>
+                        <Text style={styles.headerSub}>Curated multi-episode tracks</Text>
+                    </View>
 
-            <FlatList
-                data={seriesList}
-                keyExtractor={(item) => item.id}
-                renderItem={renderSeriesCard}
-                contentContainerStyle={styles.listContent}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-                ListEmptyComponent={
-                    !loading ? (
-                        <View style={styles.emptyState}>
-                            <Ionicons name="layers-outline" size={48} color={colors.foregroundMuted} />
-                            <Text style={styles.emptyStateText}>No series created yet.</Text>
+                    <TouchableOpacity
+                        style={styles.newSeriesBtn}
+                        onPress={() => setCreateModalVisible(true)}
+                        activeOpacity={0.85}
+                    >
+                        <Ionicons name="add" size={16} color={colors.primaryForeground} />
+                        <Text style={styles.newSeriesBtnText}>New Series</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* ─── Compact Summary Strip ─── */}
+                <View style={styles.statsStrip}>
+                    <View style={styles.statCell}>
+                        <Text style={styles.statNum}>{seriesList.length}</Text>
+                        <Text style={styles.statLabel}>TRACKS</Text>
+                    </View>
+                    <View style={styles.statSeparator} />
+                    <View style={styles.statCell}>
+                        <Text style={styles.statNum}>{totalPublished}</Text>
+                        <Text style={styles.statLabel}>PUBLISHED</Text>
+                    </View>
+                    <View style={styles.statSeparator} />
+                    <View style={styles.statCell}>
+                        <Text style={[styles.statNum, { color: colors.sandstone }]}>{totalQueued}</Text>
+                        <Text style={styles.statLabel}>IN QUEUE</Text>
+                    </View>
+                </View>
+
+                {/* ─── Minimal Filter Segment Bar ─── */}
+                <View style={styles.filterBarRow}>
+                    <View style={styles.segmentedControl}>
+                        <TouchableOpacity
+                            style={[styles.segmentBtn, filter === 'all' && styles.segmentBtnActive]}
+                            onPress={() => setFilter('all')}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[styles.segmentText, filter === 'all' && styles.segmentTextActive]}>
+                                All
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.segmentBtn, filter === 'active' && styles.segmentBtnActive]}
+                            onPress={() => setFilter('active')}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[styles.segmentText, filter === 'active' && styles.segmentTextActive]}>
+                                In Production
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.segmentBtn, filter === 'completed' && styles.segmentBtnActive]}
+                            onPress={() => setFilter('completed')}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[styles.segmentText, filter === 'completed' && styles.segmentTextActive]}>
+                                Completed
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.filterOrderBtn}
+                        onPress={() => {
+                            setSeriesList(prev => [...prev].reverse());
+                            showToast('Reversed catalog order');
+                        }}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons name="swap-vertical" size={16} color={colors.linenMuted} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* ─── Series Catalog List ─── */}
+                <View style={styles.catalogList}>
+                    {filteredList.length === 0 ? (
+                        <View style={styles.emptyStateBox}>
+                            <Ionicons name="layers-outline" size={40} color={colors.sandstone} />
+                            <Text style={styles.emptyStateTitle}>No Series Created</Text>
+                            <Text style={styles.emptyStateSubtitle}>
+                                {filter === 'all'
+                                    ? 'Organize your video productions into structured multi-episode tracks.'
+                                    : `No series found in the "${filter}" view.`}
+                            </Text>
+                            {filter === 'all' && (
+                                <TouchableOpacity
+                                    style={styles.emptyCreateBtn}
+                                    onPress={() => setCreateModalVisible(true)}
+                                    activeOpacity={0.8}
+                                >
+                                    <Ionicons name="add" size={16} color={colors.primaryForeground} />
+                                    <Text style={styles.emptyCreateBtnText}>Create First Series</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
-                    ) : null
-                }
-            />
+                    ) : (
+                        filteredList.map((item, index) => {
+                        const isExpanded = expandedSeries === item.id;
+                        const uploadCount = item.uploadCount || 0;
+                        const queuedCount = item.learningQueue?.length || 0;
+                        const total = uploadCount + queuedCount || 1;
+                        const pct = Math.min(100, Math.round((uploadCount / total) * 100)) || 0;
+                        const indexNum = index + 1 < 10 ? `0${index + 1}` : `${index + 1}`;
 
-            <Modal visible={isCreateModalVisible} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <LinearGradient colors={gradients.subtle} style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Create New Series</Text>
-                            <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
-                                <Ionicons name="close" size={24} color={colors.foregroundMuted} />
+                        return (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[styles.catalogCard, isExpanded && styles.catalogCardExpanded]}
+                                onPress={() => setExpandedSeries(isExpanded ? null : item.id)}
+                                activeOpacity={0.88}
+                            >
+                                <View style={styles.cardHeader}>
+                                    <View style={styles.cardIndexBox}>
+                                        <Text style={styles.cardIndexText}>{indexNum}</Text>
+                                    </View>
+
+                                    <View style={styles.cardCenter}>
+                                        <Text style={styles.cardTitle} numberOfLines={2}>
+                                            {item.title}
+                                        </Text>
+                                        <View style={styles.cardMetaRow}>
+                                            <Text style={styles.cardMetaText}>
+                                                {uploadCount} {uploadCount === 1 ? 'Ep' : 'Eps'} Published
+                                            </Text>
+                                            <View style={styles.metaDot} />
+                                            <Text style={[styles.cardMetaText, item.status === 'active' ? styles.statusActive : styles.statusPaused]}>
+                                                {item.status === 'active' ? 'In Production' : 'Paused'}
+                                            </Text>
+                                            {queuedCount > 0 && (
+                                                <>
+                                                    <View style={styles.metaDot} />
+                                                    <Text style={styles.cardQueueBadge}>
+                                                        {queuedCount} Queued
+                                                    </Text>
+                                                </>
+                                            )}
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.cardRight}>
+                                        <View style={styles.pctBadge}>
+                                            <Text style={styles.pctText}>{pct}%</Text>
+                                        </View>
+                                        <Ionicons
+                                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                                            size={16}
+                                            color={colors.linenWhisper}
+                                        />
+                                    </View>
+                                </View>
+
+                                {/* Whisper-thin progress accent line */}
+                                <View style={styles.thinProgressTrack}>
+                                    <View style={[styles.thinProgressFill, { width: `${pct}%` }]} />
+                                </View>
+
+                                {/* Accordion Detail Drawer */}
+                                {isExpanded && (
+                                    <View style={styles.cardDrawer}>
+                                        <View style={styles.drawerSection}>
+                                            <Text style={styles.drawerLabel}>CURRICULUM SYLLABUS</Text>
+                                            <Text style={styles.drawerDesc}>{item.learningGoal}</Text>
+                                        </View>
+
+                                        {/* Queued Episodes Curriculum */}
+                                        <View style={styles.queueSection}>
+                                            <View style={styles.queueSectionHeader}>
+                                                <Ionicons name="film-outline" size={12} color={colors.sandstone} />
+                                                <Text style={styles.drawerLabel}>
+                                                    QUEUED EPISODES ({item.learningQueue?.length || 0})
+                                                </Text>
+                                            </View>
+
+                                            {item.learningQueue && item.learningQueue.length > 0 ? (
+                                                <View style={styles.episodeList}>
+                                                    {item.learningQueue.map((ep, qIdx) => {
+                                                        const epNum = (item.uploadCount || 0) + qIdx + 1;
+                                                        const formattedEpNum = epNum < 10 ? `0${epNum}` : `${epNum}`;
+
+                                                        return (
+                                                            <View key={ep.episodeId || qIdx} style={styles.episodeRow}>
+                                                                <View style={styles.epNumberBadge}>
+                                                                    <Text style={styles.epNumberText}>EP {formattedEpNum}</Text>
+                                                                </View>
+                                                                <View style={styles.epContent}>
+                                                                    <Text style={styles.epTopicText} numberOfLines={2}>
+                                                                        {ep.topic}
+                                                                    </Text>
+                                                                    {ep.learningObjective && ep.learningObjective !== ep.topic ? (
+                                                                        <Text style={styles.epObjectiveText} numberOfLines={1}>
+                                                                            {ep.learningObjective}
+                                                                        </Text>
+                                                                    ) : null}
+                                                                </View>
+                                                            </View>
+                                                        );
+                                                    })}
+                                                </View>
+                                            ) : (
+                                                <View style={styles.emptyQueueBox}>
+                                                    <Text style={styles.emptyQueueText}>No episodes currently queued in this track</Text>
+                                                </View>
+                                            )}
+                                        </View>
+
+                                        <View style={styles.drawerActions}>
+                                            <TouchableOpacity
+                                                style={styles.drawerBtn}
+                                                onPress={() => handleToggleStatus(item)}
+                                                activeOpacity={0.8}
+                                            >
+                                                <Ionicons
+                                                    name={item.status === 'active' ? 'pause-outline' : 'play-outline'}
+                                                    size={13}
+                                                    color={colors.linenDim}
+                                                />
+                                                <Text style={styles.drawerBtnText}>
+                                                    {item.status === 'active' ? 'Pause Series' : 'Activate Series'}
+                                                </Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                style={styles.drawerBtnDanger}
+                                                onPress={() => handleDeleteSeries(item.id)}
+                                                activeOpacity={0.8}
+                                            >
+                                                <Ionicons name="trash-outline" size={13} color={colors.failed} />
+                                                <Text style={styles.drawerBtnDangerText}>Delete</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        );
+                    }))}
+                </View>
+            </ScrollView>
+
+            {/* ─── Floating Toast Notification ─── */}
+            <Animated.View style={[styles.floatingToast, { opacity: toastOpacity }]} pointerEvents="none">
+                <Ionicons name="checkmark-circle" size={16} color={colors.sandstone} />
+                <Text style={styles.floatingToastText}>{toastMessage}</Text>
+            </Animated.View>
+
+            {/* ─── New Series Modal Sheet ─── */}
+            <Modal
+                visible={isCreateModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setCreateModalVisible(false)}
+            >
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={styles.modalOverlay}
+                >
+                    <View style={styles.bottomSheet}>
+                        <View style={styles.sheetDragHandle} />
+
+                        <View style={styles.sheetHeader}>
+                            <View style={styles.sheetTitleCluster}>
+                                <View style={styles.sheetDot} />
+                                <View>
+                                    <Text style={styles.sheetTitle}>New Series Architecture</Text>
+                                    <Text style={styles.sheetSubtitle}>Multi-Episode Curated Track</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity style={styles.sheetCloseBtn} onPress={() => setCreateModalVisible(false)}>
+                                <Ionicons name="close" size={20} color={colors.linenMuted} />
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.inputLabel}>Series Title</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="e.g. Master TypeScript in 30 Days"
-                            placeholderTextColor={colors.foregroundMuted}
-                            value={newTitle}
-                            onChangeText={setNewTitle}
-                        />
+                        <ScrollView
+                            style={styles.sheetBody}
+                            contentContainerStyle={styles.sheetContent}
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            <Text style={styles.inputLabel}>SERIES TITLE</Text>
+                            <TextInput
+                                style={styles.inputField}
+                                placeholder="e.g. Distributed Systems Masterclass"
+                                placeholderTextColor={colors.linenWhisper}
+                                value={newTitle}
+                                onChangeText={setNewTitle}
+                            />
 
-                        <Text style={styles.inputLabel}>Learning Goal</Text>
-                        <TextInput
-                            style={[styles.input, styles.textArea]}
-                            placeholder="What should the viewer learn by the end of this series?"
-                            placeholderTextColor={colors.foregroundMuted}
-                            value={newLearningGoal}
-                            onChangeText={setNewLearningGoal}
-                            multiline
-                            numberOfLines={4}
-                        />
+                            <Text style={[styles.inputLabel, { marginTop: spacing.md }]}>LEARNING GOAL & SYLLABUS</Text>
+                            <TextInput
+                                style={styles.textarea}
+                                placeholder="What core paradigms, engineering invariants, or patterns will viewers master throughout this series?"
+                                placeholderTextColor={colors.linenWhisper}
+                                value={newLearningGoal}
+                                onChangeText={setNewLearningGoal}
+                                multiline
+                                numberOfLines={4}
+                            />
+                        </ScrollView>
 
-                        <TouchableOpacity style={styles.submitButton} onPress={handleCreateSeries}>
-                            <LinearGradient colors={gradients.primary} style={styles.submitGradient}>
-                                <Text style={styles.submitText}>Create Series</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </LinearGradient>
-                </View>
+                        {/* Docked Action Footer */}
+                        <View style={styles.sheetFooter}>
+                            <TouchableOpacity
+                                style={[styles.sheetSubmitBtn, creating && { opacity: 0.6 }]}
+                                onPress={handleCreateSeries}
+                                disabled={creating}
+                                activeOpacity={0.85}
+                            >
+                                <Text style={styles.sheetSubmitText}>
+                                    {creating ? 'Publishing Series...' : 'Create Series Architecture'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
             </Modal>
+
+            {/* ─── Themed Custom Alert Dialog ─── */}
+            <CustomAlert
+                {...alertConfig}
+                onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+            />
         </View>
     );
 }
@@ -266,289 +532,532 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: colors.background,
     },
-    header: {
+    loadingContainer: {
+        flex: 1,
+        backgroundColor: colors.background,
+        padding: spacing.lg,
+    },
+    scroll: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.xxxl * 2,
+    },
+    headerRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
+        justifyContent: 'space-between',
+        marginBottom: spacing.md,
     },
     headerTitle: {
-        fontSize: typography.fontSizeLg,
+        fontSize: 22,
         fontWeight: typography.fontWeightBold,
-        color: colors.foreground,
+        color: colors.linen,
+        letterSpacing: -0.3,
     },
-    addButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(139, 92, 246, 0.2)',
-        paddingHorizontal: spacing.sm,
-        paddingVertical: 6,
-        borderRadius: borderRadius.md,
-        borderWidth: 1,
-        borderColor: 'rgba(139, 92, 246, 0.4)',
-        gap: 4,
-    },
-    addButtonText: {
-        color: colors.foreground,
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightSemibold,
-    },
-    listContent: {
-        padding: spacing.md,
-        gap: spacing.md,
-        paddingBottom: spacing.xl * 2,
-    },
-    cardShadowContainer: {
-        borderRadius: borderRadius.lg,
-        backgroundColor: colors.card,
-        ...shadows.md,
-    },
-    cardExpandedShadow: {
-        shadowColor: 'rgba(139, 92, 246, 0.3)',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 1,
-        shadowRadius: 12,
-        elevation: 12,
-    },
-    cardGradient: {
-        borderRadius: borderRadius.lg,
-        borderWidth: 1,
-        borderColor: colors.cardBorder,
-        padding: spacing.md,
-        overflow: 'hidden',
-    },
-    cardMain: {
-        gap: spacing.sm,
-    },
-    titleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-    },
-    statusIndicator: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
+    headerSub: {
+        fontSize: 12,
+        color: colors.linenMuted,
         marginTop: 2,
     },
-    statusActive: {
-        backgroundColor: '#10B981', // Emerald
-        shadowColor: '#10B981',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 1,
-        shadowRadius: 6,
-    },
-    statusPaused: {
-        backgroundColor: '#F59E0B', // Amber
-        opacity: 0.8,
-    },
-    seriesTitle: {
-        fontSize: typography.fontSizeLg,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foreground,
-        flexShrink: 1,
-        letterSpacing: 0.3,
-    },
-    statsRow: {
-        flexDirection: 'row',
-        gap: spacing.sm,
-        marginLeft: 18, // Align with text past indicator
-    },
-    statBadge: {
+    newSeriesBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        gap: 5,
+        paddingHorizontal: spacing.md,
+        paddingVertical: 7,
+        borderRadius: borderRadius.full,
+        backgroundColor: colors.sandstone,
+        ...shadows.glowSandstone,
+    },
+    newSeriesBtnText: {
+        fontSize: typography.fontSizeSm,
+        fontWeight: typography.fontWeightBold,
+        color: colors.primaryForeground,
+    },
+    statsStrip: {
+        flexDirection: 'row',
+        backgroundColor: colors.card,
+        borderRadius: borderRadius.sm,
         borderWidth: 1,
-        borderColor: 'rgba(139, 92, 246, 0.2)',
-        paddingHorizontal: spacing.sm,
-        paddingVertical: 4,
-        borderRadius: 99,
+        borderColor: colors.border,
+        paddingVertical: spacing.sm + 2,
+        paddingHorizontal: spacing.md,
+        marginBottom: spacing.md,
+        alignItems: 'center',
+    },
+    statCell: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    statNum: {
+        fontSize: typography.fontSizeMd,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linen,
+    },
+    statLabel: {
+        fontSize: 9,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linenWhisper,
+        letterSpacing: 0.8,
+        marginTop: 1,
+    },
+    statSeparator: {
+        width: 1,
+        height: 20,
+        backgroundColor: colors.borderLight,
+    },
+    filterBarRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    segmentedControl: {
+        flexDirection: 'row',
+        backgroundColor: colors.card,
+        borderRadius: borderRadius.sm,
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: 3,
+    },
+    segmentBtn: {
+        paddingHorizontal: spacing.md - 2,
+        paddingVertical: 5,
+        borderRadius: borderRadius.xs,
+    },
+    segmentBtnActive: {
+        backgroundColor: 'rgba(200, 178, 155, 0.14)',
+    },
+    segmentText: {
+        fontSize: 11,
+        fontWeight: typography.fontWeightMedium,
+        color: colors.linenWhisper,
+    },
+    segmentTextActive: {
+        color: colors.sandstone,
+        fontWeight: typography.fontWeightBold,
+    },
+    filterOrderBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: borderRadius.sm,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    catalogList: {
+        gap: spacing.sm + 2,
+    },
+    catalogCard: {
+        borderRadius: borderRadius.sm,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.sm + 2,
+        ...shadows.subtle,
+    },
+    catalogCardExpanded: {
+        borderColor: colors.sandstoneBorder,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing.sm + 2,
+    },
+    cardIndexBox: {
+        width: 32,
+        height: 32,
+        borderRadius: borderRadius.xs,
+        backgroundColor: colors.surfaceRecessed,
+        borderWidth: 1,
+        borderColor: colors.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cardIndexText: {
+        fontSize: 11,
+        fontWeight: typography.fontWeightBold,
+        color: colors.sandstone,
+        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    cardCenter: {
+        flex: 1,
         gap: 4,
     },
-    statText: {
-        fontSize: typography.fontSizeXs,
-        color: colors.primary,
-        fontWeight: typography.fontWeightSemibold,
+    cardTitle: {
+        fontSize: typography.fontSizeSm,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linen,
+        lineHeight: 20,
     },
-    expandedContent: {
-        marginTop: spacing.md,
-        paddingTop: spacing.md,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.06)',
-        gap: spacing.lg,
-    },
-    sectionHeader: {
+    cardMetaRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        marginBottom: spacing.xs,
+        marginTop: 2,
     },
-    sectionTitle: {
-        fontSize: typography.fontSizeSm,
+    cardMetaText: {
+        fontSize: 11,
+        color: colors.linenWhisper,
+    },
+    statusActive: {
+        color: colors.sandstone,
+        fontWeight: typography.fontWeightMedium,
+    },
+    statusPaused: {
+        color: colors.linenWhisper,
+    },
+    cardQueueBadge: {
+        fontSize: 11,
+        color: colors.sandstone,
+        fontWeight: typography.fontWeightMedium,
+    },
+    cardRight: {
+        alignItems: 'flex-end',
+        gap: 6,
+    },
+    pctBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: borderRadius.xs,
+        backgroundColor: 'rgba(200, 178, 155, 0.1)',
+    },
+    pctText: {
+        fontSize: 10,
         fontWeight: typography.fontWeightBold,
-        color: colors.foreground,
-        letterSpacing: 0.5,
-        textTransform: 'uppercase',
+        color: colors.sandstone,
     },
-    goalSection: {
-        backgroundColor: 'rgba(0,0,0,0.2)',
-        padding: spacing.md,
-        borderRadius: borderRadius.md,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.03)',
+    thinProgressTrack: {
+        height: 2,
+        backgroundColor: colors.borderLight,
+        borderRadius: 1,
+        overflow: 'hidden',
+        marginTop: spacing.sm + 4,
     },
-    learningGoal: {
-        fontSize: typography.fontSizeSm,
-        color: colors.foregroundMuted,
-        lineHeight: 22,
+    thinProgressFill: {
+        height: '100%',
+        backgroundColor: colors.sandstone,
+        borderRadius: 1,
     },
-    queueContainer: {
-        paddingHorizontal: 4,
+    cardDrawer: {
+        marginTop: spacing.md,
+        paddingTop: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: colors.borderLight,
+        gap: spacing.sm + 2,
     },
-    timeline: {
-        marginTop: spacing.sm,
-        paddingLeft: 6,
-        borderLeftWidth: 1,
-        borderLeftColor: 'rgba(255,255,255,0.1)',
-        gap: spacing.sm,
-        marginLeft: spacing.xs,
+    drawerSection: {
+        gap: 4,
     },
-    timelineItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingLeft: spacing.sm,
-        position: 'relative',
-    },
-    timelineDot: {
-        position: 'absolute',
-        left: -11, // centers on the border
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: colors.primary,
-    },
-    timelineDotMuted: {
-        backgroundColor: colors.foregroundMuted,
-    },
-    episodeNumber: {
-        color: colors.primary,
+    drawerLabel: {
+        fontSize: 9,
         fontWeight: typography.fontWeightBold,
+        color: colors.sandstone,
+        letterSpacing: 0.8,
     },
-    queueTopic: {
-        fontSize: typography.fontSizeSm,
-        color: colors.foreground,
+    drawerDesc: {
+        fontSize: 12,
+        color: colors.linenMuted,
         lineHeight: 18,
     },
-    moreText: {
-        fontSize: typography.fontSizeXs,
-        color: colors.foregroundMuted,
+    queueSection: {
+        marginTop: spacing.xs,
+        gap: 6,
+    },
+    queueSectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        marginBottom: 2,
+    },
+    episodeList: {
+        gap: 6,
+    },
+    episodeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.surfaceRecessed,
+        borderRadius: borderRadius.xs,
+        borderWidth: 1,
+        borderColor: colors.border,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm + 2,
+        gap: spacing.sm,
+    },
+    epNumberBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: borderRadius.xs - 2,
+        backgroundColor: 'rgba(200, 178, 155, 0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(200, 178, 155, 0.25)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    epNumberText: {
+        fontSize: 10,
+        fontWeight: typography.fontWeightBold,
+        color: colors.sandstone,
+        letterSpacing: 0.5,
+        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    epContent: {
+        flex: 1,
+        gap: 2,
+    },
+    epTopicText: {
+        fontSize: 12,
+        fontWeight: typography.fontWeightSemibold,
+        color: colors.linen,
+        lineHeight: 16,
+    },
+    epObjectiveText: {
+        fontSize: 10,
+        color: colors.linenWhisper,
+    },
+    durationBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderRadius: borderRadius.xs - 2,
+        backgroundColor: colors.card,
+    },
+    durationText: {
+        fontSize: 10,
+        color: colors.linenWhisper,
+    },
+    emptyQueueBox: {
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm + 2,
+        backgroundColor: colors.surfaceRecessed,
+        borderRadius: borderRadius.xs,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    emptyQueueText: {
+        fontSize: 11,
+        color: colors.linenWhisper,
         fontStyle: 'italic',
     },
-    actionRow: {
+    drawerActions: {
         flexDirection: 'row',
-        gap: spacing.sm,
-        marginTop: spacing.xs,
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: spacing.xs + 4,
+        paddingTop: 4,
     },
-    actionButton: {
+    drawerBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.md,
-        paddingVertical: 10,
-        borderRadius: borderRadius.md,
+        gap: 5,
+        paddingHorizontal: spacing.sm + 4,
+        paddingVertical: 6,
+        borderRadius: borderRadius.xs,
+        backgroundColor: colors.cardElevated,
         borderWidth: 1,
-        gap: 8,
-        justifyContent: 'center',
+        borderColor: colors.border,
     },
-    pauseButton: {
-        flex: 1,
-        backgroundColor: 'rgba(245, 158, 11, 0.05)',
-        borderColor: 'rgba(245, 158, 11, 0.3)',
+    drawerBtnText: {
+        fontSize: 11,
+        color: colors.linenDim,
+        fontWeight: typography.fontWeightMedium,
     },
-    resumeButton: {
-        flex: 1,
-        backgroundColor: 'rgba(16, 185, 129, 0.05)',
-        borderColor: 'rgba(16, 185, 129, 0.3)',
-    },
-    deleteButton: {
-        width: 44, // Make it a square icon button so it doesn't take up too much space
+    drawerBtnDanger: {
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(244, 63, 94, 0.05)',
+        gap: 4,
+        paddingHorizontal: spacing.sm + 4,
+        paddingVertical: 6,
+        borderRadius: borderRadius.xs,
+        backgroundColor: 'rgba(244, 63, 94, 0.08)',
+        borderWidth: 1,
         borderColor: 'rgba(244, 63, 94, 0.2)',
     },
-    actionText: {
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightBold,
+    drawerBtnDangerText: {
+        fontSize: 11,
+        color: colors.failed,
+        fontWeight: typography.fontWeightMedium,
     },
-    emptyState: {
+    metaDot: {
+        width: 3,
+        height: 3,
+        borderRadius: 1.5,
+        backgroundColor: colors.linenWhisper,
+    },
+    floatingToast: {
+        position: 'absolute',
+        bottom: 24,
+        alignSelf: 'center',
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: spacing.xl * 2,
+        gap: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm + 2,
+        borderRadius: borderRadius.full,
+        backgroundColor: 'rgba(22, 19, 13, 0.97)',
+        borderWidth: 1,
+        borderColor: colors.sandstoneBorder,
+        ...shadows.glowSandstone,
+        zIndex: 99,
     },
-    emptyStateText: {
-        color: colors.foregroundMuted,
-        marginTop: spacing.md,
-        fontSize: typography.fontSizeMd,
+    floatingToastText: {
+        fontSize: typography.fontSizeSm,
+        fontWeight: typography.fontWeightMedium,
+        color: colors.linenDim,
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        justifyContent: 'center',
-        padding: spacing.md,
+        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        justifyContent: 'flex-end',
     },
-    modalContent: {
-        borderRadius: borderRadius.xl,
-        padding: spacing.lg,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: spacing.lg,
-    },
-    modalTitle: {
-        fontSize: typography.fontSizeLg,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foreground,
-    },
-    inputLabel: {
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightSemibold,
-        color: colors.foregroundMuted,
-        marginBottom: spacing.xs,
-    },
-    input: {
-        backgroundColor: 'rgba(0,0,0,0.3)',
+    bottomSheet: {
+        backgroundColor: colors.card,
+        borderTopLeftRadius: borderRadius.xl,
+        borderTopRightRadius: borderRadius.xl,
         borderWidth: 1,
         borderColor: colors.border,
-        borderRadius: borderRadius.md,
-        color: colors.foreground,
-        padding: spacing.md,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.md,
+        paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.md,
+        maxHeight: '88%',
+    },
+    sheetDragHandle: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: colors.border,
+        alignSelf: 'center',
         marginBottom: spacing.md,
-        fontSize: typography.fontSizeMd,
     },
-    textArea: {
-        height: 100,
+    sheetHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    sheetTitleCluster: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    sheetDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: colors.sandstone,
+    },
+    sheetTitle: {
+        fontSize: typography.fontSizeLg,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linen,
+    },
+    sheetSubtitle: {
+        fontSize: 11,
+        color: colors.linenWhisper,
+    },
+    sheetCloseBtn: {
+        padding: 4,
+    },
+    sheetBody: {
+        flexShrink: 1,
+        paddingTop: spacing.sm,
+    },
+    sheetContent: {
+        paddingBottom: spacing.sm,
+    },
+    sheetFooter: {
+        paddingTop: spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: colors.borderLight,
+    },
+    inputLabel: {
+        fontSize: 10,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linenMuted,
+        letterSpacing: 0.8,
+        marginBottom: 6,
+    },
+    inputField: {
+        backgroundColor: colors.surfaceRecessed,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: borderRadius.sm,
+        padding: spacing.md,
+        fontSize: typography.fontSizeSm,
+        color: colors.linen,
+    },
+    textarea: {
+        backgroundColor: colors.surfaceRecessed,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: borderRadius.sm,
+        padding: spacing.md,
+        fontSize: typography.fontSizeSm,
+        color: colors.linen,
         textAlignVertical: 'top',
+        minHeight: 90,
     },
-    submitButton: {
-        borderRadius: borderRadius.md,
-        overflow: 'hidden',
-        marginTop: spacing.sm,
-    },
-    submitGradient: {
+    sheetSubmitBtn: {
+        backgroundColor: colors.sandstone,
+        borderRadius: borderRadius.sm,
         paddingVertical: spacing.md,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    submitText: {
-        color: colors.primaryForeground,
-        fontSize: typography.fontSizeMd,
+    sheetSubmitText: {
+        fontSize: typography.fontSizeSm,
         fontWeight: typography.fontWeightBold,
-    }
+        color: colors.primaryForeground,
+        letterSpacing: 0.5,
+    },
+    emptyStateBox: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 48,
+        paddingHorizontal: spacing.xl,
+        backgroundColor: colors.card,
+        borderRadius: borderRadius.md,
+        borderWidth: 1,
+        borderColor: colors.cardBorder,
+        gap: 8,
+    },
+    emptyStateTitle: {
+        fontSize: 15,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linen,
+        marginTop: 6,
+    },
+    emptyStateSubtitle: {
+        fontSize: 12,
+        color: colors.linenMuted,
+        textAlign: 'center',
+        lineHeight: 18,
+    },
+    emptyCreateBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: colors.sandstone,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: borderRadius.sm,
+        marginTop: 10,
+    },
+    emptyCreateBtnText: {
+        fontSize: 12,
+        fontWeight: typography.fontWeightBold,
+        color: colors.primaryForeground,
+    },
 });

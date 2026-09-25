@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html class="h-full bg-[#110e08] text-[#f5f0eb]" lang="en" style="">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+    <title>SERENITY — Publishing Cadence &amp; Schedule</title>
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com" rel="preconnect">
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap"
+        rel="stylesheet">
+    <!-- Tailwind CSS v3 with Plugins -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        obsidian: {
+                            950: '#110e08',
+                            900: '#16130d',
+                            850: '#1c1811',
+                            800: '#26221a',
+                            700: '#322c22',
+                        },
+                        sandstone: {
+                            100: '#f7f4ee',
+                            200: '#ebe3d5',
+                            300: '#d8c4ad',
+                            400: '#c8b29b',
+                            500: '#b59e85',
+                            600: '#947e67',
+                            700: '#73614e',
+                        },
+                        bone: {
+                            DEFAULT: '#f5f0eb',
+                            muted: '#a89f91',
+                            subtle: '#736b5e',
+                            hairline: 'rgba(200, 178, 155, 0.12)',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- BEGIN: Typography & Base Overrides -->
+    <style data-purpose="typography">
+        * {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+    <!-- END: Typography & Base Overrides -->
+    <!-- BEGIN: Custom Micro-Interactions & Styling -->
+    <style data-purpose="custom-styling">
+        /* Hide scrollbars while retaining touch swipe behavior */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Modal Backdrop Transition */
+        #time-modal.modal-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #time-modal.modal-open #time-modal-sheet {
+            transform: translateY(0);
+        }
+
+        /* Custom radio/picker wheel pill active states */
+        .wheel-item.active {
+            background-color: #2d2720;
+            color: #f5f0eb;
+            font-weight: 700;
+            border: 1px solid rgba(200, 178, 155, 0.35);
+        }
+    </style>
+    <!-- END: Custom Micro-Interactions & Styling -->
+</head>
+
+<body class="h-full bg-[#110e08] text-[#f5f0eb] flex justify-center antialiased select-none">
+    <!-- Mobile Container Wrapper -->
+    <div
+        class="w-full max-w-[440px] min-h-screen bg-[#16130d] flex flex-col border-x border-stone-800/40 relative pb-48">
+        <!-- BEGIN: Top Navigation Bar -->
+        <header
+            class="sticky top-0 z-30 bg-[#16130d]/90 backdrop-blur-md px-5 pt-4 pb-3.5 border-b border-stone-800/50 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <!-- Creator Avatar / Brand Initials -->
+                <div
+                    class="w-8 h-8 rounded-full bg-[#26221a] border border-[#c8b29b]/40 flex items-center justify-center text-xs font-bold tracking-wider text-[#d8c4ad]">
+                    SA
+                </div>
+                <!-- Wordmark -->
+                <div>
+                    <span class="text-sm font-extrabold tracking-[0.28em] text-[#f5f0eb] uppercase">Serenity</span>
+                    <span class="block text-[10px] tracking-wider text-[#a89f91] font-medium uppercase -mt-0.5">Studio
+                        Core</span>
+                </div>
+            </div>
+            <!-- Header Action Utilities -->
+            <div class="flex items-center space-x-2">
+                <!-- Auto-Sync Pill -->
+                <div
+                    class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#26221a] border border-[#c8b29b]/20 flex-shrink-0 whitespace-nowrap">
+                    <span class="w-1.5 h-1.5 rounded-full bg-[#c8b29b] animate-pulse"></span><span
+                        class="text-[10px] font-semibold tracking-wide text-[#d8c4ad] uppercase whitespace-nowrap">Auto-Cadence</span>
+                </div>
+                <!-- Settings Gear -->
+                <button aria-label="Settings"
+                    class="w-8 h-8 rounded-full bg-[#26221a]/60 border border-stone-800/80 flex items-center justify-center text-[#a89f91] hover:text-[#f5f0eb] transition"
+                    type="button">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                            stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"></path>
+                        <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"
+                            stroke-width="1.75"></path>
+                    </svg>
+                </button>
+            </div>
+        </header>
+        <!-- END: Top Navigation Bar -->
+        <!-- BEGIN: Sub-Header & Breadcrumb -->
+        <div class="px-5 pt-5 pb-2">
+            <div
+                class="flex items-center space-x-1.5 text-[10px] font-bold tracking-widest text-[#a89f91] uppercase mb-1">
+                <span class="">Cadence &amp; Distribution</span>
+                <span class="text-stone-600">/</span>
+                <span class="text-[#c8b29b]">Auto-Dispatch Engine</span>
+            </div>
+            <div class="flex items-baseline justify-between">
+                <h1 class="text-2xl font-bold tracking-tight text-[#f5f0eb]">Publishing Flow</h1>
+                <span class="text-xs font-medium text-[#736b5e] tracking-tight">Timezone: <strong
+                        class="text-[#a89f91] font-semibold">IST (UTC+5:30)</strong></span>
+            </div>
+
+        </div>
+        <!-- END: Sub-Header & Breadcrumb -->
+        <!-- BEGIN: Performance Pulse Ribbon -->
+        <section aria-label="Cadence Overview" class="px-5 py-3">
+            <div class="bg-[#1f1b15] border border-stone-800/80 rounded-2xl p-3.5 shadow-sm">
+                <div class="grid grid-cols-3 divide-x divide-stone-800/80 text-center">
+                    <div class="px-1.5 flex flex-col justify-center items-center"><span
+                            class="text-[10px] font-semibold uppercase tracking-wider text-[#736b5e] block whitespace-nowrap">Daily
+                            Velocity</span><span
+                            class="text-xs sm:text-sm font-bold text-[#f5f0eb] mt-0.5 block tracking-tight whitespace-nowrap">5
+                            Shorts · 1 Long</span></div>
+                    <div class="px-1.5 flex flex-col justify-center items-center"><span
+                            class="text-[10px] font-semibold uppercase tracking-wider text-[#736b5e] block whitespace-nowrap">Prime
+                            Window</span><span
+                            class="text-xs sm:text-sm font-bold text-[#d8c4ad] mt-0.5 block tracking-tight whitespace-nowrap">18:00
+                            – 21:45</span></div>
+                    <div class="px-1.5 flex flex-col justify-center items-center"><span
+                            class="text-[10px] font-semibold uppercase tracking-wider text-[#736b5e] block whitespace-nowrap">Queue
+                            Status</span>
+                        <div class="flex items-center justify-center space-x-1 mt-0.5 whitespace-nowrap"><span
+                                class="w-1.5 h-1.5 rounded-full bg-[#c8b29b]"></span><span
+                                class="text-xs sm:text-sm font-bold text-[#f5f0eb] tracking-tight">Optimized</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- END: Performance Pulse Ribbon -->
+        <!-- BEGIN: View Switcher & Allocation Strategy Notice -->
+        <section aria-label="Daily Pillar Release" class="px-5 pt-3 pb-2">
+            <div
+                class="bg-gradient-to-b from-[#26221a] to-[#1f1b15] border border-[#c8b29b]/40 rounded-2xl p-4 shadow-xl relative overflow-hidden">
+                <div
+                    class="absolute -right-6 -top-6 w-24 h-24 bg-[#c8b29b]/10 rounded-full blur-xl pointer-events-none">
+                </div>
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center space-x-2">
+                        <div
+                            class="w-6 h-6 rounded-lg bg-[#c8b29b] text-[#16130d] flex items-center justify-center shadow-sm">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                    stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-1.5">
+                                <span
+                                    class="text-[10px] font-extrabold tracking-widest text-[#c8b29b] uppercase">Tentpole
+                                    Anchor</span>
+                                <span
+                                    class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#c8b29b]/20 text-[#f5f0eb] border border-[#c8b29b]/30">PRIMARY</span>
+                            </div>
+                            <h2 class="text-sm font-bold tracking-tight text-[#f5f0eb]">Daily Pillar · Long-Form
+                                Premiere</h2>
+                        </div>
+                    </div>
+                    <span
+                        class="text-[10px] font-semibold text-[#a89f91] bg-[#16130d]/80 px-2 py-1 rounded-md border border-stone-800">Anchor
+                        Slot</span>
+                </div>
+                <button
+                    class="w-full bg-[#16130d]/90 hover:bg-[#16130d] border border-[#c8b29b]/30 hover:border-[#c8b29b] rounded-xl p-3.5 flex items-center justify-between transition group shadow-inner"
+                    onclick="openTimePicker('Weekly Long-Form Premiere', '18:30', 'longform')" type="button">
+                    <div class="flex items-center space-x-3">
+                        <div
+                            class="w-11 h-11 rounded-xl bg-[#26221a] border border-[#c8b29b]/40 flex items-center justify-center text-[#c8b29b] group-hover:scale-105 transition shadow-sm">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"></path>
+                            </svg>
+                        </div>
+                        <div class="text-left">
+                            <div class="flex items-baseline space-x-2">
+                                <span class="text-3xl font-extrabold tracking-tight text-[#f5f0eb]"
+                                    id="longform-time-display">18:30</span>
+                                <span class="text-xs font-bold text-[#c8b29b]">IST</span>
+                            </div>
+                            <p class="text-[11px] text-[#a89f91] font-medium">Peak desktop &amp; living-room window
+                                (18:00 – 19:15)</p>
+                        </div>
+                    </div>
+                    <div
+                        class="flex items-center space-x-1 text-xs font-bold text-[#16130d] px-3 py-1.5 rounded-lg bg-[#c8b29b] hover:bg-[#d8c4ad] shadow transition">
+                        <span class="">Edit</span>
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5">
+                            </path>
+                        </svg>
+                    </div>
+                </button>
+                <div class="mt-3 pt-2.5 border-t border-stone-800/80 flex items-center justify-between text-[11px]">
+                    <span class="text-[#a89f91] flex items-center space-x-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="">5 Shorts dynamically synchronize around this drop</span>
+                    </span>
+                    <span class="font-semibold text-[#d8c4ad]">Audience Peak: 94.6%</span>
+                </div>
+            </div>
+        </section>
+        <section aria-label="Controls and Slot Philosophy" class="px-5 pt-2 pb-1">
+            <!-- Strategy Explanation Banner (Refined version of the image's purple info box) -->
+            <div class="bg-[#26221a]/80 border border-[#c8b29b]/25 rounded-xl p-3 flex items-start space-x-3 mb-4">
+                <div class="mt-0.5 text-[#c8b29b] flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                            stroke-linejoin="round" stroke-width="2"></path>
+                    </svg>
+                </div>
+                <p class="text-xs text-[#d8c4ad] leading-snug">
+                    <strong class="text-[#f5f0eb] font-semibold">Priority Render Routing:</strong> High-bitrate master
+                    renders are assigned to <span
+                        class="text-[#f5f0eb] underline decoration-[#c8b29b]/60 underline-offset-2">Rank 1</span> first,
+                    cascading down to Rank 5 sequentially.
+                </p>
+            </div>
+            <!-- Segmented Control: Ranked vs Chronological -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
+                <div class="flex items-center space-x-1.5 text-xs font-bold text-[#f5f0eb] tracking-wide uppercase"><svg
+                        class="w-3.5 h-3.5 text-[#c8b29b] flex-shrink-0" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path d="M4 6h16M4 12h16m-7 6h7" stroke-linecap="round" stroke-linejoin="round"
+                            stroke-width="2"></path>
+                    </svg><span class="">Shorts Derivative Cadence (5 Slots)</span></div>
+                <div class="bg-[#1f1b15] p-0.5 rounded-lg border border-stone-800/80 flex items-center self-start sm:self-auto"
+                    role="tablist"><button aria-selected="true"
+                        class="px-2.5 py-1 text-[11px] font-semibold rounded-md transition bg-[#2d2720] text-[#f5f0eb] border border-[#c8b29b]/30 shadow-sm"
+                        id="tab-ranked" onclick="switchView('ranked')" role="tab" type="button">By Quality
+                        Rank</button><button aria-selected="false"
+                        class="px-2.5 py-1 text-[11px] font-semibold text-[#a89f91] hover:text-[#f5f0eb] rounded-md transition"
+                        id="tab-timeline" onclick="switchView('timeline')" role="tab"
+                        type="button">Chronological</button></div>
+            </div>
+        </section>
+        <!-- END: View Switcher & Allocation Strategy Notice -->
+        <!-- BEGIN: Shorts Slot Timeline Architecture -->
+        <main class="px-5 space-y-3" id="slots-container">
+            <!-- SLOT 1: BEST / PRIME (Gold / Sandstone Emphasis) -->
+
+            <!-- SLOT 2: 2ND BEST -->
+
+            <!-- SLOT 3: 3RD BEST -->
+
+            <!-- SLOT 4: 4TH BEST -->
+
+            <!-- SLOT 5: 5TH (LOWEST RELATIVE RANK) -->
+
+            <article
+                class="slot-card relative bg-[#1f1b15] hover:bg-[#26221a] transition border border-[#c8b29b]/40 rounded-2xl p-4 shadow-lg group"
+                data-rank="1" data-time="20:45" data-title="Prime Slot">
+                <!-- Accent Glow Ribbon Indicator -->
+                <div class="absolute left-0 top-3 bottom-3 w-1 bg-[#c8b29b] rounded-r-full"></div>
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3 pl-2">
+                        <!-- Rank Marker -->
+                        <div
+                            class="w-7 h-7 rounded-full bg-[#c8b29b] text-[#16130d] font-black text-xs flex items-center justify-center shadow-md">
+                            1
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2 flex-wrap gap-y-1"><span
+                                    class="text-[10px] font-bold uppercase tracking-wider text-[#c8b29b] whitespace-nowrap">Prime
+                                    Velocity Peak</span><span
+                                    class="px-2 py-0.5 rounded text-[9px] font-extrabold bg-[#c8b29b]/15 text-[#d8c4ad] border border-[#c8b29b]/30 whitespace-nowrap flex-shrink-0">BEST
+                                    SLOT</span></div>
+                            <h2 class="text-xl font-bold tracking-tight text-[#f5f0eb] mt-0.5">20:45 <span
+                                    class="text-xs font-semibold text-[#a89f91]">IST</span></h2>
+                        </div>
+                    </div>
+                    <!-- Time Picker Trigger Button -->
+                    <button aria-label="Change Slot 1 Time"
+                        class="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-[#26221a] border border-[#c8b29b]/30 text-xs font-semibold text-[#f5f0eb] hover:border-[#c8b29b] active:scale-95 transition"
+                        onclick="openTimePicker('Shorts Slot 01 · Prime', '20:45', 1)" type="button">
+                        <svg class="w-3.5 h-3.5 text-[#c8b29b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                                stroke-linejoin="round" stroke-width="2"></path>
+                        </svg>
+                        <span class="">Edit</span>
+                    </button>
+                </div>
+                <!-- Render Target Pipeline Binding -->
+                <div class="mt-3.5 pt-3 border-t border-stone-800/80 flex items-center justify-between text-xs gap-2">
+                    <div class="flex items-center space-x-1.5 min-w-0 flex-1"><span
+                            class="w-2 h-2 rounded-full bg-emerald-500/80 flex-shrink-0"></span><span
+                            class="text-[#a89f91] truncate">Linked: <strong class="text-[#f5f0eb] font-medium">The AI
+                                Architect Playbook #11</strong></span></div><span
+                        class="text-[11px] font-semibold text-[#c8b29b] flex-shrink-0 whitespace-nowrap">98.4%
+                        Retention</span>
+                </div>
+            </article>
+            <article
+                class="slot-card relative bg-[#1f1b15] hover:bg-[#26221a] transition border border-stone-800/80 rounded-2xl p-4 group"
+                data-rank="2" data-time="19:45" data-title="Evening Peak">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div
+                            class="w-7 h-7 rounded-full bg-[#26221a] border border-stone-700 text-[#d8c4ad] font-bold text-xs flex items-center justify-center">
+                            2
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-[#a89f91]">Pre-Prime
+                                    Wave</span>
+                                <span class="text-[9px] font-semibold text-stone-500 uppercase">2nd Rank</span>
+                            </div>
+                            <h2 class="text-xl font-bold tracking-tight text-[#f5f0eb] mt-0.5">19:45 <span
+                                    class="text-xs font-semibold text-[#a89f91]">IST</span></h2>
+                        </div>
+                    </div>
+                    <button aria-label="Change Slot 2 Time"
+                        class="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-[#26221a] border border-stone-800 text-xs font-semibold text-[#d8c4ad] hover:border-stone-700 active:scale-95 transition"
+                        onclick="openTimePicker('Shorts Slot 02 · Evening Wave', '19:45', 2)" type="button">
+                        <svg class="w-3.5 h-3.5 text-[#a89f91]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                                stroke-linejoin="round" stroke-width="2"></path>
+                        </svg>
+                        <span class="">Edit</span>
+                    </button>
+                </div>
+                <div class="mt-3.5 pt-3 border-t border-stone-800/60 flex items-center justify-between text-xs gap-2">
+                    <div class="flex items-center space-x-1.5 min-w-0 flex-1"><span
+                            class="w-2 h-2 rounded-full bg-[#c8b29b]/80 flex-shrink-0"></span><span
+                            class="text-[#a89f91] truncate">Linked: <strong class="text-[#f5f0eb] font-medium">Why
+                                Designers Are Learning Rust</strong></span></div><span
+                        class="text-[11px] font-medium text-[#a89f91] flex-shrink-0 whitespace-nowrap">91.2%
+                        Retention</span>
+                </div>
+            </article>
+            <article
+                class="slot-card relative bg-[#1f1b15] hover:bg-[#26221a] transition border border-stone-800/80 rounded-2xl p-4 group"
+                data-rank="3" data-time="18:45" data-title="Commute Shift">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div
+                            class="w-7 h-7 rounded-full bg-[#26221a] border border-stone-700 text-[#d8c4ad] font-bold text-xs flex items-center justify-center">
+                            3
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-[#a89f91]">Early
+                                    Twilight Shift</span>
+                                <span class="text-[9px] font-semibold text-stone-500 uppercase">3rd Rank</span>
+                            </div>
+                            <h2 class="text-xl font-bold tracking-tight text-[#f5f0eb] mt-0.5">18:45 <span
+                                    class="text-xs font-semibold text-[#a89f91]">IST</span></h2>
+                        </div>
+                    </div>
+                    <button aria-label="Change Slot 3 Time"
+                        class="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-[#26221a] border border-stone-800 text-xs font-semibold text-[#d8c4ad] hover:border-stone-700 active:scale-95 transition"
+                        onclick="openTimePicker('Shorts Slot 03 · Twilight', '18:45', 3)" type="button">
+                        <svg class="w-3.5 h-3.5 text-[#a89f91]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                                stroke-linejoin="round" stroke-width="2"></path>
+                        </svg>
+                        <span class="">Edit</span>
+                    </button>
+                </div>
+                <div class="mt-3.5 pt-3 border-t border-stone-800/60 flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-2 truncate">
+                        <span class="w-2 h-2 rounded-full bg-[#c8b29b]/80 flex-shrink-0"></span>
+                        <span class="text-[#a89f91] truncate">Linked: <strong class="text-[#f5f0eb] font-medium">Clean
+                                Architecture in 45 Seconds</strong></span>
+                    </div>
+                    <span class="text-[11px] font-medium text-[#a89f91] flex-shrink-0 ml-2">84.0% Retention</span>
+                </div>
+            </article>
+            <article
+                class="slot-card relative bg-[#1f1b15] hover:bg-[#26221a] transition border border-stone-800/80 rounded-2xl p-4 group"
+                data-rank="4" data-time="13:30" data-title="Mid-day Interlude">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div
+                            class="w-7 h-7 rounded-full bg-[#26221a] border border-stone-700 text-[#a89f91] font-bold text-xs flex items-center justify-center">
+                            4
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-[#a89f91]">Lunch
+                                    Intermission</span>
+                                <span class="text-[9px] font-semibold text-stone-500 uppercase">4th Rank</span>
+                            </div>
+                            <h2 class="text-xl font-bold tracking-tight text-[#f5f0eb] mt-0.5">13:30 <span
+                                    class="text-xs font-semibold text-[#a89f91]">IST</span></h2>
+                        </div>
+                    </div>
+                    <button aria-label="Change Slot 4 Time"
+                        class="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-[#26221a] border border-stone-800 text-xs font-semibold text-[#d8c4ad] hover:border-stone-700 active:scale-95 transition"
+                        onclick="openTimePicker('Shorts Slot 04 · Lunch Break', '13:30', 4)" type="button">
+                        <svg class="w-3.5 h-3.5 text-[#a89f91]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                                stroke-linejoin="round" stroke-width="2"></path>
+                        </svg>
+                        <span class="">Edit</span>
+                    </button>
+                </div>
+                <div class="mt-3.5 pt-3 border-t border-stone-800/60 flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-2 truncate">
+                        <span class="w-2 h-2 rounded-full bg-stone-500 flex-shrink-0"></span>
+                        <span class="text-[#a89f91] truncate">Queue: <strong class="text-[#f5f0eb] font-medium">Ready
+                                for render auto-assign</strong></span>
+                    </div>
+                    <span class="text-[11px] font-medium text-[#736b5e] flex-shrink-0 ml-2">76.8% Retention</span>
+                </div>
+            </article>
+            <article
+                class="slot-card relative bg-[#1f1b15] hover:bg-[#26221a] transition border border-stone-800/80 rounded-2xl p-4 group"
+                data-rank="5" data-time="21:45" data-title="Night Cap">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div
+                            class="w-7 h-7 rounded-full bg-[#26221a] border border-stone-700 text-[#736b5e] font-bold text-xs flex items-center justify-center">
+                            5
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-[#736b5e]">Late Night
+                                    Wind Down</span>
+                                <span class="text-[9px] font-semibold text-stone-600 uppercase">Baseline Slot</span>
+                            </div>
+                            <h2 class="text-xl font-bold tracking-tight text-[#f5f0eb] mt-0.5">21:45 <span
+                                    class="text-xs font-semibold text-[#a89f91]">IST</span></h2>
+                        </div>
+                    </div>
+                    <button aria-label="Change Slot 5 Time"
+                        class="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-[#26221a] border border-stone-800 text-xs font-semibold text-[#d8c4ad] hover:border-stone-700 active:scale-95 transition"
+                        onclick="openTimePicker('Shorts Slot 05 · Night Wind Down', '21:45', 5)" type="button">
+                        <svg class="w-3.5 h-3.5 text-[#a89f91]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                                stroke-linejoin="round" stroke-width="2"></path>
+                        </svg>
+                        <span class="">Edit</span>
+                    </button>
+                </div>
+                <div class="mt-3.5 pt-3 border-t border-stone-800/60 flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-2 truncate">
+                        <span class="w-2 h-2 rounded-full bg-stone-500 flex-shrink-0"></span>
+                        <span class="text-[#a89f91] truncate">Queue: <strong
+                                class="text-[#f5f0eb] font-medium">Secondary Hook Test Variant B</strong></span>
+                    </div>
+                    <span class="text-[11px] font-medium text-[#736b5e] flex-shrink-0 ml-2">69.5% Retention</span>
+                </div>
+            </article>
+        </main>
+        <!-- END: Shorts Slot Timeline Architecture -->
+        <!-- BEGIN: Dedicated Long-Form Premiere Timing -->
+
+        <!-- END: Dedicated Long-Form Premiere Timing -->
+        <!-- BEGIN: Quick Action Sticky Command Footer -->
+        <div class="fixed bottom-20 left-0 right-0 max-w-[440px] mx-auto px-5 pointer-events-none z-20">
+
+        </div>
+        <!-- END: Quick Action Sticky Command Footer -->
+        <!-- BEGIN: Unified 5-Tab Bottom Navigation -->
+        <nav aria-label="Main App Navigation"
+            class="fixed bottom-0 left-0 right-0 max-w-[440px] mx-auto bg-[#16130d]/95 backdrop-blur-lg border-t border-stone-800/80 px-4 py-2 flex items-center justify-between z-30">
+            <!-- 1. Ideas -->
+            <a class="flex flex-col items-center py-1 px-2 text-[#736b5e] hover:text-[#a89f91] transition"
+                href="#ideas">
+                <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                        stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"></path>
+                </svg>
+                <span class="text-[10px] font-semibold tracking-wider">Ideas</span>
+            </a>
+            <!-- 2. Series -->
+            <a class="flex flex-col items-center py-1 px-2 text-[#736b5e] hover:text-[#a89f91] transition"
+                href="#series">
+                <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                        stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"></path>
+                </svg>
+                <span class="text-[10px] font-semibold tracking-wider">Series</span>
+            </a>
+            <!-- 3. Schedule (ACTIVE) -->
+            <a aria-current="page" class="flex flex-col items-center py-1 px-2 text-[#c8b29b] transition relative"
+                href="#schedule">
+                <div class="relative">
+                    <div class="w-5 h-5 mb-1 rounded-full bg-[#c8b29b]/20 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-[#c8b29b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round"
+                                stroke-linejoin="round" stroke-width="2.2"></path>
+                        </svg>
+                    </div>
+                    <!-- Active Pill Dot -->
+                    <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-[#c8b29b] rounded-full"></span>
+                </div>
+                <span class="text-[10px] font-bold tracking-wider text-[#f5f0eb]">Schedule</span>
+            </a>
+            <!-- 4. Pipeline -->
+            <a class="flex flex-col items-center py-1 px-2 text-[#736b5e] hover:text-[#a89f91] transition"
+                href="#pipeline">
+                <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round"
+                        stroke-width="1.75"></path>
+                </svg>
+                <span class="text-[10px] font-semibold tracking-wider">Pipeline</span>
+            </a>
+            <!-- 5. Community -->
+            <a class="flex flex-col items-center py-1 px-2 text-[#736b5e] hover:text-[#a89f91] transition"
+                href="#community">
+                <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
+                        stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"></path>
+                </svg>
+                <span class="text-[10px] font-semibold tracking-wider">Community</span>
+            </a>
+        </nav>
+        <!-- END: Unified 5-Tab Bottom Navigation -->
+        <!-- BEGIN: Interactive Time Picker Bottom Sheet Modal -->
+        <div aria-hidden="true"
+            class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 flex items-end justify-center"
+            id="time-modal" role="dialog">
+            <!-- Backdrop Click Area -->
+            <div class="absolute inset-0" onclick="closeTimePicker()"></div>
+            <div class="w-full max-w-[440px] bg-[#1a1610] border-t border-stone-800/80 rounded-t-3xl p-6 relative transform translate-y-full transition-transform duration-300 shadow-2xl z-10"
+                id="time-modal-sheet">
+                <!-- Drag Handle Indicator -->
+                <div class="w-10 h-1 rounded-full bg-stone-700 mx-auto mb-5"></div>
+                <!-- Sheet Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-base font-bold text-[#f5f0eb]" id="modal-slot-title">Adjust Dispatch Time</h3>
+                        <span class="text-xs text-[#a89f91]">Indian Standard Time (IST)</span>
+                    </div>
+                    <button
+                        class="w-8 h-8 rounded-full bg-[#26221a] flex items-center justify-center text-stone-400 hover:text-white"
+                        onclick="closeTimePicker()" type="button">
+                        ✕
+                    </button>
+                </div>
+                <!-- Sleek Custom Time Picker Dial/Wheels -->
+                <div
+                    class="bg-[#110e08] border border-stone-800/80 rounded-2xl p-4 my-4 flex items-center justify-around">
+                    <!-- Hours Column -->
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] font-bold text-[#736b5e] uppercase tracking-wider mb-2">Hour
+                            (24h)</span>
+                        <div class="flex items-center space-x-2">
+                            <button
+                                class="w-8 h-8 rounded-lg bg-[#26221a] text-[#f5f0eb] font-bold text-base flex items-center justify-center hover:bg-[#2d2720]"
+                                onclick="incrementHour(-1)" type="button">-</button>
+                            <div class="w-14 h-12 rounded-xl bg-[#1f1b15] border border-[#c8b29b]/40 flex items-center justify-center text-2xl font-extrabold text-[#f5f0eb]"
+                                id="picker-hour">
+                                20
+                            </div>
+                            <button
+                                class="w-8 h-8 rounded-lg bg-[#26221a] text-[#f5f0eb] font-bold text-base flex items-center justify-center hover:bg-[#2d2720]"
+                                onclick="incrementHour(1)" type="button">+</button>
+                        </div>
+                    </div>
+                    <div class="text-2xl font-bold text-[#c8b29b] pt-5">:</div>
+                    <!-- Minutes Column -->
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] font-bold text-[#736b5e] uppercase tracking-wider mb-2">Minute</span>
+                        <div class="flex items-center space-x-2">
+                            <button
+                                class="w-8 h-8 rounded-lg bg-[#26221a] text-[#f5f0eb] font-bold text-base flex items-center justify-center hover:bg-[#2d2720]"
+                                onclick="incrementMinute(-15)" type="button">-</button>
+                            <div class="w-14 h-12 rounded-xl bg-[#1f1b15] border border-[#c8b29b]/40 flex items-center justify-center text-2xl font-extrabold text-[#f5f0eb]"
+                                id="picker-minute">
+                                45
+                            </div>
+                            <button
+                                class="w-8 h-8 rounded-lg bg-[#26221a] text-[#f5f0eb] font-bold text-base flex items-center justify-center hover:bg-[#2d2720]"
+                                onclick="incrementMinute(15)" type="button">+</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Quick Preset Chips -->
+                <div class="flex items-center space-x-2 mb-5 overflow-x-auto no-scrollbar py-1">
+                    <span
+                        class="text-[10px] text-[#736b5e] font-bold uppercase tracking-wider flex-shrink-0">Presets:</span>
+                    <button
+                        class="px-2.5 py-1 rounded-lg bg-[#26221a] text-[11px] font-semibold text-[#a89f91] hover:text-[#f5f0eb] flex-shrink-0"
+                        onclick="applyPreset('13:30')" type="button">13:30 (Lunch)</button>
+                    <button
+                        class="px-2.5 py-1 rounded-lg bg-[#26221a] text-[11px] font-semibold text-[#a89f91] hover:text-[#f5f0eb] flex-shrink-0"
+                        onclick="applyPreset('18:30')" type="button">18:30 (Commute)</button>
+                    <button
+                        class="px-2.5 py-1 rounded-lg bg-[#26221a] text-[11px] font-semibold text-[#a89f91] hover:text-[#f5f0eb] flex-shrink-0"
+                        onclick="applyPreset('20:45')" type="button">20:45 (Peak)</button>
+                    <button
+                        class="px-2.5 py-1 rounded-lg bg-[#26221a] text-[11px] font-semibold text-[#a89f91] hover:text-[#f5f0eb] flex-shrink-0"
+                        onclick="applyPreset('21:45')" type="button">21:45 (Night)</button>
+                </div>
+                <!-- Apply Button -->
+                <button
+                    class="w-full py-3 rounded-xl bg-[#c8b29b] hover:bg-[#d8c4ad] text-[#16130d] font-bold text-sm tracking-wide transition shadow-lg"
+                    onclick="confirmTimeSelection()" type="button">
+                    Apply Slot Time
+                </button>
+            </div>
+        </div>
+        <!-- END: Interactive Time Picker Bottom Sheet Modal -->
+        <!-- Toast Notification for feedback -->
+        <div class="fixed top-16 left-1/2 -translate-x-1/2 bg-[#26221a] border border-[#c8b29b]/60 text-[#f5f0eb] text-xs font-semibold px-4 py-2 rounded-full shadow-2xl transition-all duration-300 z-50 flex items-center space-x-2 whitespace-nowrap max-w-[90vw] opacity-0 pointer-events-none"
+            id="toast"><svg class="w-4 h-4 text-[#c8b29b] flex-shrink-0" fill="none" stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path>
+            </svg><span id="toast-message" class="whitespace-nowrap truncate">Cadence restored to AI peak
+                distribution</span></div>
+    </div>
+    <!-- BEGIN: Interactive Logic Scripts -->
+    <script data-purpose="scheduler-interactions">
+        let activeTargetSlot = null;
+        let currentHour = 20;
+        let currentMinute = 45;
+
+        // Open Bottom Sheet Time Picker
+        function openTimePicker(title, timeStr, slotIdentifier) {
+            activeTargetSlot = slotIdentifier;
+            document.getElementById('modal-slot-title').innerText = title;
+
+            const [h, m] = timeStr.split(':').map(Number);
+            currentHour = h;
+            currentMinute = m;
+            updatePickerDisplay();
+
+            const modal = document.getElementById('time-modal');
+            modal.classList.add('modal-open');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        // Close Bottom Sheet Time Picker
+        function closeTimePicker() {
+            const modal = document.getElementById('time-modal');
+            modal.classList.remove('modal-open');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        function updatePickerDisplay() {
+            document.getElementById('picker-hour').innerText = String(currentHour).padStart(2, '0');
+            document.getElementById('picker-minute').innerText = String(currentMinute).padStart(2, '0');
+        }
+
+        function incrementHour(delta) {
+            currentHour = (currentHour + delta + 24) % 24;
+            updatePickerDisplay();
+        }
+
+        function incrementMinute(delta) {
+            currentMinute = (currentMinute + delta + 60) % 60;
+            updatePickerDisplay();
+        }
+
+        function applyPreset(timeStr) {
+            const [h, m] = timeStr.split(':').map(Number);
+            currentHour = h;
+            currentMinute = m;
+            updatePickerDisplay();
+        }
+
+        function confirmTimeSelection() {
+            const formattedTime = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
+
+            if (activeTargetSlot === 'longform') {
+                document.getElementById('longform-time-display').innerText = formattedTime;
+            } else {
+                const slotCard = document.querySelector(`.slot-card[data-rank="${activeTargetSlot}"]`);
+                if (slotCard) {
+                    slotCard.setAttribute('data-time', formattedTime);
+                    const headerTime = slotCard.querySelector('h2');
+                    if (headerTime) {
+                        headerTime.innerHTML = `${formattedTime} <span class="text-xs font-semibold text-[#a89f91]">IST</span>`;
+                    }
+                }
+            }
+
+            closeTimePicker();
+            showToast(`Slot updated to ${formattedTime} IST`);
+        }
+
+        // Tab view switcher: Ranked Priority vs Chronological
+        function switchView(mode) {
+            const rankedBtn = document.getElementById('tab-ranked');
+            const timelineBtn = document.getElementById('tab-timeline');
+            const container = document.getElementById('slots-container');
+            const cards = Array.from(container.querySelectorAll('.slot-card'));
+
+            if (mode === 'ranked') {
+                rankedBtn.className = "px-2.5 py-1 text-[11px] font-semibold rounded-md transition bg-[#2d2720] text-[#f5f0eb] border border-[#c8b29b]/30 shadow-sm";
+                timelineBtn.className = "px-2.5 py-1 text-[11px] font-semibold text-[#a89f91] hover:text-[#f5f0eb] rounded-md transition";
+                rankedBtn.setAttribute('aria-selected', 'true');
+                timelineBtn.setAttribute('aria-selected', 'false');
+
+                // Sort DOM by data-rank
+                cards.sort((a, b) => parseInt(a.getAttribute('data-rank')) - parseInt(b.getAttribute('data-rank')));
+                cards.forEach(card => container.appendChild(card));
+                showToast("Filtered by Quality Priority Rank");
+            } else {
+                timelineBtn.className = "px-2.5 py-1 text-[11px] font-semibold rounded-md transition bg-[#2d2720] text-[#f5f0eb] border border-[#c8b29b]/30 shadow-sm";
+                rankedBtn.className = "px-2.5 py-1 text-[11px] font-semibold text-[#a89f91] hover:text-[#f5f0eb] rounded-md transition";
+                timelineBtn.setAttribute('aria-selected', 'true');
+                rankedBtn.setAttribute('aria-selected', 'false');
+
+                // Sort DOM by data-time chronological order
+                cards.sort((a, b) => {
+                    const [ah, am] = a.getAttribute('data-time').split(':').map(Number);
+                    const [bh, bm] = b.getAttribute('data-time').split(':').map(Number);
+                    return (ah * 60 + am) - (bh * 60 + bm);
+                });
+                cards.forEach(card => container.appendChild(card));
+                showToast("Sorted Chronologically for Day View");
+            }
+        }
+
+        function resetToOptimal() {
+            // Revert to original AI ideal default specs
+            const defaults = [
+                { rank: 1, time: "20:45" },
+                { rank: 2, time: "19:45" },
+                { rank: 3, time: "18:45" },
+                { rank: 4, time: "13:30" },
+                { rank: 5, time: "21:45" },
+            ];
+            defaults.forEach(item => {
+                const card = document.querySelector(`.slot-card[data-rank="${item.rank}"]`);
+                if (card) {
+                    card.setAttribute('data-time', item.time);
+                    card.querySelector('h2').innerHTML = `${item.time} <span class="text-xs font-semibold text-[#a89f91]">IST</span>`;
+                }
+            });
+            document.getElementById('longform-time-display').innerText = "18:30";
+            switchView('ranked');
+            showToast("Cadence restored to AI peak distribution");
+        }
+
+        function saveChanges() {
+            const btn = document.getElementById('save-button');
+            const origText = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin w-4 h-4 text-[#16130d] mr-1 inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Saving...`;
+            setTimeout(() => {
+                btn.innerHTML = origText;
+                showToast("Cadence auto-synchronized to cloud queue");
+            }, 700);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            toastMsg.innerText = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2400);
+        }
+    </script>
+    <!-- END: Interactive Logic Scripts -->
+
+
+</body>
+
+</html>

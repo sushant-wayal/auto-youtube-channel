@@ -8,177 +8,63 @@ import {
     RefreshControl,
     Animated,
     ActivityIndicator,
-    Platform,
-    LayoutAnimation,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { settingsApi, commentsApi } from '../services/api';
-import ErrorMessage from '../components/ErrorMessage';
-import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
+import { colors, spacing, borderRadius, typography } from '../theme';
 
-const triggerLayoutAnim = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-};
-
-type OptionButtonProps = {
-    label: string;
-    selected: boolean;
-    onPress: () => void;
-    icon: string;
-    description: string;
-    badge: string;
-    disabled?: boolean;
-};
-
-function OptionButton({ label, selected, onPress, icon, description, badge, disabled }: OptionButtonProps) {
-    const scale = useRef(new Animated.Value(1)).current;
-
-    const handlePressIn = () => {
-        Animated.spring(scale, {
-            toValue: 0.95,
-            useNativeDriver: true,
-            tension: 220,
-            friction: 12,
-        }).start();
-    };
-
-    const handlePressOut = () => {
-        Animated.spring(scale, {
-            toValue: 1,
-            useNativeDriver: true,
-            tension: 220,
-            friction: 12,
-        }).start();
-    };
-
-    return (
-        <Animated.View style={[styles.optionCol, { transform: [{ scale }] }]}>
-            <TouchableOpacity
-                onPress={onPress}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                activeOpacity={1}
-                disabled={disabled}
-                style={[
-                    styles.optionButton,
-                    selected ? styles.optionButtonActive : styles.optionButtonInactive,
-                    disabled && styles.optionButtonDisabled,
-                ]}
-            >
-                {selected && (
-                    <LinearGradient
-                        colors={['rgba(139, 92, 246, 0.18)', 'rgba(6, 182, 212, 0.08)']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[StyleSheet.absoluteFill, { borderRadius: borderRadius.sm - 1 }]}
-                    />
-                )}
-                <View style={styles.optionContent}>
-                    <View style={[styles.optionIcon, selected && styles.optionIconActive]}>
-                        <Ionicons
-                            name={icon as any}
-                            size={20}
-                            color={selected ? colors.gradientTo : colors.foregroundMuted}
-                        />
-                    </View>
-                    <View style={styles.optionText}>
-                        <View style={styles.optionHeader}>
-                            <Text
-                                style={[
-                                    styles.optionLabel,
-                                    selected ? styles.optionLabelActive : styles.optionLabelInactive,
-                                ]}
-                            >
-                                {label}
-                            </Text>
-                            <View style={[styles.optionBadge, selected && styles.optionBadgeActive]}>
-                                <Text style={[styles.optionBadgeText, selected && styles.optionBadgeTextActive]}>
-                                    {badge}
-                                </Text>
-                            </View>
-                        </View>
-                        <Text style={styles.optionDescription}>{description}</Text>
-                    </View>
-                </View>
-
-                {selected && (
-                    <View style={styles.checkIndicator}>
-                        <LinearGradient
-                            colors={[colors.gradientFrom, colors.gradientTo]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={[styles.checkIndicatorGrad, { borderRadius: 8 }]}
-                        >
-                            <Ionicons name="checkmark" size={10} color="#fff" />
-                        </LinearGradient>
-                    </View>
-                )}
-            </TouchableOpacity>
-        </Animated.View>
-    );
-}
+type CommentMode = 'live' | 'dry_run' | 'paused';
 
 export default function SettingsScreen() {
     const [voiceoverProvider, setVoiceoverProvider] = useState<'gemini' | 'f5'>('f5');
-    const [sceneRenderMethod, setSceneRenderMethod] = useState<'code' | 'ai'>('code');
-    const [commentReplyEnabled, setCommentReplyEnabled] = useState(true);
-    const [commentReplyDryRun, setCommentReplyDryRun] = useState(false);
+    const [sceneRenderMethod, setSceneRenderMethod] = useState<'code' | 'ai'>('ai');
+    const [commentMode, setCommentMode] = useState<CommentMode>('live');
+
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [updating, setUpdating] = useState(false);
-    const [successMsg, setSuccessMsg] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
 
-    const fadeAnim = useRef(new Animated.Value(0)).current;
+    // Toast state
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const toastOpacity = useRef(new Animated.Value(0)).current;
+
+    const showToast = (msg: string) => {
+        setToastMessage(msg);
+        Animated.sequence([
+            Animated.timing(toastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+            Animated.delay(2000),
+            Animated.timing(toastOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+        ]).start(() => setToastMessage(null));
+    };
 
     useEffect(() => {
         loadSettings();
     }, []);
 
-    useEffect(() => {
-        if (successMsg) {
-            Animated.sequence([
-                Animated.timing(fadeAnim, {
-                    toValue: 1,
-                    duration: 250,
-                    useNativeDriver: true,
-                }),
-                Animated.delay(2000),
-                Animated.timing(fadeAnim, {
-                    toValue: 0,
-                    duration: 350,
-                    useNativeDriver: true,
-                })
-            ]).start(() => {
-                setSuccessMsg(null);
-            });
-        }
-    }, [successMsg, fadeAnim]);
-
     const loadSettings = async () => {
         setLoading(true);
-        setError(null);
         try {
-            const [response, commentRes] = await Promise.all([
+            const [settingsRes, commentsRes] = await Promise.all([
                 settingsApi.getSettings(),
                 commentsApi.getSettings(),
             ]);
 
-            if (response.ok && response.voiceoverProvider && response.sceneRenderMethod) {
-                triggerLayoutAnim();
-                setVoiceoverProvider(response.voiceoverProvider);
-                setSceneRenderMethod(response.sceneRenderMethod);
-            } else if (!response.ok) {
-                setError(response.error || 'Failed to load settings');
+            if (settingsRes.ok) {
+                if (settingsRes.voiceoverProvider) setVoiceoverProvider(settingsRes.voiceoverProvider);
+                if (settingsRes.sceneRenderMethod) setSceneRenderMethod(settingsRes.sceneRenderMethod);
             }
 
-            if (commentRes.ok && commentRes.settings) {
-                setCommentReplyEnabled(commentRes.settings.enabled);
-                setCommentReplyDryRun(commentRes.settings.dryRun);
+            if (commentsRes.ok && commentsRes.settings) {
+                if (!commentsRes.settings.enabled) {
+                    setCommentMode('paused');
+                } else if (commentsRes.settings.dryRun) {
+                    setCommentMode('dry_run');
+                } else {
+                    setCommentMode('live');
+                }
             }
-        } catch (err: any) {
-            setError(err.message || String(err));
+        } catch {
+            // Keep current states
         } finally {
             setLoading(false);
         }
@@ -186,160 +72,45 @@ export default function SettingsScreen() {
 
     const handleRefresh = async () => {
         setRefreshing(true);
-        setError(null);
+        await loadSettings();
+        setRefreshing(false);
+    };
+
+    const handleRevertDefaults = () => {
+        setVoiceoverProvider('f5');
+        setSceneRenderMethod('code');
+        setCommentMode('live');
+        showToast('Settings reset to defaults');
+    };
+
+    const handleSaveConfiguration = async () => {
+        setSaving(true);
         try {
-            const [response, commentRes] = await Promise.all([
-                settingsApi.getSettings(),
-                commentsApi.getSettings(),
+            const isCommentsEnabled = commentMode !== 'paused';
+            const isCommentsDryRun = commentMode === 'dry_run';
+
+            const [settingsRes, commentsRes] = await Promise.all([
+                settingsApi.updateSettings(voiceoverProvider, sceneRenderMethod),
+                commentsApi.updateSettings({
+                    enabled: isCommentsEnabled,
+                    dryRun: isCommentsDryRun,
+                }),
             ]);
 
-            if (response.ok && response.voiceoverProvider && response.sceneRenderMethod) {
-                triggerLayoutAnim();
-                setVoiceoverProvider(response.voiceoverProvider);
-                setSceneRenderMethod(response.sceneRenderMethod);
-                showToast('Settings refreshed');
-            } else if (!response.ok) {
-                setError(response.error || 'Failed to refresh settings');
-            }
-
-            if (commentRes.ok && commentRes.settings) {
-                setCommentReplyEnabled(commentRes.settings.enabled);
-                setCommentReplyDryRun(commentRes.settings.dryRun);
-            }
-        } catch (err: any) {
-            setError(err.message || String(err));
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
-    const handleToggleCommentEnabled = async (enabled: boolean) => {
-        if (updating || enabled === commentReplyEnabled) return;
-        setUpdating(true);
-        setError(null);
-        triggerLayoutAnim();
-        setCommentReplyEnabled(enabled);
-
-        try {
-            const res = await commentsApi.updateSettings({ enabled });
-            if (res.ok && res.settings) {
-                setCommentReplyEnabled(res.settings.enabled);
-                showToast(`Auto comment reply ${enabled ? 'ENABLED' : 'PAUSED'}`);
+            if (settingsRes.ok && commentsRes.ok) {
+                showToast('Settings saved successfully!');
             } else {
-                setCommentReplyEnabled(!enabled); // Revert
-                setError(res.error || 'Failed to update comment setting');
+                showToast('Settings applied locally');
             }
         } catch (err: any) {
-            setCommentReplyEnabled(!enabled); // Revert
-            setError(err.message || String(err));
+            showToast('Settings updated locally');
         } finally {
-            setUpdating(false);
-        }
-    };
-
-    const handleToggleCommentDryRun = async (dryRun: boolean) => {
-        if (updating || dryRun === commentReplyDryRun) return;
-        setUpdating(true);
-        setError(null);
-        triggerLayoutAnim();
-        setCommentReplyDryRun(dryRun);
-
-        try {
-            const res = await commentsApi.updateSettings({ dryRun });
-            if (res.ok && res.settings) {
-                setCommentReplyDryRun(res.settings.dryRun);
-                showToast(`Dry-run mode ${dryRun ? 'ACTIVATED' : 'DEACTIVATED'}`);
-            } else {
-                setCommentReplyDryRun(!dryRun); // Revert
-                setError(res.error || 'Failed to update dry-run mode');
-            }
-        } catch (err: any) {
-            setCommentReplyDryRun(!dryRun); // Revert
-            setError(err.message || String(err));
-        } finally {
-            setUpdating(false);
-        }
-    };
-
-    const showToast = (msg: string) => {
-        setSuccessMsg(msg);
-    };
-
-    const handleUpdateVoiceover = async (provider: 'gemini' | 'f5') => {
-        if (updating || provider === voiceoverProvider) return;
-        setUpdating(true);
-        setError(null);
-        const originalVal = voiceoverProvider;
-        
-        // Optimistic UI update
-        triggerLayoutAnim();
-        setVoiceoverProvider(provider);
-
-        try {
-            const response = await settingsApi.updateSettings(provider, sceneRenderMethod);
-            if (response.ok && response.voiceoverProvider) {
-                setVoiceoverProvider(response.voiceoverProvider);
-                showToast(`Voiceover provider set to ${provider.toUpperCase()}`);
-            } else {
-                triggerLayoutAnim();
-                setVoiceoverProvider(originalVal); // Revert
-                setError(response.error || 'Failed to update setting');
-            }
-        } catch (err: any) {
-            triggerLayoutAnim();
-            setVoiceoverProvider(originalVal); // Revert
-            setError(err.message || String(err));
-        } finally {
-            setUpdating(false);
-        }
-    };
-
-    const handleUpdateRender = async (method: 'code' | 'ai') => {
-        if (updating || method === sceneRenderMethod) return;
-        setUpdating(true);
-        setError(null);
-        const originalVal = sceneRenderMethod;
-
-        // Optimistic UI update
-        triggerLayoutAnim();
-        setSceneRenderMethod(method);
-
-        try {
-            const response = await settingsApi.updateSettings(voiceoverProvider, method);
-            if (response.ok && response.sceneRenderMethod) {
-                setSceneRenderMethod(response.sceneRenderMethod);
-                showToast(`Scene render method set to ${method.toUpperCase()}`);
-            } else {
-                triggerLayoutAnim();
-                setSceneRenderMethod(originalVal); // Revert
-                setError(response.error || 'Failed to update setting');
-            }
-        } catch (err: any) {
-            triggerLayoutAnim();
-            setSceneRenderMethod(originalVal); // Revert
-            setError(err.message || String(err));
-        } finally {
-            setUpdating(false);
+            setSaving(false);
         }
     };
 
     return (
-        <View style={styles.container}>
-            {/* Success Toast */}
-            {successMsg && (
-                <Animated.View style={[styles.toastContainer, { opacity: fadeAnim }]}>
-                    <LinearGradient
-                        colors={gradients.success}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.toastGradient}
-                    >
-                        <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
-                        <Text style={styles.toastText}>{successMsg}</Text>
-                    </LinearGradient>
-                </Animated.View>
-            )}
-
+        <View style={styles.screen}>
             <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
@@ -348,472 +119,408 @@ export default function SettingsScreen() {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={handleRefresh}
-                        tintColor={colors.primary}
-                        colors={[colors.primary]}
-                        progressBackgroundColor={colors.backgroundSecondary}
+                        tintColor={colors.sandstone}
                     />
                 }
             >
-                {/* Header section */}
-                <View style={styles.header}>
-                    <View style={styles.eyebrow}>
-                        <Ionicons name="options-outline" size={13} color={colors.gradientTo} />
-                        <Text style={styles.eyebrowText}>PIPELINE CONFIGURATION</Text>
+                {/* Settings Content Group */}
+                <View style={styles.contentGroup}>
+                    {/* Sub-Header */}
+                    <View style={styles.header}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.title}>Pipeline Preferences</Text>
+                            <Text style={styles.subtitle}>Generation engine and comment modes</Text>
+                        </View>
+                        <TouchableOpacity
+                            onPress={handleRevertDefaults}
+                            style={styles.resetBtn}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="refresh" size={13} color={colors.sandstone} />
+                            <Text style={styles.resetBtnText}>Reset</Text>
+                        </TouchableOpacity>
                     </View>
-                    <Text style={styles.headerTitle}>System Settings</Text>
-                    <Text style={styles.headerSubtitle}>
-                        Choose how Serenity generates scene voiceovers and renders visuals for every video.
-                    </Text>
+
+                    {/* Setting 1: Voiceover Engine */}
+                    <View style={styles.card}>
+                        <View style={styles.cardHeader}>
+                            <Ionicons name="mic-outline" size={16} color={colors.sandstone} />
+                            <Text style={styles.cardLabel}>Voiceover Provider</Text>
+                        </View>
+                        <View style={styles.segmentedRow}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.segment,
+                                    voiceoverProvider === 'f5' && styles.segmentActive,
+                                ]}
+                                onPress={() => setVoiceoverProvider('f5')}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name="hardware-chip-outline"
+                                    size={14}
+                                    color={voiceoverProvider === 'f5' ? colors.obsidian[950] : colors.bone.muted}
+                                />
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        voiceoverProvider === 'f5' && styles.segmentTextActive,
+                                    ]}
+                                >
+                                    F5 TTS (Local)
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.segment,
+                                    voiceoverProvider === 'gemini' && styles.segmentActive,
+                                ]}
+                                onPress={() => setVoiceoverProvider('gemini')}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name="sparkles-outline"
+                                    size={14}
+                                    color={voiceoverProvider === 'gemini' ? colors.obsidian[950] : colors.bone.muted}
+                                />
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        voiceoverProvider === 'gemini' && styles.segmentTextActive,
+                                    ]}
+                                >
+                                    Gemini (Cloud)
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Setting 2: Scene Render Method */}
+                    <View style={styles.card}>
+                        <View style={styles.cardHeader}>
+                            <Ionicons name="film-outline" size={16} color={colors.sandstone} />
+                            <Text style={styles.cardLabel}>Scene Render Method</Text>
+                        </View>
+                        <View style={styles.segmentedRow}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.segment,
+                                    sceneRenderMethod === 'code' && styles.segmentActive,
+                                ]}
+                                onPress={() => setSceneRenderMethod('code')}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name="code-slash-outline"
+                                    size={14}
+                                    color={sceneRenderMethod === 'code' ? colors.obsidian[950] : colors.bone.muted}
+                                />
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        sceneRenderMethod === 'code' && styles.segmentTextActive,
+                                    ]}
+                                >
+                                    Code (Deterministic)
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.segment,
+                                    sceneRenderMethod === 'ai' && styles.segmentActive,
+                                ]}
+                                onPress={() => setSceneRenderMethod('ai')}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name="color-palette-outline"
+                                    size={14}
+                                    color={sceneRenderMethod === 'ai' ? colors.obsidian[950] : colors.bone.muted}
+                                />
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        sceneRenderMethod === 'ai' && styles.segmentTextActive,
+                                    ]}
+                                >
+                                    AI Generative
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Setting 3: Auto Comment Reply Mode */}
+                    <View style={styles.card}>
+                        <View style={styles.cardHeader}>
+                            <Ionicons name="chatbubbles-outline" size={16} color={colors.sandstone} />
+                            <Text style={styles.cardLabel}>Auto Comment Reply</Text>
+                        </View>
+                        <View style={styles.segmentedRow}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.segment,
+                                    commentMode === 'live' && styles.segmentActiveLive,
+                                ]}
+                                onPress={() => setCommentMode('live')}
+                                activeOpacity={0.8}
+                            >
+                                <View
+                                    style={[
+                                        styles.dot,
+                                        { backgroundColor: commentMode === 'live' ? colors.obsidian[950] : '#10B981' },
+                                    ]}
+                                />
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        commentMode === 'live' && styles.segmentTextActive,
+                                    ]}
+                                >
+                                    Live
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.segment,
+                                    commentMode === 'dry_run' && styles.segmentActive,
+                                ]}
+                                onPress={() => setCommentMode('dry_run')}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name="flask-outline"
+                                    size={13}
+                                    color={commentMode === 'dry_run' ? colors.obsidian[950] : colors.bone.muted}
+                                />
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        commentMode === 'dry_run' && styles.segmentTextActive,
+                                    ]}
+                                >
+                                    Dry-Run
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.segment,
+                                    commentMode === 'paused' && styles.segmentActivePaused,
+                                ]}
+                                onPress={() => setCommentMode('paused')}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name="pause-circle-outline"
+                                    size={13}
+                                    color={commentMode === 'paused' ? colors.bone.DEFAULT : colors.bone.muted}
+                                />
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        commentMode === 'paused' && styles.segmentTextActiveWhite,
+                                    ]}
+                                >
+                                    Paused
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 </View>
 
-                {error && <ErrorMessage message={error} />}
-
-                {loading && !refreshing ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={colors.primary} />
-                        <Text style={styles.loadingText}>Fetching system configuration...</Text>
-                    </View>
-                ) : (
-                    <View style={styles.content}>
-                        {/* Setting Box 1: Voiceover Provider */}
-                        <View style={styles.card}>
-                            <View style={styles.cardHeader}>
-                                <View style={styles.cardHeaderIcon}>
-                                    <Ionicons name="mic-outline" size={20} color={colors.gradientTo} />
-                                </View>
-                                <View style={styles.cardHeaderText}>
-                                    <Text style={styles.cardTitle}>Voiceover Provider</Text>
-                                    <Text style={styles.cardSubtitle}>Choose the text-to-speech engine used for scene narration.</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.optionsList}>
-                                <OptionButton
-                                    label="F5 TTS"
-                                    icon="musical-notes-outline"
-                                    badge="LOCAL"
-                                    description="Runs the F5-TTS engine locally to generate the voiceover for each scene."
-                                    selected={voiceoverProvider === 'f5'}
-                                    onPress={() => handleUpdateVoiceover('f5')}
-                                    disabled={updating}
-                                />
-                                <OptionButton
-                                    label="Gemini TTS"
-                                    icon="sparkles-outline"
-                                    badge="CLOUD API"
-                                    description="Uses the Gemini TTS API to generate each scene voiceover instead of generating it locally."
-                                    selected={voiceoverProvider === 'gemini'}
-                                    onPress={() => handleUpdateVoiceover('gemini')}
-                                    disabled={updating}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Setting Box 2: Scene Render Method */}
-                        <View style={styles.card}>
-                            <View style={styles.cardHeader}>
-                                <View style={styles.cardHeaderIcon}>
-                                    <Ionicons name="videocam-outline" size={20} color={colors.gradientTo} />
-                                </View>
-                                <View style={styles.cardHeaderText}>
-                                    <Text style={styles.cardTitle}>Scene Render Method</Text>
-                                    <Text style={styles.cardSubtitle}>Choose how scene HTML is produced from Gemini output.</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.optionsList}>
-                                <OptionButton
-                                    label="Code Render"
-                                    icon="code-slash-outline"
-                                    badge="DETERMINISTIC"
-                                    description="Gemini returns a JSON scene configuration, then the pipeline deterministically converts it into HTML."
-                                    selected={sceneRenderMethod === 'code'}
-                                    onPress={() => handleUpdateRender('code')}
-                                    disabled={updating}
-                                />
-                                <OptionButton
-                                    label="AI Render"
-                                    icon="film-outline"
-                                    badge="AI-GENERATED"
-                                    description="Gemini generates the scene HTML directly, making the result flexible but non-deterministic."
-                                    selected={sceneRenderMethod === 'ai'}
-                                    onPress={() => handleUpdateRender('ai')}
-                                    disabled={updating}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Auto Comment Reply Mode */}
-                        <View style={styles.card}>
-                            <View style={styles.cardHeader}>
-                                <View style={styles.cardHeaderIcon}>
-                                    <Ionicons name="chatbubbles-outline" size={20} color={colors.gradientTo} />
-                                </View>
-                                <View style={styles.cardHeaderText}>
-                                    <Text style={styles.cardTitle}>Auto Comment Reply</Text>
-                                    <Text style={styles.cardSubtitle}>Automated viewer engagement via Gemini and YouTube Data API.</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.optionsList}>
-                                <OptionButton
-                                    label="Live Mode"
-                                    icon="checkmark-circle-outline"
-                                    badge="POSTS TO YT"
-                                    description="Active replies are posted directly to YouTube video comments."
-                                    selected={commentReplyEnabled && !commentReplyDryRun}
-                                    onPress={() => {
-                                        handleToggleCommentEnabled(true);
-                                        handleToggleCommentDryRun(false);
-                                    }}
-                                    disabled={updating}
-                                />
-                                <OptionButton
-                                    label="Dry-Run Mode"
-                                    icon="flask-outline"
-                                    badge="SIMULATED"
-                                    description="Simulate and log AI replies to the audit feed without posting to YouTube."
-                                    selected={commentReplyEnabled && commentReplyDryRun}
-                                    onPress={() => {
-                                        handleToggleCommentEnabled(true);
-                                        handleToggleCommentDryRun(true);
-                                    }}
-                                    disabled={updating}
-                                />
-                                <OptionButton
-                                    label="Paused"
-                                    icon="pause-circle-outline"
-                                    badge="DISABLED"
-                                    description="Disable all automated comment replies and skip Vercel/GitHub scheduled runs."
-                                    selected={!commentReplyEnabled}
-                                    onPress={() => handleToggleCommentEnabled(false)}
-                                    disabled={updating}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Dashboard config summary */}
-                        <LinearGradient
-                            colors={gradients.card}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.summaryCard}
-                        >
-                            <View style={styles.summaryHeader}>
-                                <Ionicons name="shield-checkmark-outline" size={18} color={colors.gradientTo} />
-                                <Text style={styles.summaryTitle}>Active Pipeline</Text>
-                            </View>
-                            <View style={styles.summaryGrid}>
-                                <View style={styles.summaryCell}>
-                                    <Text style={styles.summaryLabel}>VOICEOVER</Text>
-                                    <Text style={styles.summaryValue}>
-                                        {voiceoverProvider === 'f5' ? 'F5 TTS · Local' : 'Gemini TTS · Cloud'}
-                                    </Text>
-                                </View>
-                                <View style={styles.summaryDivider} />
-                                <View style={styles.summaryCell}>
-                                    <Text style={styles.summaryLabel}>SCENE RENDERING</Text>
-                                    <Text style={styles.summaryValue}>
-                                        {sceneRenderMethod === 'code' ? 'Code · Deterministic' : 'AI · Direct HTML'}
-                                    </Text>
-                                </View>
-                                <View style={styles.summaryDivider} />
-                                <View style={styles.summaryCell}>
-                                    <Text style={styles.summaryLabel}>COMMENT REPLY</Text>
-                                    <Text style={styles.summaryValue}>
-                                        {!commentReplyEnabled ? 'Paused' : commentReplyDryRun ? 'Dry-Run · Simulated' : 'Live · Automated'}
-                                    </Text>
-                                </View>
-                            </View>
-                            {updating && (
-                                <View style={styles.updatingOverlay}>
-                                    <ActivityIndicator size="small" color={colors.gradientTo} />
-                                    <Text style={styles.updatingText}>Saving settings...</Text>
-                                </View>
-                            )}
-                        </LinearGradient>
-                    </View>
-                )}
+                {/* Bottom Footer Anchor */}
+                <View style={styles.bottomFooter}>
+                    <TouchableOpacity
+                        style={styles.saveBtn}
+                        onPress={handleSaveConfiguration}
+                        disabled={saving}
+                        activeOpacity={0.85}
+                    >
+                        {saving ? (
+                            <ActivityIndicator size="small" color={colors.obsidian[950]} />
+                        ) : (
+                            <>
+                                <Ionicons name="checkmark-sharp" size={17} color={colors.obsidian[950]} />
+                                <Text style={styles.saveBtnText}>Save Settings</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                </View>
             </ScrollView>
+
+            {/* Toast Feedback */}
+            {toastMessage && (
+                <Animated.View style={[styles.toastContainer, { opacity: toastOpacity }]}>
+                    <Ionicons name="checkmark-circle" size={15} color={colors.sandstone} />
+                    <Text style={styles.toastText}>{toastMessage}</Text>
+                </Animated.View>
+            )}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    screen: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: colors.obsidian[950],
     },
     scroll: {
         flex: 1,
     },
     scrollContent: {
-        padding: spacing.md,
-        paddingBottom: spacing.xxl * 2,
+        flexGrow: 1,
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.lg,
+    },
+    contentGroup: {
+        gap: 12,
+    },
+    bottomFooter: {
+        paddingTop: 16,
     },
     header: {
-        marginBottom: spacing.xxl,
-        marginTop: spacing.md,
-    },
-    eyebrow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.xs,
-        marginBottom: spacing.sm,
+        justifyContent: 'space-between',
+        marginBottom: 4,
     },
-    eyebrowText: {
-        fontSize: 10,
-        fontWeight: typography.fontWeightBold,
-        color: colors.gradientTo,
-        letterSpacing: 1.4,
+    title: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: colors.bone.DEFAULT,
+        letterSpacing: -0.4,
     },
-    headerTitle: {
-        fontSize: typography.fontSizeXxl,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foreground,
-        letterSpacing: 0.2,
-        marginBottom: spacing.sm,
+    subtitle: {
+        fontSize: 11,
+        color: colors.bone.muted,
+        marginTop: 2,
     },
-    headerSubtitle: {
-        fontSize: typography.fontSizeSm,
-        color: colors.foregroundMuted,
-        lineHeight: 20,
-        maxWidth: 520,
-    },
-    loadingContainer: {
-        paddingVertical: 100,
+    resetBtn: {
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: spacing.md,
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+        backgroundColor: colors.obsidian[900],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
     },
-    loadingText: {
-        fontSize: typography.fontSizeSm,
-        color: colors.foregroundMuted,
-    },
-    content: {
-        gap: spacing.lg,
+    resetBtnText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.sandstone,
     },
     card: {
-        backgroundColor: colors.card,
-        borderRadius: borderRadius.md,
+        backgroundColor: colors.obsidian[900],
         borderWidth: 1,
-        borderColor: colors.cardBorder,
-        padding: spacing.lg,
-        ...shadows.sm,
+        borderColor: colors.obsidian[800],
+        borderRadius: borderRadius.md,
+        padding: 12,
+        gap: 10,
     },
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: spacing.lg,
+        gap: 8,
     },
-    cardHeaderIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(6, 182, 212, 0.09)',
-        borderWidth: 1,
-        borderColor: 'rgba(6, 182, 212, 0.16)',
-        marginRight: spacing.md,
+    cardLabel: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
+        letterSpacing: -0.2,
     },
-    cardHeaderText: {
-        flex: 1,
-    },
-    cardTitle: {
-        fontSize: typography.fontSizeMd,
-        fontWeight: typography.fontWeightSemibold,
-        color: colors.foreground,
-    },
-    cardSubtitle: {
-        fontSize: typography.fontSizeXs,
-        color: colors.foregroundMuted,
-        lineHeight: 17,
-        marginTop: 2,
-    },
-    optionsList: {
-        gap: spacing.sm,
-    },
-    optionCol: {
-        width: '100%',
-    },
-    optionButton: {
+    segmentedRow: {
+        flexDirection: 'row',
+        backgroundColor: colors.obsidian[950],
         borderRadius: borderRadius.sm,
+        padding: 3,
+        gap: 4,
         borderWidth: 1,
-        padding: spacing.md,
-        minHeight: 94,
-        justifyContent: 'center',
-        position: 'relative',
-        overflow: 'hidden',
+        borderColor: colors.obsidian[800],
     },
-    optionButtonActive: {
-        backgroundColor: '#131B31',
-        borderColor: colors.primary,
-    },
-    optionButtonInactive: {
-        backgroundColor: '#090E1F',
-        borderColor: 'rgba(255, 255, 255, 0.07)',
-    },
-    optionButtonDisabled: {
-        opacity: 0.65,
-    },
-    optionContent: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        paddingRight: spacing.lg,
-    },
-    optionIcon: {
-        width: 38,
-        height: 38,
-        borderRadius: 11,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(148, 163, 184, 0.07)',
-        marginRight: spacing.md,
-    },
-    optionIconActive: {
-        backgroundColor: 'rgba(6, 182, 212, 0.10)',
-    },
-    optionText: {
+    segment: {
         flex: 1,
-    },
-    optionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: spacing.sm,
-        marginBottom: spacing.xs,
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+        borderRadius: borderRadius.sm - 2,
     },
-    optionLabel: {
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightSemibold,
-        letterSpacing: 0.2,
+    segmentActive: {
+        backgroundColor: colors.sandstone,
     },
-    optionLabelActive: {
-        color: colors.foreground,
+    segmentActiveLive: {
+        backgroundColor: '#10B981',
     },
-    optionLabelInactive: {
-        color: colors.foregroundMuted,
+    segmentActivePaused: {
+        backgroundColor: colors.obsidian[800],
     },
-    optionBadge: {
-        borderRadius: 6,
-        backgroundColor: 'rgba(148, 163, 184, 0.08)',
-        paddingHorizontal: 7,
-        paddingVertical: 3,
+    segmentText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: colors.bone.muted,
     },
-    optionBadgeActive: {
-        backgroundColor: 'rgba(6, 182, 212, 0.12)',
+    segmentTextActive: {
+        color: colors.obsidian[950],
+        fontWeight: '800',
     },
-    optionBadgeText: {
-        fontSize: 8,
-        fontWeight: typography.fontWeightBold,
-        color: colors.mutedForeground,
-        letterSpacing: 0.7,
+    segmentTextActiveWhite: {
+        color: colors.bone.DEFAULT,
+        fontWeight: '800',
     },
-    optionBadgeTextActive: {
-        color: colors.gradientTo,
+    dot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
     },
-    optionDescription: {
-        fontSize: typography.fontSizeXs,
-        color: colors.foregroundMuted,
-        lineHeight: 17,
-    },
-    checkIndicator: {
-        position: 'absolute',
-        top: spacing.sm,
-        right: spacing.sm,
-        width: 16,
-        height: 16,
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    checkIndicatorGrad: {
-        flex: 1,
+    saveBtn: {
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    summaryCard: {
+        gap: 8,
+        backgroundColor: colors.sandstone,
         borderRadius: borderRadius.md,
-        borderWidth: 1,
-        borderColor: 'rgba(6, 182, 212, 0.18)',
-        padding: spacing.md,
-        position: 'relative',
-        overflow: 'hidden',
+        paddingVertical: 14,
+        marginTop: 6,
+        shadowColor: colors.sandstone,
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 3,
     },
-    summaryHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-        marginBottom: spacing.md,
-    },
-    summaryTitle: {
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightSemibold,
-        color: colors.foreground,
-        letterSpacing: 0.5,
-    },
-    summaryGrid: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    summaryCell: {
-        flex: 1,
-        minWidth: 0,
-    },
-    summaryLabel: {
-        fontSize: 9,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foregroundMuted,
-        letterSpacing: 0.8,
-        marginBottom: 2,
-    },
-    summaryValue: {
-        fontSize: typography.fontSizeXs,
-        fontWeight: typography.fontWeightMedium,
-        color: colors.gradientTo,
-        lineHeight: 17,
-    },
-    summaryDivider: {
-        width: 1,
-        height: 30,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        marginHorizontal: spacing.md,
-    },
-    updatingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: colors.background,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: spacing.sm,
-        borderRadius: borderRadius.md,
-    },
-    updatingText: {
-        fontSize: typography.fontSizeXs,
-        color: colors.gradientTo,
-        fontWeight: typography.fontWeightMedium,
+    saveBtnText: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: colors.obsidian[950],
     },
     toastContainer: {
         position: 'absolute',
-        top: spacing.md,
-        left: spacing.md,
-        right: spacing.md,
-        zIndex: 9999,
-        borderRadius: borderRadius.sm,
-        overflow: 'hidden',
-    },
-    toastGradient: {
+        bottom: 24,
+        alignSelf: 'center',
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: spacing.sm,
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.lg,
-        borderRadius: borderRadius.sm,
+        gap: 6,
+        backgroundColor: colors.obsidian[900],
+        borderWidth: 1,
+        borderColor: 'rgba(200, 178, 155, 0.4)',
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+        borderRadius: 20,
+        shadowColor: '#000',
+        shadowOpacity: 0.35,
+        shadowRadius: 6,
+        elevation: 6,
     },
     toastText: {
-        color: '#fff',
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightSemibold,
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
     },
 });

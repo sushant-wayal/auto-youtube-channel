@@ -4,7 +4,6 @@ import {
     Text,
     TouchableOpacity,
     StyleSheet,
-    Alert,
     ScrollView,
     RefreshControl,
     Platform,
@@ -14,20 +13,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { shortsApi } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
 import SkeletonLoader from '../components/SkeletonLoader';
+import CustomAlert, { CustomAlertConfig } from '../components/CustomAlert';
 import { colors, spacing, borderRadius, typography, shadows } from '../theme';
 
 export default function ShortsScheduleScreen() {
-    const [publishTime, setPublishTime] = useState('16:30');
-    const [originalTime, setOriginalTime] = useState('16:30');
+    const [publishTime, setPublishTime] = useState('');
+    const [originalTime, setOriginalTime] = useState<string | null>(null);
     const [showTimePicker, setShowTimePicker] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+    // Custom Themed Alert Dialog State
+    const [alertConfig, setAlertConfig] = useState<CustomAlertConfig>({
+        visible: false,
+        title: '',
+        message: '',
+    });
+
     // Convert time string (HH:MM) to Date object
     const timeToDate = (timeStr: string): Date => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
+        const [hours, minutes] = (timeStr || '16:30').split(':').map(Number);
         const date = new Date();
         date.setHours(hours, minutes, 0, 0);
         return date;
@@ -77,10 +84,13 @@ export default function ShortsScheduleScreen() {
         setSuccessMessage(null);
 
         if (!validateTime(publishTime)) {
-            Alert.alert(
-                'Invalid Time Format',
-                'Please use HH:MM format (24-hour). Example: 16:30 for 4:30 PM'
-            );
+            setAlertConfig({
+                visible: true,
+                title: 'Invalid Time Format',
+                message: 'Please use HH:MM format (24-hour). Example: 16:30 for 4:30 PM.',
+                type: 'warning',
+                buttons: [{ text: 'Understood', style: 'default' }],
+            });
             return;
         }
 
@@ -254,6 +264,12 @@ export default function ShortsScheduleScreen() {
                     All times are in Indian Standard Time (IST).
                 </Text>
             </View>
+
+            {/* ─── Themed Custom Alert Dialog ─── */}
+            <CustomAlert
+                {...alertConfig}
+                onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+            />
         </ScrollView>
     );
 }

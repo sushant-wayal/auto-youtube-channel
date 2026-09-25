@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+    <title>Serenity — Series Management</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Google Fonts: Plus Jakarta Sans exclusively -->
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    },
+                    colors: {
+                        obsidian: {
+                            DEFAULT: '#12110f',
+                            raised: '#171513',
+                            card: '#1c1a17',
+                            cardHover: '#23201c',
+                            elevated: '#282521',
+                            border: '#2e2a24',
+                            borderLight: '#3f3931'
+                        },
+                        linen: {
+                            DEFAULT: '#f4efe6',
+                            dim: '#ded7cb',
+                            muted: '#9e978c',
+                            whisper: '#736d64'
+                        },
+                        sandstone: {
+                            DEFAULT: '#c8b29b',
+                            hover: '#dfd0be',
+                            light: '#f2e9de',
+                            tint: 'rgba(200, 178, 155, 0.12)'
+                        }
+                    },
+                    boxShadow: {
+                        'glow-sand': '0 0 24px -4px rgba(200, 178, 155, 0.22)',
+                        'subtle': '0 2px 10px rgba(0, 0, 0, 0.4)',
+                        'sheet': '0 -16px 40px rgba(0, 0, 0, 0.75)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #2e2a24;
+            border-radius: 4px;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .modal-backdrop-transition {
+            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .modal-sheet-transition {
+            transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+        }
+    </style>
+</head>
+
+<body
+    class="bg-obsidian text-linen font-sans antialiased min-h-screen flex justify-center selection:bg-sandstone selection:text-obsidian overflow-x-hidden">
+    <!-- Mobile App Frame Container -->
+    <div
+        class="w-full max-w-md min-h-screen flex flex-col bg-obsidian border-x border-obsidian-border/40 relative pb-28">
+        <!-- Top Minimalist App Bar -->
+        <header
+            class="sticky top-0 z-30 bg-obsidian/92 backdrop-blur-xl pt-3 pb-3 px-4 border-b border-obsidian-border/60">
+            <div class="flex items-center justify-between">
+                <!-- User Profile Avatar & Studio Indicator -->
+                <div class="flex items-center gap-2.5">
+                    <div
+                        class="w-8 h-8 rounded-full bg-obsidian-card border border-obsidian-border flex items-center justify-center text-xs font-semibold text-sandstone">
+                        <span class="tracking-tighter">SA</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span
+                            class="text-[10px] font-semibold uppercase tracking-widest text-linen-whisper">Studio</span>
+                        <span class="text-xs font-bold text-linen -mt-0.5">Architect Series</span>
+                    </div>
+                </div>
+                <!-- Serenity Wordmark -->
+                <div class="flex flex-col items-center">
+                    <span class="text-[11px] font-bold tracking-[0.3em] text-linen-dim uppercase">SERENITY</span>
+                </div>
+                <!-- Settings & Production Action -->
+                <div class="flex items-center gap-1.5">
+                    <button aria-label="Settings"
+                        class="w-8 h-8 rounded-full bg-obsidian-card/80 border border-obsidian-border flex items-center justify-center text-linen-muted hover:text-linen hover:border-obsidian-borderLight transition active:scale-95"
+                        type="button">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24">
+                            <path
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                                stroke-linecap="round" stroke-linejoin="round"></path>
+                            <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+        <!-- Main Content Area -->
+        <main class="flex-1 px-4 pt-4 pb-6 space-y-5" data-purpose="series-dashboard">
+            <!-- Section Header & Add Trigger -->
+            <div class="flex items-end justify-between pt-1">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-[11px] font-semibold uppercase tracking-widest text-sandstone">Production
+                            Pipeline</span>
+                        <span class="w-1 h-1 rounded-full bg-linen-whisper"></span>
+                        <span class="text-[11px] font-medium text-linen-muted">9 Series</span>
+                    </div>
+                    <h1 class="text-xl font-bold tracking-tight text-linen">Series Architecture</h1>
+                </div>
+                <button
+                    class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-sandstone text-obsidian hover:bg-sandstone-hover transition shadow-glow-sand active:scale-95 shrink-0"
+                    id="openModalBtn" type="button">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewbox="0 0 24 24">
+                        <path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                    <span>New Series</span>
+                </button>
+            </div>
+            <!-- Quick Metrics Ribbon -->
+            <div class="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-obsidian-raised border border-obsidian-border/80">
+                <div class="px-2">
+                    <span
+                        class="text-[10px] font-medium uppercase tracking-wider text-linen-whisper block mb-0.5">Published</span>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-base font-bold text-linen">58</span>
+                        <span class="text-[10px] text-linen-muted">episodes</span>
+                    </div>
+                </div>
+                <div class="border-x border-obsidian-border/80 px-2">
+                    <span class="text-[10px] font-medium uppercase tracking-wider text-linen-whisper block mb-0.5">In
+                        Queue</span>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-base font-bold text-sandstone">23</span>
+                        <span class="text-[10px] text-linen-muted">ready</span>
+                    </div>
+                </div>
+                <div class="px-2">
+                    <span
+                        class="text-[10px] font-medium uppercase tracking-wider text-linen-whisper block mb-0.5">Active
+                        Pacing</span>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-base font-bold text-linen">94%</span>
+                        <span class="text-[10px] text-linen-muted">on schedule</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Featured Spotlight: Currently Active Primary Series -->
+            <div
+                class="relative p-4 rounded-2xl bg-gradient-to-b from-obsidian-card to-obsidian-raised border border-sandstone/30 shadow-subtle group">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-block w-2 h-2 rounded-full bg-sandstone animate-pulse"></span>
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-sandstone">Featured in
+                            Production</span>
+                    </div>
+                    <span class="text-[11px] font-mono text-linen-whisper">S-01 • Ep. 11/12</span>
+                </div>
+                <h2 class="text-base font-bold text-linen tracking-tight group-hover:text-sandstone-light transition">
+                    The AI-Proof Architect: Engineering in Modern LLM Stacks
+                </h2>
+                <p class="text-xs text-linen-muted line-clamp-2 mt-1 mb-3.5 leading-relaxed">
+                    Tactical systems thinking, deterministic orchestration patterns, and high-resilience runtime
+                    boundaries for principal technical leaders.
+                </p>
+                <!-- Progress Metrics -->
+                <div class="space-y-1.5 bg-obsidian/60 p-3 rounded-xl border border-obsidian-border/80 mb-3.5">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-linen-dim font-medium">Release Progress</span>
+                        <span class="font-mono text-[11px] text-sandstone font-semibold">10 Published · 2 Queued
+                            (83%)</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-obsidian-border rounded-full overflow-hidden">
+                        <div class="h-full bg-sandstone rounded-full transition-all duration-500" style="width: 83%">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between pt-1 text-[11px] text-linen-whisper">
+                        <span>Next Ep: Deterministic State Machines</span>
+                        <span class="text-sandstone">Fri, 10:00 AM</span>
+                    </div>
+                </div>
+                <!-- Hero Quick Actions -->
+                <div class="flex items-center gap-2">
+                    <button
+                        class="flex-1 py-2 px-3 rounded-lg bg-sandstone/15 hover:bg-sandstone/25 border border-sandstone/30 text-xs font-semibold text-sandstone transition text-center"
+                        type="button">
+                        View Episode Queue
+                    </button>
+                    <button
+                        class="py-2 px-3 rounded-lg bg-obsidian-elevated hover:bg-obsidian-border text-xs font-medium text-linen-dim transition flex items-center gap-1.5"
+                        type="button">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+                            <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                        <span>Add Ep</span>
+                    </button>
+                </div>
+            </div>
+            <!-- Filter / View Segment Bar -->
+            <div class="flex items-center justify-between gap-2 pt-1">
+                <div
+                    class="flex items-center gap-1 bg-obsidian-raised p-1 rounded-xl border border-obsidian-border/70 text-xs">
+                    <button
+                        class="px-3 py-1 rounded-lg bg-obsidian-elevated text-linen font-medium shadow-sm transition"
+                        data-filter="all">All (9)</button>
+                    <button class="px-3 py-1 rounded-lg text-linen-whisper hover:text-linen font-medium transition"
+                        data-filter="active">In Production (6)</button>
+                    <button class="px-3 py-1 rounded-lg text-linen-whisper hover:text-linen font-medium transition"
+                        data-filter="done">Completed (3)</button>
+                </div>
+                <!-- Search / Order Icon -->
+                <button
+                    class="w-8 h-8 rounded-xl bg-obsidian-raised border border-obsidian-border/70 flex items-center justify-center text-linen-muted hover:text-linen transition"
+                    title="Sort series">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24">
+                        <path d="M3 4h18M3 10h12M3 16h6" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                </button>
+            </div>
+            <!-- Restructured Series Catalog -->
+            <div class="space-y-2.5" id="seriesCatalog" role="list">
+                <!-- Series Card 1 -->
+                <article
+                    class="p-3.5 rounded-xl bg-obsidian-card border border-obsidian-border/80 hover:border-sandstone/40 transition-all cursor-pointer group"
+                    onclick="toggleSeriesDetails('series-1')">
+                    <div class="flex items-start gap-3">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-obsidian-elevated border border-obsidian-border flex items-center justify-center text-sandstone font-mono text-xs font-bold shrink-0">
+                            02
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <h3
+                                    class="text-sm font-semibold text-linen group-hover:text-sandstone transition truncate">
+                                    The Cloud Survival Guide: Resilient Engineering
+                                </h3>
+                                <span class="text-[11px] font-mono text-sandstone/80 shrink-0 font-medium">83%</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-linen-whisper mt-1 mb-2">
+                                <span>10 Published</span>
+                                <span>•</span>
+                                <span class="text-linen-dim">2 in Queue</span>
+                                <span>•</span>
+                                <span>12 Total</span>
+                            </div>
+                            <!-- Progress Bar -->
+                            <div class="w-full h-1 bg-obsidian-elevated rounded-full overflow-hidden">
+                                <div class="h-full bg-sandstone rounded-full" style="width: 83%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Accordion Detail (Hidden by default) -->
+                    <div class="hidden pt-3 mt-3 border-t border-obsidian-border/60 text-xs text-linen-muted space-y-2"
+                        id="series-1">
+                        <p class="leading-relaxed">Core syllabus: Zero-trust network partitioning, automated chaos
+                            experiments, and multi-region failovers under partition load.</p>
+                        <div class="flex items-center justify-end gap-2 pt-1">
+                            <button
+                                class="px-2.5 py-1 rounded bg-obsidian-elevated text-linen-dim hover:text-linen text-[11px]"
+                                onclick="event.stopPropagation()">Edit Details</button>
+                            <button
+                                class="px-2.5 py-1 rounded bg-sandstone/20 text-sandstone hover:bg-sandstone/30 text-[11px] font-medium"
+                                onclick="event.stopPropagation()">+ Add Episode</button>
+                        </div>
+                    </div>
+                </article>
+                <!-- Series Card 2 -->
+                <article
+                    class="p-3.5 rounded-xl bg-obsidian-card border border-obsidian-border/80 hover:border-sandstone/40 transition-all cursor-pointer group"
+                    onclick="toggleSeriesDetails('series-2')">
+                    <div class="flex items-start gap-3">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-obsidian-elevated border border-obsidian-border flex items-center justify-center text-sandstone font-mono text-xs font-bold shrink-0">
+                            03
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <h3
+                                    class="text-sm font-semibold text-linen group-hover:text-sandstone transition truncate">
+                                    The Spec-Driven Developer: Mastering RFCs
+                                </h3>
+                                <span class="text-[11px] font-mono text-sandstone/80 shrink-0 font-medium">33%</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-linen-whisper mt-1 mb-2">
+                                <span>1 Published</span>
+                                <span>•</span>
+                                <span class="text-linen-dim">2 in Queue</span>
+                                <span>•</span>
+                                <span>3 Total</span>
+                            </div>
+                            <div class="w-full h-1 bg-obsidian-elevated rounded-full overflow-hidden">
+                                <div class="h-full bg-sandstone rounded-full" style="width: 33%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Accordion Detail -->
+                    <div class="hidden pt-3 mt-3 border-t border-obsidian-border/60 text-xs text-linen-muted space-y-2"
+                        id="series-2">
+                        <p class="leading-relaxed">From vague product demands to bulletproof technical specs that
+                            eliminate rework and misalignment across remote teams.</p>
+                        <div class="flex items-center justify-end gap-2 pt-1">
+                            <button
+                                class="px-2.5 py-1 rounded bg-obsidian-elevated text-linen-dim hover:text-linen text-[11px]"
+                                onclick="event.stopPropagation()">Edit Details</button>
+                            <button
+                                class="px-2.5 py-1 rounded bg-sandstone/20 text-sandstone hover:bg-sandstone/30 text-[11px] font-medium"
+                                onclick="event.stopPropagation()">+ Add Episode</button>
+                        </div>
+                    </div>
+                </article>
+                <!-- Series Card 3 -->
+                <article
+                    class="p-3.5 rounded-xl bg-obsidian-card border border-obsidian-border/80 hover:border-sandstone/40 transition-all cursor-pointer group"
+                    onclick="toggleSeriesDetails('series-3')">
+                    <div class="flex items-start gap-3">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-obsidian-elevated border border-obsidian-border flex items-center justify-center text-sandstone font-mono text-xs font-bold shrink-0">
+                            04
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <h3
+                                    class="text-sm font-semibold text-linen group-hover:text-sandstone transition truncate">
+                                    The Workflow Engineer: Async Automation
+                                </h3>
+                                <span class="text-[11px] font-mono text-sandstone/80 shrink-0 font-medium">66%</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-linen-whisper mt-1 mb-2">
+                                <span>8 Published</span>
+                                <span>•</span>
+                                <span class="text-linen-dim">4 in Queue</span>
+                                <span>•</span>
+                                <span>12 Total</span>
+                            </div>
+                            <div class="w-full h-1 bg-obsidian-elevated rounded-full overflow-hidden">
+                                <div class="h-full bg-sandstone rounded-full" style="width: 66%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Accordion Detail -->
+                    <div class="hidden pt-3 mt-3 border-t border-obsidian-border/60 text-xs text-linen-muted space-y-2"
+                        id="series-3">
+                        <p class="leading-relaxed">Building developer experience pipelines with temporal engines,
+                            hermetic builds, and distributed caching systems.</p>
+                        <div class="flex items-center justify-end gap-2 pt-1">
+                            <button
+                                class="px-2.5 py-1 rounded bg-obsidian-elevated text-linen-dim hover:text-linen text-[11px]"
+                                onclick="event.stopPropagation()">Edit Details</button>
+                            <button
+                                class="px-2.5 py-1 rounded bg-sandstone/20 text-sandstone hover:bg-sandstone/30 text-[11px] font-medium"
+                                onclick="event.stopPropagation()">+ Add Episode</button>
+                        </div>
+                    </div>
+                </article>
+                <!-- Series Card 4 -->
+                <article
+                    class="p-3.5 rounded-xl bg-obsidian-card border border-obsidian-border/80 hover:border-sandstone/40 transition-all cursor-pointer group"
+                    onclick="toggleSeriesDetails('series-4')">
+                    <div class="flex items-start gap-3">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-obsidian-elevated border border-obsidian-border flex items-center justify-center text-sandstone font-mono text-xs font-bold shrink-0">
+                            05
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <h3
+                                    class="text-sm font-semibold text-linen group-hover:text-sandstone transition truncate">
+                                    The Hardware Reality Check: Edge &amp; Embedded
+                                </h3>
+                                <span class="text-[11px] font-mono text-sandstone/80 shrink-0 font-medium">75%</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-linen-whisper mt-1 mb-2">
+                                <span>9 Published</span>
+                                <span>•</span>
+                                <span class="text-linen-dim">3 in Queue</span>
+                                <span>•</span>
+                                <span>12 Total</span>
+                            </div>
+                            <div class="w-full h-1 bg-obsidian-elevated rounded-full overflow-hidden">
+                                <div class="h-full bg-sandstone rounded-full" style="width: 75%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Accordion Detail -->
+                    <div class="hidden pt-3 mt-3 border-t border-obsidian-border/60 text-xs text-linen-muted space-y-2"
+                        id="series-4">
+                        <p class="leading-relaxed">Bridging Rust on bare metal microcontrollers with local quantized
+                            inference engines without battery depletion.</p>
+                        <div class="flex items-center justify-end gap-2 pt-1">
+                            <button
+                                class="px-2.5 py-1 rounded bg-obsidian-elevated text-linen-dim hover:text-linen text-[11px]"
+                                onclick="event.stopPropagation()">Edit Details</button>
+                            <button
+                                class="px-2.5 py-1 rounded bg-sandstone/20 text-sandstone hover:bg-sandstone/30 text-[11px] font-medium"
+                                onclick="event.stopPropagation()">+ Add Episode</button>
+                        </div>
+                    </div>
+                </article>
+                <!-- Series Card 5 -->
+                <article
+                    class="p-3.5 rounded-xl bg-obsidian-card border border-obsidian-border/80 hover:border-sandstone/40 transition-all cursor-pointer group"
+                    onclick="toggleSeriesDetails('series-5')">
+                    <div class="flex items-start gap-3">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-obsidian-elevated border border-obsidian-border flex items-center justify-center text-sandstone font-mono text-xs font-bold shrink-0">
+                            06
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <h3
+                                    class="text-sm font-semibold text-linen group-hover:text-sandstone transition truncate">
+                                    The Performance Engineer: Memory &amp; Cache Latency
+                                </h3>
+                                <span class="text-[11px] font-mono text-sandstone/80 shrink-0 font-medium">83%</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-linen-whisper mt-1 mb-2">
+                                <span>10 Published</span>
+                                <span>•</span>
+                                <span class="text-linen-dim">2 in Queue</span>
+                                <span>•</span>
+                                <span>12 Total</span>
+                            </div>
+                            <div class="w-full h-1 bg-obsidian-elevated rounded-full overflow-hidden">
+                                <div class="h-full bg-sandstone rounded-full" style="width: 83%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Accordion Detail -->
+                    <div class="hidden pt-3 mt-3 border-t border-obsidian-border/60 text-xs text-linen-muted space-y-2"
+                        id="series-5">
+                        <p class="leading-relaxed">Kernel tracing, NUMA-aware memory allocations, and lock-free
+                            concurrency algorithms for microsecond bounds.</p>
+                        <div class="flex items-center justify-end gap-2 pt-1">
+                            <button
+                                class="px-2.5 py-1 rounded bg-obsidian-elevated text-linen-dim hover:text-linen text-[11px]"
+                                onclick="event.stopPropagation()">Edit Details</button>
+                            <button
+                                class="px-2.5 py-1 rounded bg-sandstone/20 text-sandstone hover:bg-sandstone/30 text-[11px] font-medium"
+                                onclick="event.stopPropagation()">+ Add Episode</button>
+                        </div>
+                    </div>
+                </article>
+                <!-- Series Card 6 -->
+                <article
+                    class="p-3.5 rounded-xl bg-obsidian-card border border-obsidian-border/80 hover:border-sandstone/40 transition-all cursor-pointer group"
+                    onclick="toggleSeriesDetails('series-6')">
+                    <div class="flex items-start gap-3">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-obsidian-elevated border border-obsidian-border flex items-center justify-center text-sandstone font-mono text-xs font-bold shrink-0">
+                            07
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <h3
+                                    class="text-sm font-semibold text-linen group-hover:text-sandstone transition truncate">
+                                    The Post-AI Engineer: Strategic Leverage
+                                </h3>
+                                <span class="text-[11px] font-mono text-sandstone/80 shrink-0 font-medium">33%</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-linen-whisper mt-1 mb-2">
+                                <span>1 Published</span>
+                                <span>•</span>
+                                <span class="text-linen-dim">2 in Queue</span>
+                                <span>•</span>
+                                <span>3 Total</span>
+                            </div>
+                            <div class="w-full h-1 bg-obsidian-elevated rounded-full overflow-hidden">
+                                <div class="h-full bg-sandstone rounded-full" style="width: 33%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Accordion Detail -->
+                    <div class="hidden pt-3 mt-3 border-t border-obsidian-border/60 text-xs text-linen-muted space-y-2"
+                        id="series-6">
+                        <p class="leading-relaxed">Strategic curriculum on system design, verification engines, and team
+                            multipliers in an automated code era.</p>
+                        <div class="flex items-center justify-end gap-2 pt-1">
+                            <button
+                                class="px-2.5 py-1 rounded bg-obsidian-elevated text-linen-dim hover:text-linen text-[11px]"
+                                onclick="event.stopPropagation()">Edit Details</button>
+                            <button
+                                class="px-2.5 py-1 rounded bg-sandstone/20 text-sandstone hover:bg-sandstone/30 text-[11px] font-medium"
+                                onclick="event.stopPropagation()">+ Add Episode</button>
+                        </div>
+                    </div>
+                </article>
+                <!-- Series Card 7 -->
+                <article
+                    class="p-3.5 rounded-xl bg-obsidian-card border border-obsidian-border/80 hover:border-sandstone/40 transition-all cursor-pointer group"
+                    onclick="toggleSeriesDetails('series-7')">
+                    <div class="flex items-start gap-3">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-obsidian-elevated border border-obsidian-border flex items-center justify-center text-sandstone font-mono text-xs font-bold shrink-0">
+                            08
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <h3
+                                    class="text-sm font-semibold text-linen group-hover:text-sandstone transition truncate">
+                                    The Software Reality Check: Auditing Legacy
+                                </h3>
+                                <span class="text-[11px] font-mono text-sandstone/80 shrink-0 font-medium">78%</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-linen-whisper mt-1 mb-2">
+                                <span>7 Published</span>
+                                <span>•</span>
+                                <span class="text-linen-dim">2 in Queue</span>
+                                <span>•</span>
+                                <span>9 Total</span>
+                            </div>
+                            <div class="w-full h-1 bg-obsidian-elevated rounded-full overflow-hidden">
+                                <div class="h-full bg-sandstone rounded-full" style="width: 78%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Accordion Detail -->
+                    <div class="hidden pt-3 mt-3 border-t border-obsidian-border/60 text-xs text-linen-muted space-y-2"
+                        id="series-7">
+                        <p class="leading-relaxed">Safe incremental refactoring of multi-million line codebases with AST
+                            transformations and property tests.</p>
+                        <div class="flex items-center justify-end gap-2 pt-1">
+                            <button
+                                class="px-2.5 py-1 rounded bg-obsidian-elevated text-linen-dim hover:text-linen text-[11px]"
+                                onclick="event.stopPropagation()">Edit Details</button>
+                            <button
+                                class="px-2.5 py-1 rounded bg-sandstone/20 text-sandstone hover:bg-sandstone/30 text-[11px] font-medium"
+                                onclick="event.stopPropagation()">+ Add Episode</button>
+                        </div>
+                    </div>
+                </article>
+                <!-- Series Card 8 -->
+                <article
+                    class="p-3.5 rounded-xl bg-obsidian-card border border-obsidian-border/80 hover:border-sandstone/40 transition-all cursor-pointer group"
+                    onclick="toggleSeriesDetails('series-8')">
+                    <div class="flex items-start gap-3">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-obsidian-elevated border border-obsidian-border flex items-center justify-center text-sandstone font-mono text-xs font-bold shrink-0">
+                            09
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <h3
+                                    class="text-sm font-semibold text-linen group-hover:text-sandstone transition truncate">
+                                    The Protocol Engineer: Mastering P2P &amp; Wire
+                                </h3>
+                                <span class="text-[11px] font-mono text-sandstone/80 shrink-0 font-medium">67%</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-linen-whisper mt-1 mb-2">
+                                <span>8 Published</span>
+                                <span>•</span>
+                                <span class="text-linen-dim">4 in Queue</span>
+                                <span>•</span>
+                                <span>12 Total</span>
+                            </div>
+                            <div class="w-full h-1 bg-obsidian-elevated rounded-full overflow-hidden">
+                                <div class="h-full bg-sandstone rounded-full" style="width: 67%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Accordion Detail -->
+                    <div class="hidden pt-3 mt-3 border-t border-obsidian-border/60 text-xs text-linen-muted space-y-2"
+                        id="series-8">
+                        <p class="leading-relaxed">Binary serialisation specs, multiplexed streams over QUIC, and gossip
+                            protocol simulations in production.</p>
+                        <div class="flex items-center justify-end gap-2 pt-1">
+                            <button
+                                class="px-2.5 py-1 rounded bg-obsidian-elevated text-linen-dim hover:text-linen text-[11px]"
+                                onclick="event.stopPropagation()">Edit Details</button>
+                            <button
+                                class="px-2.5 py-1 rounded bg-sandstone/20 text-sandstone hover:bg-sandstone/30 text-[11px] font-medium"
+                                onclick="event.stopPropagation()">+ Add Episode</button>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </main>
+        <!-- Bespoke Cohesive Bottom Navigation Bar -->
+        <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-30 bg-obsidian/95 backdrop-blur-lg border-t border-obsidian-border px-5 py-2.5"
+            data-purpose="bottom-navigation">
+            <div class="flex items-center justify-between">
+                <!-- 1. Ideas -->
+                <a class="flex flex-col items-center gap-1 py-1 text-linen-muted hover:text-linen transition group"
+                    href="#ideas">
+                    <svg class="w-5 h-5 group-hover:scale-105 transition-transform" fill="none" stroke="currentColor"
+                        stroke-width="1.8" viewbox="0 0 24 24">
+                        <path
+                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                            stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                    <span class="text-[10px] font-medium tracking-tight">Ideas</span>
+                </a>
+                <!-- 2. Series (Active with subtle sandstone indicator) -->
+                <a class="flex flex-col items-center gap-1 py-1 text-sandstone relative" href="#series">
+                    <div class="relative">
+                        <svg class="w-5 h-5 drop-shadow-[0_0_6px_rgba(200,178,155,0.35)]" fill="none"
+                            stroke="currentColor" stroke-width="2.2" viewbox="0 0 24 24">
+                            <path
+                                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                                stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                        <span
+                            class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-sandstone rounded-full shadow-[0_0_5px_#c8b29b]"></span>
+                    </div>
+                    <span class="text-[10px] font-bold tracking-tight text-sandstone">Series</span>
+                </a>
+                <!-- 3. Schedule -->
+                <a class="flex flex-col items-center gap-1 py-1 text-linen-muted hover:text-linen transition group"
+                    href="#schedule">
+                    <svg class="w-5 h-5 group-hover:scale-105 transition-transform" fill="none" stroke="currentColor"
+                        stroke-width="1.8" viewbox="0 0 24 24">
+                        <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                    <span class="text-[10px] font-medium tracking-tight">Schedule</span>
+                </a>
+                <!-- 4. Pipeline -->
+                <a class="flex flex-col items-center gap-1 py-1 text-linen-muted hover:text-linen transition group"
+                    href="#pipeline">
+                    <svg class="w-5 h-5 group-hover:scale-105 transition-transform" fill="none" stroke="currentColor"
+                        stroke-width="1.8" viewbox="0 0 24 24">
+                        <path
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                            stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                    <span class="text-[10px] font-medium tracking-tight">Pipeline</span>
+                </a>
+                <!-- 5. Community -->
+                <a class="flex flex-col items-center gap-1 py-1 text-linen-muted hover:text-linen transition group"
+                    href="#community">
+                    <svg class="w-5 h-5 group-hover:scale-105 transition-transform" fill="none" stroke="currentColor"
+                        stroke-width="1.8" viewbox="0 0 24 24">
+                        <path
+                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                            stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                    <span class="text-[10px] font-medium tracking-tight">Community</span>
+                </a>
+            </div>
+        </nav>
+        <!-- Create New Series Modal / Bottom Sheet -->
+        <div class="fixed inset-0 z-50 flex items-end justify-center pointer-events-none transition-all"
+            id="modalContainer">
+            <!-- Dimmer Backdrop -->
+            <div class="absolute inset-0 bg-black/80 backdrop-blur-sm opacity-0 modal-backdrop-transition"
+                id="modalBackdrop"></div>
+            <!-- Bottom Sheet Drawer -->
+            <div class="relative w-full max-w-md bg-obsidian-card border-t sm:border border-obsidian-border/90 rounded-t-3xl sm:rounded-3xl p-6 shadow-sheet transform translate-y-full modal-sheet-transition z-10"
+                id="modalSheet">
+                <!-- Drag Handle Indicator -->
+                <div class="w-10 h-1 bg-obsidian-borderLight rounded-full mx-auto mb-4"></div>
+                <div class="flex items-center justify-between pb-3 border-b border-obsidian-border/60 mb-5">
+                    <div>
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-sandstone">Production
+                            Catalog</span>
+                        <h3 class="text-base font-bold text-linen">Create New Series</h3>
+                    </div>
+                    <button aria-label="Close dialog"
+                        class="w-8 h-8 rounded-full bg-obsidian-elevated border border-obsidian-border flex items-center justify-center text-linen-muted hover:text-linen transition active:scale-95"
+                        id="closeModalBtn" type="button">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+                            <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form class="space-y-4" id="createSeriesForm" onsubmit="event.preventDefault();">
+                    <!-- Series Title -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-linen-dim mb-1.5 uppercase tracking-wider"
+                            for="seriesTitle">
+                            Series Title
+                        </label>
+                        <input
+                            class="w-full bg-obsidian-elevated border border-obsidian-border text-linen placeholder-linen-whisper text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-sandstone focus:ring-1 focus:ring-sandstone transition"
+                            id="seriesTitle" placeholder="e.g. Distributed Consensus in Go" type="text" />
+                    </div>
+                    <!-- Learning Goal -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-linen-dim mb-1.5 uppercase tracking-wider"
+                            for="learningGoal">
+                            Learning Outcome / Goal
+                        </label>
+                        <textarea
+                            class="w-full bg-obsidian-elevated border border-obsidian-border text-linen placeholder-linen-whisper text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-sandstone focus:ring-1 focus:ring-sandstone transition resize-none"
+                            id="learningGoal"
+                            placeholder="What core mental models will engineers master by episode completion?"
+                            rows="3"></textarea>
+                    </div>
+                    <!-- Dual Column: Target Episodes & Category -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label
+                                class="block text-[11px] font-semibold text-linen-dim mb-1.5 uppercase tracking-wider"
+                                for="targetEpisodes">
+                                Target Episodes
+                            </label>
+                            <input
+                                class="w-full bg-obsidian-elevated border border-obsidian-border text-linen placeholder-linen-whisper text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-sandstone focus:ring-1 focus:ring-sandstone transition"
+                                id="targetEpisodes" placeholder="e.g. 10" type="number" />
+                        </div>
+                        <div>
+                            <label
+                                class="block text-[11px] font-semibold text-linen-dim mb-1.5 uppercase tracking-wider"
+                                for="categoryTag">
+                                Domain Tag
+                            </label>
+                            <input
+                                class="w-full bg-obsidian-elevated border border-obsidian-border text-linen placeholder-linen-whisper text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-sandstone focus:ring-1 focus:ring-sandstone transition"
+                                id="categoryTag" placeholder="e.g. Systems Architecture" type="text" />
+                        </div>
+                    </div>
+                    <!-- Primary Sandstone Action Button -->
+                    <div class="pt-2">
+                        <button
+                            class="w-full py-3.5 px-4 rounded-xl text-sm font-bold tracking-wide bg-sandstone text-obsidian hover:bg-sandstone-hover active:scale-[0.98] transition shadow-glow-sand flex items-center justify-center gap-2"
+                            id="submitSeriesBtn" type="button">
+                            <span>Create Series</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2"
+                                viewbox="0 0 24 24">
+                                <path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" stroke-linecap="round"
+                                    stroke-linejoin="round"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Interactive Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const openBtn = document.getElementById('openModalBtn');
+            const closeBtn = document.getElementById('closeModalBtn');
+            const modalContainer = document.getElementById('modalContainer');
+            const modalBackdrop = document.getElementById('modalBackdrop');
+            const modalSheet = document.getElementById('modalSheet');
+            const submitBtn = document.getElementById('submitSeriesBtn');
+
+            function openModal() {
+                modalContainer.classList.remove('pointer-events-none');
+                modalBackdrop.classList.remove('opacity-0');
+                modalBackdrop.classList.add('opacity-100');
+                modalSheet.classList.remove('translate-y-full');
+                modalSheet.classList.add('translate-y-0');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeModal() {
+                modalBackdrop.classList.remove('opacity-100');
+                modalBackdrop.classList.add('opacity-0');
+                modalSheet.classList.remove('translate-y-0');
+                modalSheet.classList.add('translate-y-full');
+                modalContainer.classList.add('pointer-events-none');
+                document.body.style.overflow = '';
+            }
+
+            openBtn.addEventListener('click', openModal);
+            closeBtn.addEventListener('click', closeModal);
+            modalBackdrop.addEventListener('click', closeModal);
+
+            submitBtn.addEventListener('click', () => {
+                submitBtn.innerHTML = 'Creating Series...';
+                setTimeout(() => {
+                    submitBtn.innerHTML = 'Series Created!';
+                    setTimeout(() => {
+                        submitBtn.innerHTML = '<span>Create Series</span><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"></path></svg>';
+                        closeModal();
+                    }, 350);
+                }, 500);
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeModal();
+            });
+        });
+
+        // Accordion Toggle for series details
+        function toggleSeriesDetails(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.toggle('hidden');
+            }
+        }
+    </script>
+</body>
+
+</html>

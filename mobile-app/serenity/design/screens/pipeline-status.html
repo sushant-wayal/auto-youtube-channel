@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html class="h-full bg-[#110e08] text-[#eae1d7]" lang="en" style="">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport">
+    <title>Serenity Studio — 8-Step Pipeline Stream</title>
+    <!-- Google Fonts: Plus Jakarta Sans only -->
+    <link href="https://fonts.googleapis.com" rel="preconnect">
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet">
+    <!-- Material Symbols Icons -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+                    },
+                    colors: {
+                        obsidian: {
+                            950: '#0c0a07',
+                            900: '#110e08',
+                            850: '#16130d',
+                            800: '#191610',
+                            750: '#221e17',
+                            700: '#2e281f',
+                            600: '#3d362c',
+                        },
+                        sandstone: {
+                            100: '#f7f3ee',
+                            200: '#eae1d7',
+                            300: '#d9c4af',
+                            400: '#c8b29b',
+                            500: '#b49980',
+                        },
+                        status: {
+                            success: '#4ade80',
+                            running: '#fbbf24',
+                            failed: '#f87171',
+                            skipped: '#71717a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+            display: inline-block;
+            vertical-align: middle;
+            line-height: 1;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Subtle glow for elevated containers */
+        .glow-sandstone {
+            box-shadow: 0 4px 24px -6px rgba(200, 178, 155, 0.08);
+        }
+
+        .glow-running {
+            box-shadow: 0 0 16px -2px rgba(251, 191, 36, 0.25);
+        }
+    </style>
+</head>
+<script class="">
+    const shortsData = {
+        1: {
+            num: '1',
+            title: 'The Two Generals Paradox',
+            retention: '98% Ret. Score',
+            caption: '"Why 2 generals cannot agree over an untrusted network. The fundamental curse that led to distributed consensus algorithms. 🤯 #DistributedSystems #SoftwareEngineering #TechTrivia #Raft"',
+            url: 'youtube.com/shorts/rf92ka81',
+            fullUrl: 'https://youtube.com/shorts/rf92ka81',
+            meta: '48s • 9:16 UHD'
+        },
+        2: {
+            num: '2',
+            title: 'Split-Brain in 30 Seconds',
+            retention: '94% Ret. Score',
+            caption: '"How Kubernetes clusters stop two leaders from nuking your database: Strict Quorum Math explained simply. 💥 #CloudEngineering #DevOps #Kubernetes #SystemDesign"',
+            url: 'youtube.com/shorts/qb71md09',
+            fullUrl: 'https://youtube.com/shorts/qb71md09',
+            meta: '32s • 9:16 UHD'
+        },
+        3: {
+            num: '3',
+            title: 'Why Raft Beat Paxos',
+            retention: '96% Ret. Score',
+            caption: '"Leslie Lamport invented Paxos, but engineers couldn\'t implement it without bugs. Enter Diego Ongaro\'s Raft. ⚡ #Coding #Algorithms #Architecture #ComputerScience"',
+            url: 'youtube.com/shorts/xn48v02a',
+            fullUrl: 'https://youtube.com/shorts/xn48v02a',
+            meta: '45s • 9:16 UHD'
+        }
+    };
+
+    let currentShortIdx = 1;
+
+    function selectShort(idx) {
+        currentShortIdx = idx;
+        const data = shortsData[idx];
+        if (!data) return;
+
+        const numEl = document.getElementById('short-active-num');
+        const titleEl = document.getElementById('short-active-title');
+        const retEl = document.getElementById('short-active-retention');
+        const capEl = document.getElementById('short-active-caption');
+        const urlEl = document.getElementById('short-active-url');
+        const metaEl = document.getElementById('short-active-meta');
+
+        if (numEl) numEl.innerText = data.num;
+        if (titleEl) titleEl.innerText = data.title;
+        if (retEl) retEl.innerText = data.retention;
+        if (capEl) capEl.innerText = data.caption;
+        if (urlEl) urlEl.innerText = data.url;
+        if (metaEl) metaEl.innerText = data.meta;
+
+        const tabs = document.querySelectorAll('.short-tab');
+        tabs.forEach((tab, index) => {
+            if (index === idx - 1) {
+                tab.className = 'short-tab rounded-lg bg-sandstone-400 px-2.5 py-1 text-[10px] font-bold text-obsidian-950 whitespace-nowrap shrink-0';
+            } else {
+                tab.className = 'short-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300';
+            }
+        });
+    }
+
+    function prevShort() {
+        const next = currentShortIdx === 1 ? 3 : currentShortIdx - 1;
+        selectShort(next);
+    }
+
+    function nextShort() {
+        const next = currentShortIdx === 3 ? 1 : currentShortIdx + 1;
+        selectShort(next);
+    }
+
+    function copyActiveShortCaption() {
+        const data = shortsData[currentShortIdx];
+        if (data) {
+            navigator.clipboard?.writeText(data.caption);
+            triggerToast(`Short ${currentShortIdx} caption copied to clipboard!`);
+        }
+    }
+
+    function copyActiveShortLink() {
+        const data = shortsData[currentShortIdx];
+        if (data) {
+            navigator.clipboard?.writeText(data.fullUrl);
+            triggerToast(`Copied short link: ${data.fullUrl}`);
+        }
+    }
+</script>
+
+<body
+    class="h-full font-sans antialiased bg-[#110e08] text-[#eae1d7] selection:bg-sandstone-400 selection:text-obsidian-950">
+    <!-- Mobile Shell Container -->
+    <div
+        class="relative mx-auto flex min-h-full max-w-[430px] flex-col bg-[#110e08] border-x border-[#2e281f] shadow-2xl overflow-x-hidden">
+        <!-- BEGIN: Top Bar -->
+        <header
+            class="sticky top-0 z-40 flex items-center justify-between border-b border-[#2e281f] bg-[#110e08]/95 px-4 py-3 backdrop-blur-md">
+            <div class="flex items-center gap-2.5">
+                <div
+                    class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#221e17] border border-[#c8b29b]/25 text-xs font-semibold tracking-wider text-sandstone-300">
+                    SA
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-sandstone-400">SERENITY</span>
+                    <span class="text-xs font-medium text-[#a69d92]">Studio Engine</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <div
+                    class="inline-flex items-center gap-1.5 rounded-full border border-status-success/30 bg-status-success/10 px-2.5 py-0.5 text-[11px] font-medium text-status-success whitespace-nowrap">
+                    <span class="relative flex h-1.5 w-1.5">
+                        <span
+                            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-status-success opacity-75"></span>
+                        <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-status-success"></span>
+                    </span>
+                    Live Sync
+                </div>
+                <button aria-label="Settings"
+                    class="flex h-8 w-8 items-center justify-center rounded-lg border border-[#2e281f] bg-[#191610] text-[#a69d92] active:bg-[#221e17] transition"
+                    onclick="triggerToast('Pipeline settings opened')" type="button">
+                    <span class="material-symbols-outlined text-[18px]">tune</span>
+                </button>
+            </div>
+        </header>
+        <!-- END: Top Bar -->
+        <!-- BEGIN: Main Canvas -->
+        <main class="flex-1 px-4 pt-4 pb-36 space-y-5">
+            <!-- BEGIN: Hero Episode Header -->
+            <section
+                class="rounded-2xl border border-[#2e281f] bg-gradient-to-b from-[#1c1811] to-[#16130d] glow-sandstone relative overflow-hidden p-5">
+                <div
+                    class="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-sandstone-400/5 blur-3xl pointer-events-none">
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2 min-w-0"><span
+                        class="text-[11px] font-semibold uppercase tracking-wider text-sandstone-400 truncate min-w-0">Series:
+                        The Distributed Engineer • Ep. 04</span><span
+                        class="rounded bg-[#221e17] border border-[#2e281f] px-2 py-0.5 text-[10px] text-[#9c958c] font-mono tabular-nums whitespace-nowrap shrink-0">4m
+                        18s runtime</span></div>
+                <h1 class="text-lg font-bold leading-snug tracking-tight text-[#f7f3ee]">
+                    Distributed Consensus: Raft vs Paxos (The State of Engines)
+                </h1>
+                <!-- Status Indicator Pill & Master Info -->
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <div
+                        class="inline-flex items-center gap-1.5 rounded-full border border-status-success/30 bg-status-success/10 px-3 py-1 text-xs font-semibold text-status-success">
+                        <span class="h-1.5 w-1.5 rounded-full bg-status-success"></span>
+                        Pipeline Succeeded
+                    </div>
+                    <span class="text-[11px] text-[#9c958c]">8 of 8 Stages Complete • 4K UHD</span>
+                </div>
+                <!-- Action CTAs -->
+                <div class="mt-4 grid grid-cols-2 gap-2.5 pt-3 border-t border-[#2e281f]">
+                    <button
+                        class="flex items-center justify-center gap-1.5 rounded-xl border border-[#2e281f] bg-[#191610] px-3.5 py-2.5 text-xs font-semibold text-sandstone-300 transition hover:bg-[#221e17] active:scale-[0.98] whitespace-nowrap"
+                        onclick="triggerToast('Re-queueing full 8-step pipeline...')" type="button">
+                        <span class="material-symbols-outlined text-[16px]">restart_alt</span>
+                        Re-run Pipeline
+                    </button>
+                    <button
+                        class="flex items-center justify-center gap-1.5 rounded-xl bg-sandstone-400 px-3.5 py-2.5 text-xs font-semibold text-obsidian-950 transition hover:bg-sandstone-300 active:scale-[0.98] whitespace-nowrap shadow-md shadow-sandstone-400/15"
+                        onclick="triggerToast('Opening 4K Master Video Player')" type="button">
+                        <span class="material-symbols-outlined text-[17px] fill">play_circle</span>
+                        Review Master
+                    </button>
+                </div>
+            </section>
+            <!-- END: Hero Episode Header -->
+            <!-- BEGIN: Pipeline Header & State Legend Bar -->
+            <section class="space-y-2">
+                <div class="flex items-center justify-between px-1">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-[#a69d92]">Connected Execution Pipeline
+                    </h2>
+                    <span class="text-[11px] font-semibold text-sandstone-400">8 Steps Active</span>
+                </div>
+                <!-- State Legend Chips / Badges -->
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-[10px]">
+                    <span
+                        class="inline-flex items-center gap-1 rounded-full border border-status-success/25 bg-status-success/10 px-2 py-0.5 font-medium text-status-success whitespace-nowrap">
+                        <span class="h-1.5 w-1.5 rounded-full bg-status-success"></span> Completed (8)
+                    </span>
+                    <span
+                        class="inline-flex items-center gap-1 rounded-full border border-status-running/25 bg-status-running/10 px-2 py-0.5 font-medium text-status-running whitespace-nowrap">
+                        <span class="h-1.5 w-1.5 rounded-full bg-status-running animate-pulse"></span> Running
+                    </span>
+                    <span
+                        class="inline-flex items-center gap-1 rounded-full border border-status-failed/25 bg-status-failed/10 px-2 py-0.5 font-medium text-status-failed whitespace-nowrap">
+                        <span class="h-1.5 w-1.5 rounded-full bg-status-failed"></span> Failed
+                    </span>
+                    <span
+                        class="inline-flex items-center gap-1 rounded-full border border-status-skipped/25 bg-status-skipped/10 px-2 py-0.5 font-medium text-status-skipped whitespace-nowrap">
+                        <span class="h-1.5 w-1.5 rounded-full bg-status-skipped"></span> Skipped
+                    </span>
+                </div>
+            </section>
+            <!-- BEGIN: Connected 8-Step Pipeline Rail Graph -->
+            <div class="relative">
+                <!-- Continuous Connected Spine Line -->
+                <div
+                    class="absolute left-[19px] top-6 bottom-8 w-[2px] bg-gradient-to-b from-status-success via-status-success to-sandstone-400/40 z-0">
+                </div>
+                <div class="space-y-4 relative z-10">
+                    <!-- ==================== STEP 1: Populate Ideas ==================== -->
+                    <article class="flex gap-3 items-start group">
+                        <!-- Node Pin -->
+                        <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#191610] border border-status-success/40 text-status-success shadow-md shadow-status-success/10 z-10">
+                            <span class="material-symbols-outlined text-[18px] fill">check</span>
+                        </div>
+                        <!-- Card Body -->
+                        <div class="flex-1 rounded-xl border border-[#2e281f] bg-[#191610] p-3.5 space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-[#f7f3ee]">01. Populate Ideas</span>
+                                        <span
+                                            class="rounded bg-status-success/15 border border-status-success/25 px-1.5 py-0.2 text-[9px] font-semibold text-status-success">Completed</span>
+                                    </div>
+                                    <p class="text-[11px] text-[#9c958c]">Source topic ingest &amp; thematic seed</p>
+                                </div>
+                                <span class="text-[10px] font-mono text-[#9c958c] whitespace-nowrap">0.4s</span>
+                            </div>
+                            <div class="rounded-lg border border-[#2e281f] bg-[#110e08]/90 p-2.5 text-xs space-y-2">
+                                <div class="flex items-center justify-between text-[10px] text-[#9c958c]">
+                                    <span class="font-mono">SEED_HASH: #d4a99e8</span>
+                                    <span class="text-sandstone-400">Sync: 14:02 UTC</span>
+                                </div>
+                                <p class="text-[11px] leading-relaxed text-sandstone-200">
+                                    <strong class="text-sandstone-300 font-medium">Prompt Seed:</strong> Break down the
+                                    architectural battle between Paxos consensus and Raft in modern distributed engines
+                                    (Kubernetes etcd, CockroachDB). Focus on understandability, split-brain recovery,
+                                    and quorum invariants.
+                                </p>
+                                <div class="flex flex-wrap gap-1 pt-1">
+                                    <span
+                                        class="rounded bg-[#221e17] border border-[#2e281f] px-2 py-0.5 text-[10px] text-sandstone-300">Distributed
+                                        Systems</span>
+                                    <span
+                                        class="rounded bg-[#221e17] border border-[#2e281f] px-2 py-0.5 text-[10px] text-sandstone-300">Consensus
+                                        Algorithms</span>
+                                    <span
+                                        class="rounded bg-[#221e17] border border-[#2e281f] px-2 py-0.5 text-[10px] text-sandstone-300">Raft
+                                        Protocol</span>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                    <!-- ==================== STEP 2: Generate Script ==================== -->
+                    <article class="flex gap-3 items-start group">
+                        <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#191610] border border-status-success/40 text-status-success shadow-md shadow-status-success/10 z-10">
+                            <span class="material-symbols-outlined text-[18px] fill">check</span>
+                        </div>
+                        <div class="flex-1 rounded-xl border border-[#2e281f] bg-[#191610] overflow-hidden">
+                            <button
+                                class="w-full flex items-center justify-between p-3.5 text-left active:bg-[#221e17]/50 transition"
+                                onclick="toggleAccordion('step-script-body', 'step-script-arrow')" type="button">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-[#f7f3ee]">02. Generate Script</span>
+                                        <span
+                                            class="rounded bg-status-success/15 border border-status-success/25 px-1.5 py-0.2 text-[9px] font-semibold text-status-success">Completed</span>
+                                    </div>
+                                    <div class="flex flex-col gap-0.5 mt-1 text-[11px] text-[#9c958c]"><span class="">7
+                                            scenes</span></div>
+                                </div>
+                                <div class="flex items-center gap-2">
+
+                                    <span
+                                        class="material-symbols-outlined text-[#9c958c] transition-transform duration-200 rotate-180"
+                                        id="step-script-arrow">expand_more</span>
+                                </div>
+                            </button>
+                            <div class="px-3.5 pb-3.5 pt-1 border-t border-[#2e281f] hidden" id="step-script-body">
+                                <!-- Scene Tabs -->
+                                <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-2">
+                                    <button
+                                        class="scene-tab rounded-lg bg-sandstone-400 px-2.5 py-1 text-[11px] font-bold text-obsidian-950 whitespace-nowrap"
+                                        onclick="selectScriptScene(1)" type="button">Scene 1</button>
+                                    <button
+                                        class="scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[11px] font-medium text-[#9c958c] whitespace-nowrap"
+                                        onclick="selectScriptScene(2)" type="button">Scene 2</button>
+                                    <button
+                                        class="scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[11px] font-medium text-[#9c958c] whitespace-nowrap"
+                                        onclick="selectScriptScene(3)" type="button">Scene 3</button>
+                                    <button
+                                        class="scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[11px] font-medium text-[#9c958c] whitespace-nowrap"
+                                        onclick="selectScriptScene(4)" type="button">Scene 4</button>
+                                    <button
+                                        class="scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[11px] font-medium text-[#9c958c] whitespace-nowrap"
+                                        onclick="selectScriptScene(5)" type="button">Scene 5</button>
+                                    <button
+                                        class="scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[11px] font-medium text-[#9c958c] whitespace-nowrap"
+                                        onclick="selectScriptScene(6)" type="button">Scene 6</button>
+                                    <button
+                                        class="scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[11px] font-medium text-[#9c958c] whitespace-nowrap"
+                                        onclick="selectScriptScene(7)" type="button">Scene 7</button>
+                                </div>
+                                <!-- Narration Box -->
+                                <div class="rounded-lg border border-[#2e281f] bg-[#110e08]/90 p-3 space-y-1.5">
+                                    <div
+                                        class="flex items-center justify-between text-[10px] uppercase tracking-wide font-medium">
+                                        <span class="text-sandstone-400" id="script-scene-title">Scene 01: The Illusion
+                                            of Order</span>
+                                        <span class="text-[#9c958c] font-mono" id="script-scene-meta">18s • 84
+                                            words</span>
+                                    </div>
+                                    <p class="text-xs leading-relaxed text-sandstone-200" id="script-scene-content">
+                                        Imagine two million transactions struck across 500 servers globally. In one
+                                        corner: a financial broker executes leaves on Wall Street. Simultaneously in
+                                        London, someone else deposits an identical ledger line. Without strict
+                                        distributed consensus, your bank balance becomes whatever server picked up your
+                                        call first.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                    <!-- ==================== STEP 3: Render Scenes ==================== -->
+                    <article class="flex gap-3 items-start group w-full min-w-0">
+                        <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#191610] border border-status-success/40 text-status-success shadow-md shadow-status-success/10 z-10">
+                            <span class="material-symbols-outlined text-[18px] fill shrink-0">check</span>
+                        </div>
+                        <div
+                            class="flex-1 min-w-0 rounded-xl border border-[#2e281f] bg-[#191610] p-3.5 space-y-3 overflow-hidden">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="text-xs font-bold text-[#f7f3ee] whitespace-nowrap">03. Render
+                                            Scenes</span>
+                                        <span
+                                            class="rounded bg-status-success/15 border border-status-success/25 px-1.5 py-0.2 text-[9px] font-semibold text-status-success whitespace-nowrap shrink-0">Completed</span>
+                                    </div>
+                                    <p class="text-[11px] text-[#9c958c] mt-0.5 truncate">7/7 Rendered</p>
+                                </div>
+                                <button
+                                    class="flex items-center gap-1 text-[10px] text-sandstone-400 font-mono hover:underline shrink-0 whitespace-nowrap pt-0.5"
+                                    onclick="toggleRenderLogs()" type="button">
+                                    <span class="material-symbols-outlined text-[14px] shrink-0">terminal</span> Logs
+                                </button>
+                            </div>
+                            <!-- Scene Selector Strip with no overflow wrap -->
+                            <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full">
+                                <button
+                                    class="scene-render-btn px-2 py-1 rounded bg-[#221e17] border border-[#2e281f] text-[#9c958c] text-[10px] font-medium whitespace-nowrap"
+                                    onclick="switchSceneVideo(1, '01: The Illusion', '18s', '60 FPS', '1080x1920 / 4K')"
+                                    type="button">Scene 1</button>
+                                <button
+                                    class="scene-render-btn px-2 py-1 rounded bg-[#221e17] border border-[#2e281f] text-[#9c958c] text-[10px] font-medium whitespace-nowrap"
+                                    onclick="switchSceneVideo(2, '02: Leslie Lamport', '24s', '60 FPS', '4K Master')"
+                                    type="button">Scene 2</button>
+                                <button
+                                    class="scene-render-btn px-2 py-1 rounded bg-[#221e17] border border-[#2e281f] text-[#9c958c] text-[10px] font-medium whitespace-nowrap"
+                                    onclick="switchSceneVideo(3, '03: The Raft Revolution', '21s', '60 FPS', '4K Master')"
+                                    type="button">Scene 3</button>
+                                <button
+                                    class="scene-render-btn px-2 py-1 rounded bg-[#221e17] border border-[#2e281f] text-[#9c958c] text-[10px] font-medium whitespace-nowrap"
+                                    onclick="switchSceneVideo(4, '04: Split-Brain Quorum', '19s', '60 FPS', '4K Master')"
+                                    type="button">Scene 4</button>
+                                <button
+                                    class="scene-render-btn px-2 py-1 rounded bg-[#221e17] border border-[#2e281f] text-[#9c958c] text-[10px] font-medium whitespace-nowrap"
+                                    onclick="switchSceneVideo(5, '05: Leader Election Timer', '22s', '60 FPS', '4K Master')"
+                                    type="button">Scene 5</button>
+                                <button
+                                    class="scene-render-btn px-2 py-1 rounded bg-[#221e17] border border-[#2e281f] text-[#9c958c] text-[10px] font-medium whitespace-nowrap"
+                                    onclick="switchSceneVideo(6, '06: Log Truncation Invariants', '16s', '60 FPS', '4K Master')"
+                                    type="button">Scene 6</button>
+                                <button
+                                    class="scene-render-btn px-2 py-1 rounded bg-sandstone-400 text-obsidian-950 text-[10px] font-bold whitespace-nowrap"
+                                    onclick="switchSceneVideo(7, '07: The Verdict for Engineers', '17s', '60 FPS', '4K Master')"
+                                    type="button">Scene 7</button>
+                            </div>
+                            <!-- Sized Video Player Frame -->
+                            <div
+                                class="relative aspect-video w-full rounded-lg border border-[#2e281f] bg-[#0c0a07] overflow-hidden">
+                                <div
+                                    class="absolute inset-0 bg-gradient-to-tr from-[#0c0a07] via-[#16130d] to-[#251e15] p-3 flex flex-col justify-between">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span
+                                            class="rounded bg-obsidian-950/80 px-2 py-0.5 text-[10px] font-mono text-sandstone-300 border border-[#2e281f] truncate"
+                                            id="render-scene-chip">Scene 07: 07: The Verdict for Engineers</span>
+                                        <span
+                                            class="flex items-center gap-1 text-[10px] text-status-success font-mono whitespace-nowrap shrink-0">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-status-success shrink-0"></span>
+                                            Rendered
+                                        </span>
+                                    </div>
+                                    <div class="flex flex-col items-center justify-center my-auto">
+                                        <button
+                                            class="h-10 w-10 rounded-full bg-sandstone-400 text-obsidian-950 flex items-center justify-center shadow-lg active:scale-95 transition hover:bg-sandstone-300 shrink-0"
+                                            onclick="triggerToast('Playing Scene isolated render stream')"
+                                            type="button">
+                                            <span
+                                                class="material-symbols-outlined text-[22px] fill ml-0.5">play_arrow</span>
+                                        </button>
+                                        <span class="mt-1.5 text-[10px] font-mono text-sandstone-300 whitespace-nowrap"
+                                            id="render-scene-duration">Duration: 17s • 60 FPS</span>
+                                    </div>
+                                    <div
+                                        class="flex items-center justify-between text-[9px] font-mono text-[#9c958c] gap-2">
+                                        <span class="truncate">GLSL_RAFT_TOPOLOGY</span>
+                                        <span class="whitespace-nowrap shrink-0" id="render-scene-res">4K Master</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Render Logs Console Toggleable -->
+                            <div class="rounded-lg bg-[#0c0a07] border border-[#2e281f] p-2.5 font-mono text-[10px] text-sandstone-400 space-y-1 hidden"
+                                id="render-logs-box">
+                                <div class="text-[#9c958c] flex justify-between">
+                                    <span class="">Remotion Thread [pid:4819]: OK</span>
+                                    <span class="">CUDA load: 41%</span>
+                                </div>
+                                <div class="text-status-success">[Scene 1] Complete in 1.42s (1080 frames)</div>
+                                <div class="text-status-success">[Scene 2] Complete in 1.89s (1440 frames)</div>
+                                <div class="text-status-success">[Scene 3-7] Batch rendered in 6.11s</div>
+                            </div>
+                        </div>
+                    </article>
+                    <!-- ==================== STEP 4: Voiceover ==================== -->
+                    <article class="flex gap-3 items-start group w-full min-w-0">
+                        <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#191610] border border-status-success/40 text-status-success shadow-md shadow-status-success/10 z-10">
+                            <span class="material-symbols-outlined text-[18px] fill shrink-0">check</span>
+                        </div>
+                        <div
+                            class="flex-1 min-w-0 rounded-xl border border-[#2e281f] bg-[#191610] p-3.5 space-y-3 overflow-hidden">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="text-xs font-bold text-[#f7f3ee] whitespace-nowrap">04. Voiceover
+                                            Synthesis</span>
+                                        <span
+                                            class="rounded bg-status-success/15 border border-status-success/25 px-1.5 py-0.2 text-[9px] font-semibold text-status-success whitespace-nowrap shrink-0">Completed</span>
+                                    </div>
+                                    <p class="text-[11px] text-[#9c958c] mt-0.5 truncate">Voice: Marcus Calm English
+                                        (Studio Clean)</p>
+                                </div>
+                                <span
+                                    class="rounded bg-[#221e17] border border-[#2e281f] px-2 py-0.5 text-[10px] font-mono text-sandstone-300 whitespace-nowrap shrink-0">F5-TTS
+                                    Neural</span>
+                            </div>
+                            <!-- Audio Mode / Full Sequential Switch Bar -->
+                            <div class="flex items-center justify-between border-b border-[#2e281f] pb-2 text-[11px]">
+                                <span
+                                    class="text-[10px] uppercase font-semibold tracking-wider text-sandstone-400 whitespace-nowrap">Scene-by-Scene
+                                    Audio</span>
+                                <button
+                                    class="flex items-center gap-1 rounded border border-[#2e281f] bg-[#221e17] px-2 py-0.5 text-[10px] font-medium text-sandstone-300 hover:text-sandstone-100 hover:bg-[#2e281f] transition whitespace-nowrap shrink-0"
+                                    onclick="togglePlayAllSequentially()" type="button">
+                                    <span class="material-symbols-outlined text-[13px] shrink-0"
+                                        id="master-play-all-icon">playlist_play</span>
+                                    <span id="master-play-all-label" class="">Play All Scenes</span>
+                                </button>
+                            </div>
+                            <!-- Interactive Scene Audio Selector Tabs -->
+                            <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full"
+                                id="vo-scene-tab-strip">
+                                <button
+                                    class="vo-scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300"
+                                    onclick="selectVoiceoverScene(1)" type="button">Scene 1</button>
+                                <button
+                                    class="vo-scene-tab rounded-lg bg-sandstone-400 px-2.5 py-1 text-[10px] font-bold text-obsidian-950 whitespace-nowrap shrink-0"
+                                    onclick="selectVoiceoverScene(2)" type="button">Scene 2</button>
+                                <button
+                                    class="vo-scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300"
+                                    onclick="selectVoiceoverScene(3)" type="button">Scene 3</button>
+                                <button
+                                    class="vo-scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300"
+                                    onclick="selectVoiceoverScene(4)" type="button">Scene 4</button>
+                                <button
+                                    class="vo-scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300"
+                                    onclick="selectVoiceoverScene(5)" type="button">Scene 5</button>
+                                <button
+                                    class="vo-scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300"
+                                    onclick="selectVoiceoverScene(6)" type="button">Scene 6</button>
+                                <button
+                                    class="vo-scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300"
+                                    onclick="selectVoiceoverScene(7)" type="button">Scene 7</button>
+                            </div>
+                            <!-- Scene Audio Player Card -->
+                            <div class="rounded-lg border border-[#2e281f] bg-[#110e08]/90 p-3 space-y-2.5">
+                                <!-- Scene Track Meta -->
+                                <div class="flex items-center justify-between text-[10px] gap-2">
+                                    <span class="font-semibold text-sandstone-300 uppercase tracking-wide truncate"
+                                        id="vo-active-title">Scene 02 • Enter Leslie Lamport</span>
+                                    <div class="flex items-center gap-1.5 shrink-0 font-mono text-[#9c958c]">
+                                        <span class="text-sandstone-400" id="vo-active-badge">24s Duration</span>
+                                        <span class="">• F5 Neural</span>
+                                    </div>
+                                </div>
+                                <!-- Audio Controls & Interactive Waveform -->
+                                <div class="flex items-center gap-2.5 pt-0.5">
+                                    <button
+                                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sandstone-400 text-obsidian-950 shadow transition active:scale-95 hover:bg-sandstone-300"
+                                        id="vo-play-btn" onclick="toggleVoiceoverAudio()" type="button">
+                                        <span class="material-symbols-outlined text-[18px] fill shrink-0"
+                                            id="vo-play-icon">play_arrow</span>
+                                    </button>
+                                    <!-- Waveform Simulation Bar -->
+                                    <div class="flex flex-1 items-center gap-0.5 h-6 overflow-hidden"
+                                        id="vo-waveform-container">
+                                        <span class="w-1 bg-sandstone-400 h-2.5 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400 h-5 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400 h-3 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400 h-6 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400 h-4 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400 h-5 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400 h-2 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400/40 h-4 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400/40 h-6 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400/40 h-3 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400/40 h-5 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400/40 h-2 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400/40 h-4 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400/40 h-5 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400/40 h-3 rounded-full shrink-0"></span>
+                                        <span class="w-1 bg-sandstone-400/40 h-1.5 rounded-full shrink-0"></span>
+                                    </div>
+                                    <span
+                                        class="text-[11px] font-mono text-[#9c958c] tabular-nums whitespace-nowrap shrink-0"
+                                        id="vo-time-indicator">00:00 / 00:24</span>
+                                </div>
+                                <!-- Scene Narration Transcript Box -->
+                                <div class="rounded bg-[#191610] border border-[#2e281f] p-2.5 space-y-1">
+                                    <div class="flex items-center justify-between text-[10px] text-[#9c958c]">
+                                        <span class="uppercase font-medium tracking-wide text-sandstone-400">Scene
+                                            Narration Transcript</span>
+                                        <span class="font-mono" id="vo-active-wordcount">108 words</span>
+                                    </div>
+                                    <p class="text-[11px] leading-relaxed text-sandstone-200" id="vo-active-transcript">
+                                        "For nearly two decades, distributed state was solved via Paxos. Devastatingly
+                                        dense mathematical proofs proved in commercial software to be torture. Paxos
+                                        described an island parliament where delegates wander in and out of debate halls
+                                        exchanging cryptic decrees."</p>
+                                </div>
+                                <!-- Dedicated Scene Action Buttons -->
+                                <div class="grid grid-cols-2 gap-2 pt-1 border-t border-[#2e281f] w-full"><button
+                                        class="flex items-center justify-center gap-1 rounded-lg border border-[#2e281f] bg-[#191610] px-2 py-1.5 text-xs font-medium text-sandstone-300 hover:bg-[#221e17] transition min-w-0 flex-1"
+                                        onclick="regenerateActiveSceneVo()" type="button"><span
+                                            class="material-symbols-outlined text-[14px] shrink-0">autorenew</span><span
+                                            class="truncate whitespace-nowrap text-[11px]">Re-generate</span></button><button
+                                        class="flex items-center justify-center gap-1 rounded-lg bg-sandstone-400/10 border border-sandstone-400/25 px-2 py-1.5 text-xs font-medium text-sandstone-300 hover:bg-sandstone-400 hover:text-obsidian-950 transition min-w-0 flex-1"
+                                        onclick="copyActiveSceneTranscript()" type="button"><span
+                                            class="material-symbols-outlined text-[14px] shrink-0">content_copy</span><span
+                                            class="truncate whitespace-nowrap text-[11px]">Copy
+                                            Transcript</span></button></div>
+                            </div>
+                        </div>
+                    </article>
+                    <!-- ==================== STEP 5: Assembled Video ==================== -->
+                    <article class="flex gap-3 items-start group">
+                        <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#191610] border border-status-success/40 text-status-success shadow-md shadow-status-success/10 z-10">
+                            <span class="material-symbols-outlined text-[18px] fill">check</span>
+                        </div>
+                        <div class="flex-1 rounded-xl border border-[#2e281f] bg-[#191610] p-3.5 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-[#f7f3ee]">05. Assembled Video</span>
+                                        <span
+                                            class="rounded bg-status-success/15 border border-status-success/25 px-1.5 py-0.2 text-[9px] font-semibold text-status-success">Completed</span>
+                                    </div>
+                                    <p class="text-[11px] text-[#9c958c]">
+                                    <div class="">Remotion Engine</div>
+                                    </p>
+                                </div>
+                                <span
+                                    class="rounded bg-sandstone-400/20 border border-sandstone-400/30 px-1.5 py-0.5 text-[9px] font-bold text-sandstone-300">4K
+                                    Master</span>
+                            </div>
+                            <!-- Full Master Video Player Frame -->
+                            <div
+                                class="relative aspect-video w-full rounded-lg border border-[#2e281f] bg-[#0c0a07] overflow-hidden">
+                                <div
+                                    class="absolute inset-0 bg-gradient-to-tr from-[#0c0a07] via-[#16130d] to-[#251e15] p-3 flex flex-col justify-between">
+                                    <div class="flex items-center justify-between gap-3 w-full"><span
+                                            class="rounded bg-obsidian-950/90 px-2 py-0.5 text-[10px] font-mono text-sandstone-300 border border-[#2e281f] truncate min-w-0 flex-1">DISTRIBUTED_ENGINE_EP04_MASTER.mp4</span><span
+                                            class="flex items-center gap-1 text-[10px] text-status-success font-mono whitespace-nowrap shrink-0"><span
+                                                class="h-1.5 w-1.5 rounded-full bg-status-success shrink-0"></span>
+                                            Rendered</span></div>
+                                    <div class="flex flex-col items-center justify-center">
+                                        <div class="h-11 w-11 rounded-full bg-sandstone-400 text-obsidian-950 flex items-center justify-center shadow-lg active:scale-95 transition cursor-pointer"
+                                            onclick="triggerToast('Streaming 4K assembled master preview...')">
+                                            <span
+                                                class="material-symbols-outlined text-[24px] fill ml-0.5">play_arrow</span>
+                                        </div>
+                                        <span class="mt-1.5 text-[11px] font-medium text-sandstone-200">Distributed
+                                            Consensus: Raft vs Paxos</span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-[10px] font-mono text-[#9c958c]">
+                                        <span class="">04:18.00</span>
+                                        <span class="">3840 x 2160 • 60 FPS • 614 MB</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Action Bar -->
+                            <div class="flex items-center justify-between pt-1">
+
+                                <div class="flex items-center gap-2">
+                                    <button
+                                        class="rounded-lg border border-[#2e281f] bg-[#221e17] px-2.5 py-1 text-[11px] font-medium text-sandstone-300 active:bg-[#2e281f] transition"
+                                        onclick="triggerToast('Re-encoding master with custom CRF...')" type="button">
+                                        Re-encode
+                                    </button>
+                                    <button
+                                        class="rounded-lg bg-sandstone-400 px-2.5 py-1 text-[11px] font-bold text-obsidian-950 hover:bg-sandstone-300 active:scale-95 transition whitespace-nowrap"
+                                        onclick="triggerToast('Downloading 4K Master Video (614 MB)')" type="button">
+                                        Download Master
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                    <!-- ==================== STEP 6: Thumbnail ==================== -->
+                    <article class="flex gap-3 items-start group">
+                        <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#191610] border border-status-success/40 text-status-success shadow-md shadow-status-success/10 z-10">
+                            <span class="material-symbols-outlined text-[18px] fill">check</span>
+                        </div>
+                        <div class="flex-1 rounded-xl border border-[#2e281f] bg-[#191610] p-3.5 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-[#f7f3ee]">06. Generated Thumbnail</span>
+                                        <span
+                                            class="rounded bg-status-success/15 border border-status-success/25 px-1.5 py-0.2 text-[9px] font-semibold text-status-success">Completed</span>
+                                    </div>
+                                    <p class="text-[11px] text-[#9c958c]"><span
+                                            style="color: rgb(217, 196, 175); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, &quot;Liberation Mono&quot;, &quot;Courier New&quot;, monospace; font-size: 10px; background-color: rgba(200, 178, 155, 0.15);"
+                                            class="">CTR 11.4% Est.</span>&nbsp;• 1920x1080</p>
+                                </div>
+
+                            </div>
+                            <!-- High-Res Thumbnail Mock Canvas -->
+                            <div
+                                class="relative aspect-video w-full rounded-lg border border-[#2e281f] bg-[#0c0a07] overflow-hidden">
+                                <div
+                                    class="absolute inset-0 bg-gradient-to-r from-[#191610] via-[#221e17] to-[#120f09] p-3.5 flex flex-col justify-between">
+                                    <div class="flex justify-between items-start">
+                                        <span
+                                            class="rounded bg-[#0c0a07]/80 px-2 py-0.5 text-[9px] font-mono text-sandstone-400 border border-[#2e281f]">VARIANT
+                                            A (HIGH CONTRAST)</span>
+                                        <span
+                                            class="rounded bg-status-success/20 text-status-success text-[9px] font-bold px-1.5 py-0.5">Top
+                                            Performer</span>
+                                    </div>
+                                    <!-- Split Visual Graphic Simulation -->
+                                    <div class="my-auto text-center space-y-1">
+                                        <div
+                                            class="inline-block text-base font-extrabold tracking-tight text-sandstone-100 bg-[#110e08]/90 px-3 py-1 rounded-md border border-[#c8b29b]/30">
+                                            Raft <span class="text-sandstone-400 font-light">vs</span> Paxos
+                                        </div>
+                                        <p class="text-[10px] text-[#c4b9ac] tracking-wide uppercase font-medium">Why
+                                            Paxos Broke in 2015</p>
+                                    </div>
+                                    <div class="flex justify-between text-[9px] text-[#9c958c] font-mono">
+                                        <span class="">1280x720 / 300 DPI</span>
+                                        <span class="">Safe zones checked</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Thumbnail Controls -->
+                            <div class="flex items-center justify-between pt-1">
+                                <div class="flex items-center gap-1.5">
+                                    <button
+                                        class="rounded-lg border border-[#2e281f] bg-[#221e17] px-2 py-1 text-[10px] font-medium text-sandstone-300 active:bg-[#2e281f]"
+                                        onclick="triggerToast('Switched to Variant B (Minimalist Monochrome)')"
+                                        type="button">
+                                        Variant B
+                                    </button>
+                                    <button
+                                        class="rounded-lg border border-[#2e281f] bg-[#221e17] px-2 py-1 text-[10px] font-medium text-sandstone-300 active:bg-[#2e281f]"
+                                        onclick="triggerToast('Regenerating AI variants...')" type="button">
+                                        Regenerate
+                                    </button>
+                                </div>
+                                <button
+                                    class="rounded-lg bg-sandstone-400 px-2.5 py-1 text-[11px] font-bold text-obsidian-950 hover:bg-sandstone-300 active:scale-95 transition whitespace-nowrap"
+                                    onclick="triggerToast('Downloading thumbnail PNG')" type="button">
+                                    Download Thumbnail
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                    <!-- ==================== STEP 7: Upload to Video ==================== -->
+                    <article class="flex gap-3 items-start group">
+                        <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#191610] border border-status-success/40 text-status-success shadow-md shadow-status-success/10 z-10">
+                            <span class="material-symbols-outlined text-[18px] fill">check</span>
+                        </div>
+                        <div class="flex-1 rounded-xl border border-[#2e281f] bg-[#191610] p-3.5 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-[#f7f3ee]">07. Upload to Video</span>
+                                        <span
+                                            class="rounded bg-status-success/15 border border-status-success/25 px-1.5 py-0.2 text-[9px] font-semibold text-status-success">Uploaded</span>
+                                    </div>
+                                    <p class="text-[11px] text-[#9c958c]">YouTube API Direct Dispatch • 4K UHD</p>
+                                </div>
+                                <span
+                                    class="rounded bg-[#221e17] border border-[#2e281f] px-2 py-0.5 text-[10px] font-mono text-sandstone-300">Private</span>
+                            </div>
+                            <!-- Uploaded Video Details Card -->
+                            <div class="rounded-lg border border-[#2e281f] bg-[#110e08]/90 p-3 space-y-2.5">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="flex h-6 w-6 items-center justify-center rounded bg-red-600/20 text-red-400 text-xs font-bold">
+                                            YT
+                                        </span>
+                                        <span
+                                            class="text-xs font-mono font-medium text-sandstone-200">youtu.be/dC7x9R1q0a</span>
+                                    </div>
+                                    <span class="text-[10px] text-status-success font-mono">100% Processed</span>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2 pt-1">
+                                    <button
+                                        class="flex items-center justify-center gap-1 rounded-lg border border-sandstone-400/25 bg-sandstone-400/10 py-1.5 text-xs font-semibold text-sandstone-300 hover:bg-sandstone-400 hover:text-obsidian-950 transition"
+                                        onclick="copyYoutubeLink('https://youtu.be/dC7x9R1q0a')" type="button">
+                                        <span class="material-symbols-outlined text-[15px]">content_copy</span> Copy
+                                        Video Link
+                                    </button>
+                                    <button
+                                        class="flex items-center justify-center gap-1 rounded-lg border border-[#2e281f] bg-[#221e17] py-1.5 text-xs font-semibold text-sandstone-200 hover:bg-[#2e281f] transition"
+                                        onclick="triggerToast('Opening YouTube Studio preview in new window')"
+                                        type="button">
+                                        <span class="material-symbols-outlined text-[15px]">open_in_new</span> Open
+                                        Video
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                    <!-- ==================== STEP 8: Shorts Derivative Packaging ==================== -->
+                    <article class="flex gap-3 items-start group min-w-0 w-full">
+                        <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#191610] border border-status-success/40 text-status-success shadow-md shadow-status-success/10 z-10">
+                            <span class="material-symbols-outlined text-[18px] fill">check</span>
+                        </div>
+                        <div
+                            class="flex-1 rounded-xl border border-[#2e281f] bg-[#191610] p-3.5 space-y-3 min-w-0 overflow-hidden">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-[#f7f3ee]">08. Shorts Derivative
+                                            Packaging</span>
+                                        <span
+                                            class="rounded bg-status-success/15 border border-status-success/25 px-1.5 py-0.2 text-[9px] font-semibold text-status-success">3
+                                            Ready</span>
+                                    </div>
+                                    <p class="text-[11px] text-[#9c958c]">Automated 9:16 slices with viral hooks &amp;
+                                        links</p>
+                                </div>
+
+                            </div>
+                            <!-- List of Generated Derivative Shorts -->
+                            <div class="space-y-3">
+                                <!-- Short Selector Tabs -->
+                                <div
+                                    class="flex items-center justify-between border-b border-[#2e281f] pb-2 text-[11px]">
+                                    <span
+                                        class="text-[10px] uppercase font-semibold tracking-wider text-sandstone-400 whitespace-nowrap">Derivative
+                                        Reels</span>
+                                    <div class="flex items-center gap-1">
+                                        <button type="button" onclick="prevShort()" aria-label="Previous short"
+                                            class="flex h-6 w-6 items-center justify-center rounded border border-[#2e281f] bg-[#221e17] text-[#9c958c] hover:text-sandstone-300 transition active:scale-95">
+                                            <span class="material-symbols-outlined text-[14px]">chevron_left</span>
+                                        </button>
+                                        <button type="button" onclick="nextShort()" aria-label="Next short"
+                                            class="flex h-6 w-6 items-center justify-center rounded border border-[#2e281f] bg-[#221e17] text-[#9c958c] hover:text-sandstone-300 transition active:scale-95">
+                                            <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full"
+                                    id="shorts-tab-strip">
+                                    <button
+                                        class="short-tab rounded-lg bg-sandstone-400 px-2.5 py-1 text-[10px] font-bold text-obsidian-950 whitespace-nowrap shrink-0"
+                                        onclick="selectShort(1)" type="button">1 • Two Generals</button>
+                                    <button
+                                        class="short-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300"
+                                        onclick="selectShort(2)" type="button">2 • Split-Brain</button>
+                                    <button
+                                        class="short-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300"
+                                        onclick="selectShort(3)" type="button">3 • Raft vs Paxos</button>
+                                </div>
+                                <!-- Active Short Detail Card -->
+                                <div class="rounded-lg border border-[#2e281f] bg-[#110e08]/90 p-3 space-y-2.5">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <span
+                                                class="rounded bg-[#221e17] border border-[#2e281f] px-1.5 py-0.5 text-[9px] font-mono text-sandstone-400 shrink-0"
+                                                id="short-active-num">1</span>
+                                            <h4 class="text-xs font-semibold text-[#f7f3ee] truncate"
+                                                id="short-active-title">The Two Generals Paradox</h4>
+                                        </div>
+                                        <span
+                                            class="text-[10px] font-mono text-status-success font-semibold whitespace-nowrap shrink-0"
+                                            id="short-active-retention">98% Ret. Score</span>
+                                    </div>
+                                    <!-- Viral Caption Box -->
+                                    <div
+                                        class="rounded bg-[#191610] border border-[#2e281f] p-2.5 text-[11px] text-sandstone-200">
+                                        <p class="italic leading-relaxed" id="short-active-caption">"Why 2 generals
+                                            cannot agree over an untrusted network. The fundamental curse that led to
+                                            distributed consensus algorithms. 🤯 #DistributedSystems
+                                            #SoftwareEngineering #TechTrivia #Raft"</p>
+                                    </div>
+                                    <!-- URL & Resolution Meta -->
+                                    <div
+                                        class="flex items-center justify-between text-[10px] font-mono text-[#9c958c] pt-0.5">
+                                        <span class="truncate text-sandstone-300"
+                                            id="short-active-url">youtube.com/shorts/rf92ka81</span>
+                                        <span class="whitespace-nowrap shrink-0" id="short-active-meta">48s • 9:16
+                                            UHD</span>
+                                    </div>
+                                    <!-- Interactive Action Buttons -->
+                                    <div class="grid grid-cols-2 gap-2 pt-1 border-t border-[#2e281f] w-full min-w-0">
+                                        <button
+                                            class="flex items-center justify-center gap-1 rounded bg-[#221e17] border border-[#2e281f] px-2 py-1.5 text-[11px] font-medium text-sandstone-300 hover:bg-[#2e281f] transition min-w-0"
+                                            onclick="copyActiveShortCaption()" type="button"><span
+                                                class="material-symbols-outlined text-[14px] shrink-0">content_copy</span><span
+                                                class="truncate">Copy Caption</span></button><button
+                                            class="flex items-center justify-center gap-1 rounded bg-sandstone-400/10 border border-sandstone-400/25 px-2 py-1.5 text-[11px] font-semibold text-sandstone-300 hover:bg-sandstone-400 hover:text-obsidian-950 transition min-w-0"
+                                            onclick="copyActiveShortLink()" type="button"><span
+                                                class="material-symbols-outlined text-[14px] shrink-0">link</span><span
+                                                class="truncate">Copy Link</span></button></div>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+            <!-- END: Connected 8-Step Pipeline Rail Graph -->
+        </main>
+        <!-- END: Main Canvas -->
+        <!-- BEGIN: Floating Toast Feedback -->
+        <aside
+            class="pointer-events-none fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-xl border border-[#c8b29b]/30 bg-[#16130d]/95 px-4 py-2.5 text-xs font-medium text-sandstone-200 shadow-2xl transition-opacity duration-300 whitespace-nowrap opacity-0"
+            id="toast-message">
+            <span class="material-symbols-outlined text-[17px] text-sandstone-400 fill">check_circle</span>
+            <span id="toast-text" class="">Switched to Variant B (Minimalist Monochrome)</span>
+        </aside>
+        <!-- END: Floating Toast Feedback -->
+        <!-- BEGIN: Serenity Standard 5-Tab Bottom Nav -->
+        <nav
+            class="fixed bottom-0 left-0 right-0 z-40 mx-auto max-w-[430px] border-t border-[#2e281f] bg-[#110e08]/95 px-3 py-2 backdrop-blur-xl">
+            <div class="grid grid-cols-5 items-center text-center">
+                <!-- Tab 1: Ideas -->
+                <a class="flex flex-col items-center gap-1 text-[#8b8377] transition hover:text-sandstone-300"
+                    href="#ideas">
+                    <span class="material-symbols-outlined text-[20px]">lightbulb</span>
+                    <span class="text-[10px] font-medium">Ideas</span>
+                </a>
+                <!-- Tab 2: Series -->
+                <a class="flex flex-col items-center gap-1 text-[#8b8377] transition hover:text-sandstone-300"
+                    href="#series">
+                    <span class="material-symbols-outlined text-[20px]">auto_stories</span>
+                    <span class="text-[10px] font-medium">Series</span>
+                </a>
+                <!-- Tab 3: Schedule -->
+                <a class="flex flex-col items-center gap-1 text-[#8b8377] transition hover:text-sandstone-300"
+                    href="#schedule">
+                    <span class="material-symbols-outlined text-[20px]">calendar_today</span>
+                    <span class="text-[10px] font-medium">Calendar</span>
+                </a>
+                <!-- Tab 4: Pipeline (ACTIVE) -->
+                <a class="relative flex flex-col items-center gap-1 text-sandstone-400 font-semibold" href="#pipeline">
+                    <span class="material-symbols-outlined text-[20px] fill">view_kanban</span>
+                    <span class="text-[10px] tracking-wide">Pipeline</span>
+                    <span class="absolute -bottom-1 h-1 w-1 rounded-full bg-sandstone-400"></span>
+                </a>
+                <!-- Tab 5: Community -->
+                <a class="flex flex-col items-center gap-1 text-[#8b8377] transition hover:text-sandstone-300"
+                    href="#community">
+                    <span class="material-symbols-outlined text-[20px]">forum</span>
+                    <span class="text-[10px] font-medium">Audience</span>
+                </a>
+            </div>
+        </nav>
+        <!-- END: Serenity Standard 5-Tab Bottom Nav -->
+    </div>
+    <!-- Interactive Logic -->
+    <script>
+        // Script scenes data
+        const scriptScenes = {
+            1: {
+                title: "Scene 01: The Illusion of Order",
+                meta: "18s • 84 words",
+                text: "Imagine two million transactions struck across 500 servers globally. In one corner: a financial broker executes leaves on Wall Street. Simultaneously in London, someone else deposits an identical ledger line. Without strict distributed consensus, your bank balance becomes whatever server picked up your call first."
+            },
+            2: {
+                title: "Scene 02: Enter Leslie Lamport",
+                meta: "24s • 108 words",
+                text: "For nearly two decades, distributed state was solved via Paxos. Devastatingly dense mathematical proofs proved in commercial software to be torture. Paxos described an island parliament where delegates wander in and out of debate halls exchanging cryptic decrees."
+            },
+            3: {
+                title: "Scene 03: The Raft Revolution (2014)",
+                meta: "21s • 95 words",
+                text: "In 2014, Diego Ongaro and John Ousterhout introduced Raft with an explicit singular design constraint: Understandability. Unlike Paxos, Raft explicitly formalizes state progression under a single, strong leader elected through randomized heartbeats."
+            },
+            4: {
+                title: "Scene 04: Split-Brain & The Quorum Guard",
+                meta: "19s • 88 words",
+                text: "Raft manages split-brain by relying on a strict quorum. If a five-node cluster partitions into two and three, only the trio with majority can elect a valid leader and commit entries forward. The minority partition simply pauses log commits."
+            },
+            5: {
+                title: "Scene 05: Leader Elections in Real Time",
+                meta: "22s • 98 words",
+                text: "Once a leader dies, candidate timers trigger. Random timeouts between 150ms and 300ms ensure nodes do not constantly contest votes simultaneously. First candidate to accumulate (N/2)+1 votes claims immediate leadership."
+            },
+            6: {
+                title: "Scene 06: Failover Latency Tradeoffs",
+                meta: "16s • 76 words",
+                text: "What happens to the logs on the losing node? Raft forces unconditional truncation. The newly authoritative leader overwrites any uncommitted conflicting indices, re-establishing linear history."
+            },
+            7: {
+                title: "Scene 07: The Verdict for Systems Engineers",
+                meta: "17s • 93 words",
+                text: "Today, Raft sits at the core of Kubernetes (etcd), CockroachDB, and TiKV. While Multi-Paxos powers massive hyperscale cloud backbones, Raft brought resilient consensus to every engineer on earth."
+            }
+        };
+
+        function selectScriptScene(idx) {
+            const data = scriptScenes[idx];
+            if (!data) return;
+            document.getElementById('script-scene-title').innerText = data.title;
+            document.getElementById('script-scene-meta').innerText = data.meta;
+            document.getElementById('script-scene-content').innerText = data.text;
+
+            const tabs = document.querySelectorAll('.scene-tab');
+            tabs.forEach((tab, index) => {
+                if (index === idx - 1) {
+                    tab.className = 'scene-tab rounded-lg bg-sandstone-400 px-2.5 py-1 text-[11px] font-bold text-obsidian-950 whitespace-nowrap';
+                } else {
+                    tab.className = 'scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[11px] font-medium text-[#9c958c] whitespace-nowrap';
+                }
+            });
+        }
+
+        function toggleAccordion(bodyId, arrowId) {
+            const body = document.getElementById(bodyId);
+            const arrow = document.getElementById(arrowId);
+            if (body.classList.contains('hidden')) {
+                body.classList.remove('hidden');
+                arrow.classList.remove('rotate-180');
+            } else {
+                body.classList.add('hidden');
+                arrow.classList.add('rotate-180');
+            }
+        }
+
+        function switchSceneVideo(idx, name, dur, fps, res) {
+            document.getElementById('render-scene-chip').innerText = `Scene 0${idx}: ${name}`;
+            document.getElementById('render-scene-duration').innerText = `Duration: ${dur} • ${fps}`;
+            document.getElementById('render-scene-res').innerText = res;
+
+            const btns = document.querySelectorAll('.scene-render-btn');
+            btns.forEach((btn, index) => {
+                if (index === idx - 1) {
+                    btn.className = 'scene-render-btn px-2 py-1 rounded bg-sandstone-400 text-obsidian-950 text-[10px] font-bold whitespace-nowrap';
+                } else {
+                    btn.className = 'scene-render-btn px-2 py-1 rounded bg-[#221e17] border border-[#2e281f] text-[#9c958c] text-[10px] font-medium whitespace-nowrap';
+                }
+            });
+        }
+
+        function toggleRenderLogs() {
+            const logs = document.getElementById('render-logs-box');
+            logs.classList.toggle('hidden');
+        }
+
+        let isVoPlaying = false;
+        function toggleVoiceoverAudio() {
+            isVoPlaying = !isVoPlaying;
+            const icon = document.getElementById('vo-play-icon');
+            const time = document.getElementById('vo-time-indicator');
+            if (isVoPlaying) {
+                icon.innerText = 'pause';
+                time.innerText = '01:14 / 02:17';
+                triggerToast('Streaming audio synthesis waveform...');
+            } else {
+                icon.innerText = 'play_arrow';
+                time.innerText = '00:48 / 02:17';
+            }
+        }
+
+        function toggleTranscriptViewer() {
+            const box = document.getElementById('transcript-inspect-box');
+            box.classList.toggle('hidden');
+        }
+
+        function copyFullTranscript() {
+            navigator.clipboard?.writeText(document.getElementById('transcript-inspect-box').innerText);
+            triggerToast('Full 7-scene transcript copied to clipboard!');
+        }
+
+        function copyCaptionText(elementId) {
+            const txt = document.getElementById(elementId).innerText;
+            navigator.clipboard?.writeText(txt);
+            triggerToast('Short viral caption copied to clipboard!');
+        }
+
+        function copyShortLink(url) {
+            navigator.clipboard?.writeText(url);
+            triggerToast(`Copied short link: ${url}`);
+        }
+
+        function copyYoutubeLink(url) {
+            navigator.clipboard?.writeText(url);
+            triggerToast(`Copied master link: ${url}`);
+        }
+
+        let toastTimer;
+        function triggerToast(message) {
+            const toast = document.getElementById('toast-message');
+            const text = document.getElementById('toast-text');
+            text.innerText = message;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2600);
+        }
+    </script>
+    <script>
+        let currentVoScene = 1;
+        const voSceneData = {
+            1: {
+                title: "Scene 01 • The Illusion of Order",
+                duration: "18s Duration",
+                time: "00:00 / 00:18",
+                words: "84 words",
+                text: "\"Imagine two million transactions struck across 500 servers globally. In one corner: a financial broker executes leaves on Wall Street. Simultaneously in London, someone else deposits an identical ledger line. Without strict distributed consensus, your bank balance becomes whatever server picked up your call first.\""
+            },
+            2: {
+                title: "Scene 02 • Enter Leslie Lamport",
+                duration: "24s Duration",
+                time: "00:00 / 00:24",
+                words: "108 words",
+                text: "\"For nearly two decades, distributed state was solved via Paxos. Devastatingly dense mathematical proofs proved in commercial software to be torture. Paxos described an island parliament where delegates wander in and out of debate halls exchanging cryptic decrees.\""
+            },
+            3: {
+                title: "Scene 03 • The Raft Revolution (2014)",
+                duration: "21s Duration",
+                time: "00:00 / 00:21",
+                words: "95 words",
+                text: "\"In 2014, Diego Ongaro and John Ousterhout introduced Raft with an explicit singular design constraint: Understandability. Unlike Paxos, Raft explicitly formalizes state progression under a single, strong leader elected through randomized heartbeats.\""
+            },
+            4: {
+                title: "Scene 04 • Split-Brain & Quorum Guard",
+                duration: "19s Duration",
+                time: "00:00 / 00:19",
+                words: "88 words",
+                text: "\"Raft manages split-brain by relying on a strict quorum. If a five-node cluster partitions into two and three, only the trio with majority can elect a valid leader and commit entries forward. The minority partition simply pauses log commits.\""
+            },
+            5: {
+                title: "Scene 05 • Leader Elections in Real Time",
+                duration: "22s Duration",
+                time: "00:00 / 00:22",
+                words: "98 words",
+                text: "\"Once a leader dies, candidate timers trigger. Random timeouts between 150ms and 300ms ensure nodes do not constantly contest votes simultaneously. First candidate to accumulate (N/2)+1 votes claims immediate leadership.\""
+            },
+            6: {
+                title: "Scene 06 • Failover Latency Tradeoffs",
+                duration: "16s Duration",
+                time: "00:00 / 00:16",
+                words: "76 words",
+                text: "\"What happens to the logs on the losing node? Raft forces unconditional truncation. The newly authoritative leader overwrites any uncommitted conflicting indices, re-establishing linear history.\""
+            },
+            7: {
+                title: "Scene 07 • The Verdict for Engineers",
+                duration: "17s Duration",
+                time: "00:00 / 00:17",
+                words: "93 words",
+                text: "\"Today, Raft sits at the core of Kubernetes (etcd), CockroachDB, and TiKV. While Multi-Paxos powers massive hyperscale cloud backbones, Raft brought resilient consensus to every engineer on earth.\""
+            }
+        };
+
+        function selectVoiceoverScene(idx) {
+            currentVoScene = idx;
+            const data = voSceneData[idx];
+            if (!data) return;
+            document.getElementById('vo-active-title').innerText = data.title;
+            document.getElementById('vo-active-badge').innerText = data.duration;
+            document.getElementById('vo-active-wordcount').innerText = data.words;
+            document.getElementById('vo-active-transcript').innerText = data.text;
+            document.getElementById('vo-time-indicator').innerText = data.time;
+
+            const icon = document.getElementById('vo-play-icon');
+            if (icon) icon.innerText = 'play_arrow';
+            isVoPlaying = false;
+
+            const tabs = document.querySelectorAll('.vo-scene-tab');
+            tabs.forEach((tab, index) => {
+                if (index === idx - 1) {
+                    tab.className = 'vo-scene-tab rounded-lg bg-sandstone-400 px-2.5 py-1 text-[10px] font-bold text-obsidian-950 whitespace-nowrap shrink-0';
+                } else {
+                    tab.className = 'vo-scene-tab rounded-lg bg-[#221e17] border border-[#2e281f] px-2.5 py-1 text-[10px] font-medium text-[#9c958c] whitespace-nowrap shrink-0 hover:text-sandstone-300';
+                }
+            });
+        }
+
+        function copyActiveSceneTranscript() {
+            const txt = document.getElementById('vo-active-transcript').innerText;
+            navigator.clipboard?.writeText(txt);
+            triggerToast(`Scene ${currentVoScene} transcript copied to clipboard!`);
+        }
+
+        function regenerateActiveSceneVo() {
+            triggerToast(`Re-generating neural voice synthesis for Scene ${currentVoScene}...`);
+        }
+
+        let isPlayingAll = false;
+        function togglePlayAllSequentially() {
+            isPlayingAll = !isPlayingAll;
+            const lbl = document.getElementById('master-play-all-label');
+            const ico = document.getElementById('master-play-all-icon');
+            if (isPlayingAll) {
+                ico.innerText = 'stop';
+                lbl.innerText = 'Playing 1-7';
+                triggerToast('Playing all 7 scenes continuously (4m 18s total)');
+            } else {
+                ico.innerText = 'playlist_play';
+                lbl.innerText = 'Play All Scenes';
+                triggerToast('Sequential scene playback paused');
+            }
+        }
+    </script>
+
+</body>
+
+</html>

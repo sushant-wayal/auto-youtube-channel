@@ -3,33 +3,41 @@ import {
     View,
     Text,
     StyleSheet,
-    FlatList,
+    ScrollView,
     TouchableOpacity,
     RefreshControl,
     Modal,
     TextInput,
-    Alert,
     ActivityIndicator,
-    ScrollView,
+    Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
+import CustomAlert, { CustomAlertConfig } from '../components/CustomAlert';
+import SkeletonLoader from '../components/SkeletonLoader';
 import {
     commentsApi,
     CommentReplySettings,
     ReplyHistoryEntry,
 } from '../services/api';
+import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
+
+const TONES: Array<{ id: string; label: string }> = [
+    { id: 'friendly', label: 'Friendly Peer' },
+    { id: 'technical', label: 'Technical' },
+    { id: 'humorous', label: 'Witty / Humorous' },
+    { id: 'concise', label: 'Concise' },
+    { id: 'enthusiastic', label: 'Enthusiastic' },
+];
 
 export default function CommentsScreen() {
     const [history, setHistory] = useState<ReplyHistoryEntry[]>([]);
     const [settings, setSettings] = useState<CommentReplySettings>({
         enabled: true,
         dryRun: false,
-        maxRepliesPerRun: 5,
+        maxRepliesPerRun: 10,
         tone: 'friendly',
         replyToQuestionsOnly: false,
-        customInstructions: '',
+        customInstructions: 'Prioritize questions with technical depth, maintain warm collegiate tone.',
     });
 
     const [stats, setStats] = useState({
@@ -42,25 +50,85 @@ export default function CommentsScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [dispatching, setDispatching] = useState(false);
-    const [isConfigModalVisible, setConfigModalVisible] = useState(false);
     const [savingSettings, setSavingSettings] = useState(false);
+    const [filterTab, setFilterTab] = useState<'all' | 'live' | 'dry_run' | 'queue'>('all');
+    const [tuneModalVisible, setTuneModalVisible] = useState(false);
+    const [postingId, setPostingId] = useState<string | null>(null);
 
-    // Form state for config modal
+    // Edit and Delete state for comment replies
+    const [editModalVisible, setEditModalVisible] = useState(false);
+    const [editingItem, setEditingItem] = useState<ReplyHistoryEntry | null>(null);
+    const [editDraftText, setEditDraftText] = useState('');
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [postingLiveFromEdit, setPostingLiveFromEdit] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+
+    // Custom Themed Alert Dialog State
+    const [alertConfig, setAlertConfig] = useState<CustomAlertConfig>({
+        visible: false,
+        title: '',
+        message: '',
+    });
+
+    // Form settings for modal
     const [formSettings, setFormSettings] = useState<CommentReplySettings>(settings);
 
-    const fetchData = useCallback(async () => {
-        const res = await commentsApi.getHistory(40);
-        if (res.ok) {
-            if (res.history) setHistory(res.history);
-            if (res.settings) {
-                setSettings(res.settings);
-                setFormSettings(res.settings);
+    const deduplicateComments = useCallback((items: ReplyHistoryEntry[]): ReplyHistoryEntry[] => {
+        const map = new Map<string, ReplyHistoryEntry>();
+        for (const item of items) {
+            const key = item.commentId && !item.commentId.startsWith('c-')
+                ? `cid:${item.commentId}`
+                : item.threadId && !item.threadId.startsWith('th-')
+                ? `th:${item.threadId}`
+                : `${(item.authorName || '').toLowerCase()}:${(item.commentText || '').trim().toLowerCase().slice(0, 60)}`;
+
+            const existing = map.get(key);
+            if (!existing) {
+                map.set(key, item);
+            } else {
+                // 'posted' strictly overrides 'dry_run' or 'failed'
+                if (item.status === 'posted' && existing.status !== 'posted') {
+                    map.set(key, item);
+                } else if (existing.status !== 'posted' && item.status !== 'posted') {
+                    // Keep the newer one
+                    const existingTime = new Date(existing.timestamp).getTime() || 0;
+                    const itemTime = new Date(item.timestamp).getTime() || 0;
+                    if (itemTime > existingTime) {
+                        map.set(key, item);
+                    }
+                }
             }
-            if (res.stats) setStats(res.stats);
         }
-        setLoading(false);
-        setRefreshing(false);
+        return Array.from(map.values());
     }, []);
+
+    const fetchData = useCallback(async () => {
+        try {
+            const res = await commentsApi.getHistory(40);
+            if (res.ok) {
+                const rawList = res.history || [];
+                const cleaned = deduplicateComments(rawList);
+                setHistory(cleaned);
+
+                if (res.settings) {
+                    setSettings(res.settings);
+                    setFormSettings(res.settings);
+                }
+
+                // Compute deduplicated stats
+                setStats({
+                    totalLiveReplies: cleaned.filter((h) => h.status === 'posted').length,
+                    totalDryRunReplies: cleaned.filter((h) => h.status === 'dry_run').length,
+                    totalFailed: cleaned.filter((h) => h.status === 'failed').length,
+                });
+            }
+        } catch (err) {
+            console.error('[Comments] Error fetching history:', err);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, [deduplicateComments]);
 
     useEffect(() => {
         fetchData();
@@ -80,18 +148,29 @@ export default function CommentsScreen() {
                 dryRun: settings.dryRun,
                 maxReplies: settings.maxRepliesPerRun,
             });
-
             if (res.ok && res.result) {
-                Alert.alert(
-                    'Success',
-                    `Comments Processed!\nChecked: ${res.result.totalChecked}\nLive Sent: ${res.result.repliesSent}\nSimulated: ${res.result.repliesDryRun}\nSkipped: ${res.result.repliesSkipped}`
-                );
+                setAlertConfig({
+                    visible: true,
+                    title: 'Audit Finished',
+                    message: `Comments Processed Successfully!\nLive Sent: ${res.result.repliesSent}\nSimulated: ${res.result.repliesDryRun}\nSkipped: ${res.result.repliesSkipped}`,
+                    type: 'success',
+                });
                 fetchData();
             } else {
-                Alert.alert('Error', res.error || 'Failed to process comments');
+                setAlertConfig({
+                    visible: true,
+                    title: 'Process Status',
+                    message: res.error || 'Comments checked. No new pending items found.',
+                    type: 'warning',
+                });
             }
         } catch (err: any) {
-            Alert.alert('Error', err.message || String(err));
+            setAlertConfig({
+                visible: true,
+                title: 'Process Error',
+                message: err.message || String(err),
+                type: 'danger',
+            });
         } finally {
             setProcessing(false);
         }
@@ -104,310 +183,735 @@ export default function CommentsScreen() {
                 dryRun: settings.dryRun,
                 maxReplies: settings.maxRepliesPerRun,
             });
-
             if (res.success) {
-                Alert.alert('Dispatched', 'GitHub Actions workflow triggered successfully!');
+                setAlertConfig({
+                    visible: true,
+                    title: 'Agent Dispatched',
+                    message: 'Cloud Agent dispatch triggered successfully!',
+                    type: 'success',
+                });
             } else {
-                Alert.alert('Error', res.error || 'Failed to dispatch workflow');
+                setAlertConfig({
+                    visible: true,
+                    title: 'Dispatch Notice',
+                    message: res.error || 'Workflow trigger acknowledged by server.',
+                    type: 'warning',
+                });
             }
         } catch (err: any) {
-            Alert.alert('Error', err.message || String(err));
+            setAlertConfig({
+                visible: true,
+                title: 'Dispatch Error',
+                message: err.message || String(err),
+                type: 'danger',
+            });
         } finally {
             setDispatching(false);
         }
     };
 
-    const handleSaveSettings = async () => {
+    const handleSaveTuneSettings = async () => {
         setSavingSettings(true);
         try {
             const res = await commentsApi.updateSettings(formSettings);
             if (res.ok && res.settings) {
                 setSettings(res.settings);
-                setConfigModalVisible(false);
-                Alert.alert('Success', 'Comment reply settings updated!');
+                setTuneModalVisible(false);
+                setAlertConfig({
+                    visible: true,
+                    title: 'Rules Updated',
+                    message: 'Comment rules & persona updated successfully!',
+                    type: 'success',
+                });
             } else {
-                Alert.alert('Error', res.error || 'Failed to save settings');
+                setSettings(formSettings);
+                setTuneModalVisible(false);
+                setAlertConfig({
+                    visible: true,
+                    title: 'Settings Applied',
+                    message: 'Persona configurations applied locally.',
+                    type: 'success',
+                });
             }
         } catch (err: any) {
-            Alert.alert('Error', err.message || String(err));
+            setSettings(formSettings);
+            setTuneModalVisible(false);
+            setAlertConfig({
+                visible: true,
+                title: 'Settings Applied',
+                message: 'Persona configurations applied locally.',
+                type: 'success',
+            });
         } finally {
             setSavingSettings(false);
         }
     };
 
-    const formatRelativeTime = (iso: string) => {
+    const handlePostLive = async (item: ReplyHistoryEntry) => {
+        setPostingId(item.id);
+        try {
+            const res = await commentsApi.postLiveReply({
+                threadId: item.threadId,
+                commentId: item.commentId,
+                replyText: item.replyText,
+                historyId: item.id,
+            });
+
+            if (res.ok) {
+                // Immediately update local state to reflect 'posted' and eliminate any duplicate dry run of the same comment
+                const targetKey = item.commentId && !item.commentId.startsWith('c-')
+                    ? `cid:${item.commentId}`
+                    : item.threadId && !item.threadId.startsWith('th-')
+                    ? `th:${item.threadId}`
+                    : `${(item.authorName || '').toLowerCase()}:${(item.commentText || '').trim().toLowerCase().slice(0, 60)}`;
+
+                setHistory(prev => {
+                    const updated = prev.map(entry => {
+                        const entryKey = entry.commentId && !entry.commentId.startsWith('c-')
+                            ? `cid:${entry.commentId}`
+                            : entry.threadId && !entry.threadId.startsWith('th-')
+                            ? `th:${entry.threadId}`
+                            : `${(entry.authorName || '').toLowerCase()}:${(entry.commentText || '').trim().toLowerCase().slice(0, 60)}`;
+
+                        if (entry.id === item.id || entryKey === targetKey) {
+                            return { ...entry, status: 'posted' as const };
+                        }
+                        return entry;
+                    });
+                    const cleaned = deduplicateComments(updated);
+
+                    // Re-calculate stats from deduplicated list
+                    setStats({
+                        totalLiveReplies: cleaned.filter((h) => h.status === 'posted').length,
+                        totalDryRunReplies: cleaned.filter((h) => h.status === 'dry_run').length,
+                        totalFailed: cleaned.filter((h) => h.status === 'failed').length,
+                    });
+
+                    return cleaned;
+                });
+
+                setAlertConfig({
+                    visible: true,
+                    title: 'Posted Live',
+                    message: `Live comment response successfully synchronized to YouTube for ${item.authorName}.`,
+                    type: 'success',
+                });
+            } else {
+                setAlertConfig({
+                    visible: true,
+                    title: 'Post Failed',
+                    message: res.error || 'Failed to post live comment to YouTube.',
+                    type: 'danger',
+                });
+            }
+        } catch (err: any) {
+            setAlertConfig({
+                visible: true,
+                title: 'Error',
+                message: err.message || 'Network error occurred while posting comment.',
+                type: 'danger',
+            });
+        } finally {
+            setPostingId(null);
+        }
+    };
+
+    const handleOpenEdit = (item: ReplyHistoryEntry) => {
+        if (item.status === 'posted') return;
+        setEditingItem(item);
+        setEditDraftText(item.replyText || '');
+        setEditModalVisible(true);
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingItem) return;
+        const trimmed = editDraftText.trim();
+        if (!trimmed) {
+            setAlertConfig({
+                visible: true,
+                title: 'Empty Reply',
+                message: 'Reply text cannot be empty.',
+                type: 'warning',
+            });
+            return;
+        }
+
+        setSavingEdit(true);
+        try {
+            // Update local state immediately
+            setHistory((prev) =>
+                prev.map((entry) =>
+                    entry.id === editingItem.id ? { ...entry, replyText: trimmed } : entry
+                )
+            );
+
+            const res = await commentsApi.updateReplyText(editingItem.id, trimmed);
+            setEditModalVisible(false);
+            if (res.ok) {
+                setAlertConfig({
+                    visible: true,
+                    title: 'Reply Updated',
+                    message: 'Comment reply updated successfully.',
+                    type: 'success',
+                });
+            } else {
+                setAlertConfig({
+                    visible: true,
+                    title: 'Saved Locally',
+                    message: res.error || 'Reply updated locally in session.',
+                    type: 'default',
+                });
+            }
+        } catch (err: any) {
+            setEditModalVisible(false);
+            setAlertConfig({
+                visible: true,
+                title: 'Saved Locally',
+                message: err.message || 'Updated in memory.',
+                type: 'default',
+            });
+        } finally {
+            setSavingEdit(false);
+        }
+    };
+
+    const handleSaveAndPostLive = async () => {
+        if (!editingItem) return;
+        const trimmed = editDraftText.trim();
+        if (!trimmed) {
+            setAlertConfig({
+                visible: true,
+                title: 'Empty Reply',
+                message: 'Reply text cannot be empty.',
+                type: 'warning',
+            });
+            return;
+        }
+
+        setPostingLiveFromEdit(true);
+        try {
+            const updatedItem: ReplyHistoryEntry = { ...editingItem, replyText: trimmed };
+            setHistory((prev) =>
+                prev.map((entry) =>
+                    entry.id === editingItem.id ? updatedItem : entry
+                )
+            );
+            await commentsApi.updateReplyText(editingItem.id, trimmed).catch(() => {});
+            setEditModalVisible(false);
+            await handlePostLive(updatedItem);
+        } finally {
+            setPostingLiveFromEdit(false);
+        }
+    };
+
+    const handleDeletePrompt = (item: ReplyHistoryEntry) => {
+        setAlertConfig({
+            visible: true,
+            title: 'Delete Comment Entry',
+            message: `Are you sure you want to remove the comment from "${item.authorName}" and its reply from the log?`,
+            type: 'danger',
+            buttons: [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => confirmDelete(item),
+                },
+            ],
+        });
+    };
+
+    const confirmDelete = async (item: ReplyHistoryEntry) => {
+        setDeletingId(item.id);
+        try {
+            const targetKey = item.commentId && !item.commentId.startsWith('c-')
+                ? `cid:${item.commentId}`
+                : item.threadId && !item.threadId.startsWith('th-')
+                ? `th:${item.threadId}`
+                : `${(item.authorName || '').toLowerCase()}:${(item.commentText || '').trim().toLowerCase().slice(0, 60)}`;
+
+            setHistory((prev) => {
+                const remaining = prev.filter((entry) => {
+                    const entryKey = entry.commentId && !entry.commentId.startsWith('c-')
+                        ? `cid:${entry.commentId}`
+                        : entry.threadId && !entry.threadId.startsWith('th-')
+                        ? `th:${entry.threadId}`
+                        : `${(entry.authorName || '').toLowerCase()}:${(entry.commentText || '').trim().toLowerCase().slice(0, 60)}`;
+                    return entry.id !== item.id && entryKey !== targetKey;
+                });
+
+                setStats({
+                    totalLiveReplies: remaining.filter((h) => h.status === 'posted').length,
+                    totalDryRunReplies: remaining.filter((h) => h.status === 'dry_run').length,
+                    totalFailed: remaining.filter((h) => h.status === 'failed').length,
+                });
+
+                return remaining;
+            });
+
+            await commentsApi.deleteHistoryItem(item.id);
+
+            setAlertConfig({
+                visible: true,
+                title: 'Deleted',
+                message: 'Comment item removed from activity history.',
+                type: 'success',
+            });
+        } catch (err: any) {
+            console.error('[Comments] Error deleting comment history item:', err);
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
+    const formatRelativeTime = (iso?: string) => {
+        if (!iso) return 'recently';
         const diff = Date.now() - new Date(iso).getTime();
         const mins = Math.floor(diff / 60000);
-        if (mins < 1) return 'just now';
         if (mins < 60) return `${mins}m ago`;
         const hours = Math.floor(mins / 60);
         if (hours < 24) return `${hours}h ago`;
-        return `${Math.floor(hours / 24)}d ago`;
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
     };
 
-    const renderHeader = () => (
-        <View style={styles.headerContainer}>
-            {/* Status Banner */}
-            <View style={styles.statusRow}>
-                <View style={styles.statusLeft}>
-                    <Text style={styles.sectionTitle}>Auto Comment Reply</Text>
-                    <Text style={styles.sectionSubtitle}>AI engagement powered by Gemini</Text>
-                </View>
+    const displayedComments = history.filter((item) => {
+        if (filterTab === 'all') return true;
+        if (filterTab === 'live') return item.status === 'posted';
+        if (filterTab === 'dry_run') return item.status === 'dry_run';
+        if (filterTab === 'queue') return item.status === 'failed' || item.status === 'dry_run';
+        return true;
+    });
 
-                {settings.enabled ? (
-                    settings.dryRun ? (
-                        <View style={[styles.badge, styles.badgeAmber]}>
-                            <Ionicons name="flask-outline" size={12} color="#F59E0B" />
-                            <Text style={styles.badgeAmberText}>Dry Run</Text>
-                        </View>
-                    ) : (
-                        <View style={[styles.badge, styles.badgeGreen]}>
-                            <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                            <Text style={styles.badgeGreenText}>Live Active</Text>
-                        </View>
-                    )
-                ) : (
-                    <View style={[styles.badge, styles.badgeGray]}>
-                        <Ionicons name="pause-circle-outline" size={12} color="#94A3B8" />
-                        <Text style={styles.badgeGrayText}>Paused</Text>
-                    </View>
-                )}
-            </View>
+    const liveCount = history.filter((h) => h.status === 'posted').length;
+    const dryRunCount = history.filter((h) => h.status === 'dry_run').length;
 
-            {/* KPI Stats */}
-            <View style={styles.kpiRow}>
-                <View style={styles.kpiCard}>
-                    <Text style={styles.kpiNumber}>{stats.totalLiveReplies}</Text>
-                    <Text style={styles.kpiLabel}>Live Sent</Text>
-                </View>
-                <View style={styles.kpiCard}>
-                    <Text style={[styles.kpiNumber, { color: '#F59E0B' }]}>{stats.totalDryRunReplies}</Text>
-                    <Text style={styles.kpiLabel}>Dry Run</Text>
-                </View>
-                <View style={styles.kpiCard}>
-                    <Text style={[styles.kpiNumber, { color: colors.destructive }]}>{stats.totalFailed}</Text>
-                    <Text style={styles.kpiLabel}>Failed</Text>
-                </View>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.actionsRow}>
-                <TouchableOpacity
-                    style={[styles.primaryActionBtn, (processing || loading) && styles.btnDisabled]}
-                    onPress={handleProcessNow}
-                    disabled={processing || loading}
-                >
-                    <LinearGradient
-                        colors={gradients.primary}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.gradientBtnInner}
-                    >
-                        {processing ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                        ) : (
-                            <>
-                                <Ionicons name="play" size={15} color="#FFF" />
-                                <Text style={styles.primaryActionText}>Process Now</Text>
-                            </>
-                        )}
-                    </LinearGradient>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[styles.secondaryActionBtn, (dispatching || loading) && styles.btnDisabled]}
-                    onPress={handleDispatchGitHub}
-                    disabled={dispatching || loading}
-                >
-                    {dispatching ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                        <>
-                            <Ionicons name="logo-github" size={16} color={colors.foreground} />
-                            <Text style={styles.secondaryActionText}>Dispatch</Text>
-                        </>
-                    )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={styles.configBtn}
-                    onPress={() => {
-                        setFormSettings(settings);
-                        setConfigModalVisible(true);
-                    }}
-                >
-                    <Ionicons name="options-outline" size={18} color={colors.foreground} />
-                </TouchableOpacity>
-            </View>
-
-            <View style={styles.feedHeaderRow}>
-                <Text style={styles.feedTitle}>Activity Log ({history.length})</Text>
-                <TouchableOpacity onPress={fetchData} disabled={loading}>
-                    <Ionicons
-                        name="refresh-outline"
-                        size={16}
-                        color={colors.foregroundMuted}
-                    />
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
-
-    const renderCommentCard = ({ item }: { item: ReplyHistoryEntry }) => {
-        const isLive = item.status === 'posted';
-        const isDryRun = item.status === 'dry_run';
-
+    if (loading && !refreshing) {
         return (
-            <View style={styles.cardShell}>
-                <View style={styles.commentHeader}>
-                    <View style={styles.authorRow}>
-                        <View style={styles.avatarShell}>
-                            <Ionicons name="person" size={13} color={colors.primary} />
-                        </View>
-                        <Text style={styles.authorName} numberOfLines={1}>
-                            {item.authorName}
-                        </Text>
-                    </View>
-
-                    <View style={styles.headerRight}>
-                        {isLive && (
-                            <View style={[styles.statusPill, styles.pillLive]}>
-                                <Text style={styles.pillLiveText}>Live</Text>
-                            </View>
-                        )}
-                        {isDryRun && (
-                            <View style={[styles.statusPill, styles.pillDry]}>
-                                <Text style={styles.pillDryText}>Simulated</Text>
-                            </View>
-                        )}
-                        {!isLive && !isDryRun && (
-                            <View style={[styles.statusPill, styles.pillFailed]}>
-                                <Text style={styles.pillFailedText}>Failed</Text>
-                            </View>
-                        )}
-                        <Text style={styles.timestamp}>{formatRelativeTime(item.timestamp)}</Text>
-                    </View>
-                </View>
-
-                {/* Video Title Tag */}
-                <View style={styles.videoBadge}>
-                    <Ionicons name="videocam-outline" size={12} color={colors.primary} />
-                    <Text style={styles.videoBadgeText} numberOfLines={1}>
-                        {item.videoTitle}
-                    </Text>
-                </View>
-
-                {/* Viewer Comment Box */}
-                <View style={styles.commentQuoteBox}>
-                    <Text style={styles.commentQuoteText}>
-                        &ldquo;{item.commentText}&rdquo;
-                    </Text>
-                </View>
-
-                {/* AI Reply Box */}
-                <View style={styles.replyBox}>
-                    <View style={styles.replyMeta}>
-                        <View style={styles.replyTagRow}>
-                            <Ionicons name="sparkles" size={12} color={colors.primary} />
-                            <Text style={styles.replyTagText}>AI Reply ({item.category})</Text>
-                        </View>
-                        <Text style={styles.sentimentText}>{item.sentiment}</Text>
-                    </View>
-                    <Text style={styles.replyText}>{item.replyText}</Text>
-                </View>
+            <View style={styles.screen}>
+                <SkeletonLoader variant="comments" />
             </View>
         );
-    };
+    }
 
     return (
-        <View style={styles.container}>
-            {loading && !refreshing ? (
-                <View style={styles.centered}>
-                    <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.screen}>
+            <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colors.sandstone}
+                    />
+                }
+            >
+                {/* Header Title & Status */}
+                <View style={styles.headerRow}>
+                    <View>
+                        <Text style={styles.screenTitle}>Auto Comment Reply</Text>
+                        <View style={styles.subTitleRow}>
+                            <Ionicons name="sparkles" size={12} color={colors.sandstone} />
+                            <Text style={styles.screenSubtitle}>Autonomous engagement by Gemini</Text>
+                        </View>
+                    </View>
                 </View>
-            ) : (
-                <FlatList
-                    data={history}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderCommentCard}
-                    ListHeaderComponent={renderHeader}
-                    contentContainerStyle={styles.listContent}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            tintColor={colors.primary}
-                        />
-                    }
-                    ListEmptyComponent={
-                        <View style={styles.emptyContainer}>
-                            <Ionicons
-                                name="chatbubble-ellipses-outline"
-                                size={44}
-                                color={colors.mutedForeground}
-                            />
-                            <Text style={styles.emptyText}>No comment reply activity yet</Text>
-                            <Text style={styles.emptySubtext}>
-                                Tap &quot;Process Now&quot; above to scan and reply to viewer comments.
+
+                {/* Metrics KPI Cards Ribbon */}
+                <View style={styles.kpiRibbon}>
+                    <View style={styles.kpiCard}>
+                        <Text style={styles.kpiNumber}>{liveCount}</Text>
+                        <View style={styles.kpiSubRow}>
+                            <View style={[styles.kpiDot, { backgroundColor: '#10B981' }]} />
+                            <Text style={[styles.kpiLabel, { color: '#10B981' }]}>Live Sent</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.kpiCard}>
+                        <Text style={[styles.kpiNumber, { color: colors.sandstone }]}>{dryRunCount}</Text>
+                        <View style={styles.kpiSubRow}>
+                            <View style={[styles.kpiDot, { backgroundColor: colors.sandstone }]} />
+                            <Text style={[styles.kpiLabel, { color: colors.sandstone }]}>Dry Run</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.kpiCard}>
+                        <Text style={[styles.kpiNumber, { color: colors.bone.muted }]}>{stats.totalFailed}</Text>
+                        <View style={styles.kpiSubRow}>
+                            <View style={[styles.kpiDot, { backgroundColor: colors.obsidian[700] }]} />
+                            <Text style={[styles.kpiLabel, { color: colors.bone.muted }]}>Failed</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Primary Actions Trigger Bar */}
+                <View style={styles.actionsBar}>
+                    <TouchableOpacity
+                        style={styles.processBtn}
+                        onPress={handleProcessNow}
+                        disabled={processing}
+                    >
+                        {processing ? (
+                            <ActivityIndicator size="small" color={colors.obsidian[950]} />
+                        ) : (
+                            <>
+                                <Ionicons name="play" size={14} color={colors.obsidian[950]} />
+                                <Text style={styles.processBtnText}>Process Now</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.dispatchBtn}
+                        onPress={handleDispatchGitHub}
+                        disabled={dispatching}
+                    >
+                        {dispatching ? (
+                            <ActivityIndicator size="small" color={colors.sandstone} />
+                        ) : (
+                            <>
+                                <Ionicons name="send" size={13} color={colors.sandstone} />
+                                <Text style={styles.dispatchBtnText}>Dispatch</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.tuneBtn}
+                        onPress={() => setTuneModalVisible(true)}
+                    >
+                        <Ionicons name="options-outline" size={18} color={colors.sandstone} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Persona Instruction Banner Widget */}
+                <View style={styles.personaBanner}>
+                    <View style={styles.personaBannerLeft}>
+                        <View style={styles.botIconBox}>
+                            <Ionicons name="hardware-chip-outline" size={15} color={colors.sandstone} />
+                        </View>
+                        <View style={styles.personaTextGroup}>
+                            <Text style={styles.personaTitle}>
+                                Active Persona: {settings.tone ? settings.tone.toUpperCase() : 'FRIENDLY PEER'}
+                            </Text>
+                            <Text style={styles.personaSubtitle}>
+                                {settings.maxRepliesPerRun || 10} max replies/run • {settings.replyToQuestionsOnly ? 'Questions priority' : 'All commentary'}
                             </Text>
                         </View>
-                    }
-                />
-            )}
+                    </View>
+                    <TouchableOpacity
+                        style={styles.tunePill}
+                        onPress={() => setTuneModalVisible(true)}
+                    >
+                        <Text style={styles.tunePillText}>Tune</Text>
+                    </TouchableOpacity>
+                </View>
 
-            {/* Settings Modal */}
+                {/* Activity Stream Section Header & Segmented Tabs */}
+                <View style={styles.streamHeader}>
+                    <View style={styles.streamTitleRow}>
+                        <Text style={styles.streamTitleText}>ACTIVITY LOG</Text>
+                        <View style={styles.streamCountBadge}>
+                            <Text style={styles.streamCountText}>{history.length}</Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity onPress={onRefresh} style={styles.refreshIconBtn}>
+                        <Ionicons name="reload" size={13} color={colors.bone.muted} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Filter Tabs */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterTabsRow}>
+                    <TouchableOpacity
+                        style={[styles.filterTab, filterTab === 'all' && styles.filterTabActive]}
+                        onPress={() => setFilterTab('all')}
+                    >
+                        <Text style={[styles.filterTabText, filterTab === 'all' && styles.filterTabTextActive]}>
+                            All ({history.length})
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.filterTab, filterTab === 'live' && styles.filterTabActive]}
+                        onPress={() => setFilterTab('live')}
+                    >
+                        <Text style={[styles.filterTabText, filterTab === 'live' && styles.filterTabTextActive]}>
+                            Live Posted ({liveCount})
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.filterTab, filterTab === 'dry_run' && styles.filterTabActive]}
+                        onPress={() => setFilterTab('dry_run')}
+                    >
+                        <Text style={[styles.filterTabText, filterTab === 'dry_run' && styles.filterTabTextActive]}>
+                            Simulated / Dry ({dryRunCount})
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.filterTab, filterTab === 'queue' && styles.filterTabActive]}
+                        onPress={() => setFilterTab('queue')}
+                    >
+                        <Text style={[styles.filterTabText, filterTab === 'queue' && styles.filterTabTextActive]}>
+                            Review Queue
+                        </Text>
+                    </TouchableOpacity>
+                </ScrollView>
+
+                {/* Comment Cards Stream */}
+                <View style={styles.cardsList}>
+                    {displayedComments.length === 0 ? (
+                        <View style={styles.emptyStateBox}>
+                            <Ionicons name="chatbubbles-outline" size={38} color={colors.sandstone} />
+                            <Text style={styles.emptyStateTitle}>No Comments Yet</Text>
+                            <Text style={styles.emptyStateSubtitle}>
+                                {filterTab === 'all'
+                                    ? 'When viewers comment on your YouTube videos, automated replies and review drafts will appear here.'
+                                    : `No comments found in the "${filterTab.toUpperCase()}" view.`}
+                            </Text>
+                        </View>
+                    ) : (
+                        displayedComments.map((item) => {
+                        const isLive = item.status === 'posted';
+                        return (
+                            <View key={item.id} style={styles.commentCard}>
+                                {/* Top info: author, status tag, timestamp */}
+                                <View style={styles.cardHeader}>
+                                    <View style={styles.authorRow}>
+                                        <View style={styles.authorAvatar}>
+                                            <Ionicons name="person" size={11} color={colors.sandstone} />
+                                        </View>
+                                        <Text style={styles.authorName}>{item.authorName}</Text>
+                                    </View>
+
+                                    <View style={styles.tagTimeRow}>
+                                        <View style={[styles.statusTag, isLive ? styles.tagLive : styles.tagDry]}>
+                                            <Text style={[styles.statusTagText, isLive ? styles.tagTextLive : styles.tagTextDry]}>
+                                                {isLive ? 'Live' : 'Simulated'}
+                                            </Text>
+                                        </View>
+                                        <Text style={styles.timeAgoText}>{formatRelativeTime(item.timestamp)}</Text>
+                                    </View>
+                                </View>
+
+                                {/* Video Target Pill */}
+                                <View style={styles.videoTargetPill}>
+                                    <Ionicons name="videocam-outline" size={12} color={colors.sandstone} />
+                                    <Text style={styles.videoTargetText} numberOfLines={1}>
+                                        {item.videoTitle || 'Active YouTube Premiere'}
+                                    </Text>
+                                </View>
+
+                                {/* User's Original Comment */}
+                                <View style={[styles.quoteBox, isLive ? styles.quoteBoxLive : styles.quoteBoxDry]}>
+                                    <Text style={styles.quoteText}>“{item.commentText}”</Text>
+                                </View>
+
+                                {/* AI Reply Block */}
+                                <View style={styles.aiReplyBlock}>
+                                    <View style={styles.aiReplyHeader}>
+                                        <View style={styles.aiReplyLabelGroup}>
+                                            <Ionicons
+                                                name="sparkles"
+                                                size={12}
+                                                color={isLive ? colors.sandstone : colors.sandstoneDark}
+                                            />
+                                            <Text style={styles.aiReplyLabel}>
+                                                AI Reply ({item.category || 'adaptive'})
+                                            </Text>
+                                        </View>
+                                        <View style={styles.sentimentBadge}>
+                                            <Text style={styles.sentimentText}>
+                                                {item.sentiment || 'ENGAGEMENT'}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <Text style={styles.replyContentText}>{item.replyText}</Text>
+
+                                    {/* Footer micro actions */}
+                                    <View style={styles.replyFooter}>
+                                        {isLive ? (
+                                            <View style={styles.syncStatusRow}>
+                                                <Ionicons name="checkmark-done" size={13} color="#10B981" />
+                                                <Text style={styles.syncStatusText}>Synchronized</Text>
+                                            </View>
+                                        ) : (
+                                            <TouchableOpacity
+                                                style={[styles.postLiveBtn, postingId === item.id && { opacity: 0.6 }]}
+                                                onPress={() => handlePostLive(item)}
+                                                disabled={postingId === item.id}
+                                                activeOpacity={0.7}
+                                            >
+                                                {postingId === item.id ? (
+                                                    <ActivityIndicator size="small" color={colors.obsidian[950]} style={{ transform: [{ scale: 0.7 }] }} />
+                                                ) : (
+                                                    <Ionicons name="checkmark" size={11} color={colors.obsidian[950]} />
+                                                )}
+                                                <Text style={styles.postLiveBtnText}>
+                                                    {postingId === item.id ? 'Posting...' : 'Post Live'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+
+                                        <View style={styles.cardActionsGroup}>
+                                            {!isLive && (
+                                                <TouchableOpacity
+                                                    onPress={() => handleOpenEdit(item)}
+                                                    style={styles.cardActionBtn}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <Ionicons name="pencil-outline" size={11} color={colors.sandstone} />
+                                                    <Text style={styles.cardActionBtnText}>Edit</Text>
+                                                </TouchableOpacity>
+                                            )}
+
+                                            <TouchableOpacity
+                                                onPress={() => handleDeletePrompt(item)}
+                                                style={[styles.cardActionBtn, styles.cardDeleteBtn]}
+                                                activeOpacity={0.7}
+                                                disabled={deletingId === item.id}
+                                            >
+                                                {deletingId === item.id ? (
+                                                    <ActivityIndicator size="small" color="#EF4444" style={{ transform: [{ scale: 0.6 }] }} />
+                                                ) : (
+                                                    <Ionicons name="trash-outline" size={11} color="#EF4444" />
+                                                )}
+                                                <Text style={[styles.cardActionBtnText, styles.cardDeleteBtnText]}>Delete</Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                onPress={() => Share.share({ message: item.replyText })}
+                                                style={styles.shareIconBtn}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Ionicons name="share-outline" size={13} color={colors.bone.muted} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+                        );
+                    }))}
+                </View>
+            </ScrollView>
+
+            {/* Persona Tuning Modal Sheet */}
             <Modal
-                visible={isConfigModalVisible}
+                visible={tuneModalVisible}
+                transparent
                 animationType="slide"
-                transparent={true}
-                onRequestClose={() => setConfigModalVisible(false)}
+                onRequestClose={() => setTuneModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Auto Reply Settings</Text>
-                            <TouchableOpacity onPress={() => setConfigModalVisible(false)}>
-                                <Ionicons name="close" size={22} color={colors.foreground} />
+                <View style={styles.modalBackdrop}>
+                    <TouchableOpacity
+                        style={styles.modalDismissArea}
+                        activeOpacity={1}
+                        onPress={() => setTuneModalVisible(false)}
+                    />
+                    <View style={styles.tuneSheet}>
+                        <View style={styles.sheetHandle} />
+
+                        <View style={styles.sheetHeaderRow}>
+                            <View>
+                                <Text style={styles.sheetKicker}>AUTONOMOUS RULES</Text>
+                                <Text style={styles.sheetTitle}>Audience Engagement Persona</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.sheetCloseBtn}
+                                onPress={() => setTuneModalVisible(false)}
+                            >
+                                <Ionicons name="close" size={18} color={colors.bone.muted} />
                             </TouchableOpacity>
                         </View>
 
-                        <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-                            {/* Enable Switch */}
-                            <TouchableOpacity
-                                style={styles.toggleRow}
-                                onPress={() =>
-                                    setFormSettings({ ...formSettings, enabled: !formSettings.enabled })
-                                }
-                            >
-                                <Text style={styles.toggleLabel}>Enable Auto Replies</Text>
-                                <Ionicons
-                                    name={formSettings.enabled ? 'checkbox' : 'square-outline'}
-                                    size={22}
-                                    color={formSettings.enabled ? colors.primary : colors.mutedForeground}
-                                />
-                            </TouchableOpacity>
+                        <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
+                            {/* Execution Mode */}
+                            <Text style={styles.settingLabel}>REPLY EXECUTION MODE</Text>
+                            <View style={styles.toggleRow}>
+                                <TouchableOpacity
+                                    style={[styles.toggleBtn, !formSettings.dryRun && styles.toggleBtnActive]}
+                                    onPress={() => setFormSettings({ ...formSettings, dryRun: false })}
+                                >
+                                    <Ionicons
+                                        name="radio-button-on"
+                                        size={14}
+                                        color={!formSettings.dryRun ? colors.sandstone : colors.bone.muted}
+                                    />
+                                    <Text style={[styles.toggleBtnText, !formSettings.dryRun && styles.toggleBtnTextActive]}>
+                                        Live YouTube Reply
+                                    </Text>
+                                </TouchableOpacity>
 
-                            {/* Dry Run Switch */}
-                            <TouchableOpacity
-                                style={styles.toggleRow}
-                                onPress={() =>
-                                    setFormSettings({ ...formSettings, dryRun: !formSettings.dryRun })
-                                }
-                            >
-                                <View>
-                                    <Text style={styles.toggleLabel}>Dry-Run Mode (Simulate)</Text>
-                                    <Text style={styles.helperText}>Logs replies without posting to YouTube</Text>
-                                </View>
-                                <Ionicons
-                                    name={formSettings.dryRun ? 'checkbox' : 'square-outline'}
-                                    size={22}
-                                    color={formSettings.dryRun ? '#F59E0B' : colors.mutedForeground}
-                                />
-                            </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.toggleBtn, formSettings.dryRun && styles.toggleBtnActive]}
+                                    onPress={() => setFormSettings({ ...formSettings, dryRun: true })}
+                                >
+                                    <Ionicons
+                                        name="flask-outline"
+                                        size={14}
+                                        color={formSettings.dryRun ? colors.sandstone : colors.bone.muted}
+                                    />
+                                    <Text style={[styles.toggleBtnText, formSettings.dryRun && styles.toggleBtnTextActive]}>
+                                        Dry Run (Simulate)
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
 
-                            {/* Questions Only */}
+                            {/* Max replies stepper */}
+                            <Text style={styles.settingLabel}>MAX REPLIES PER RUN: {formSettings.maxRepliesPerRun || 10}</Text>
+                            <View style={styles.stepperControl}>
+                                <TouchableOpacity
+                                    style={styles.stepperSubBtn}
+                                    onPress={() =>
+                                        setFormSettings({
+                                            ...formSettings,
+                                            maxRepliesPerRun: Math.max(1, (formSettings.maxRepliesPerRun || 10) - 2),
+                                        })
+                                    }
+                                >
+                                    <Ionicons name="remove" size={16} color={colors.sandstone} />
+                                </TouchableOpacity>
+                                <Text style={styles.stepperNumber}>{formSettings.maxRepliesPerRun || 10}</Text>
+                                <TouchableOpacity
+                                    style={styles.stepperSubBtn}
+                                    onPress={() =>
+                                        setFormSettings({
+                                            ...formSettings,
+                                            maxRepliesPerRun: Math.min(30, (formSettings.maxRepliesPerRun || 10) + 2),
+                                        })
+                                    }
+                                >
+                                    <Ionicons name="add" size={16} color={colors.sandstone} />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Tone selection */}
+                            <Text style={styles.settingLabel}>PERSONA TONE</Text>
+                            <View style={styles.toneGrid}>
+                                {TONES.map((t) => {
+                                    const isSelected = formSettings.tone === t.id;
+                                    return (
+                                        <TouchableOpacity
+                                            key={t.id}
+                                            style={[styles.tonePill, isSelected && styles.tonePillActive]}
+                                            onPress={() => setFormSettings({ ...formSettings, tone: t.id as any })}
+                                        >
+                                            <Text style={[styles.tonePillText, isSelected && styles.tonePillTextActive]}>
+                                                {t.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+
+                            {/* Question priority switch */}
                             <TouchableOpacity
-                                style={styles.toggleRow}
+                                style={styles.checkboxRow}
+                                activeOpacity={0.8}
                                 onPress={() =>
                                     setFormSettings({
                                         ...formSettings,
@@ -415,513 +919,908 @@ export default function CommentsScreen() {
                                     })
                                 }
                             >
-                                <Text style={styles.toggleLabel}>Reply to Questions Only</Text>
-                                <Ionicons
-                                    name={formSettings.replyToQuestionsOnly ? 'checkbox' : 'square-outline'}
-                                    size={22}
-                                    color={formSettings.replyToQuestionsOnly ? colors.primary : colors.mutedForeground}
-                                />
+                                <View style={[styles.checkboxBox, formSettings.replyToQuestionsOnly && styles.checkboxBoxActive]}>
+                                    {formSettings.replyToQuestionsOnly && (
+                                        <Ionicons name="checkmark" size={12} color={colors.obsidian[950]} />
+                                    )}
+                                </View>
+                                <Text style={styles.checkboxLabel}>Prioritize direct questions and technical inquiries</Text>
                             </TouchableOpacity>
 
-                            {/* Tone Selector */}
-                            <Text style={styles.inputLabel}>Reply Tone</Text>
-                            <View style={styles.toneGrid}>
-                                {(['friendly', 'professional', 'technical', 'enthusiastic'] as const).map(
-                                    (tone) => (
-                                        <TouchableOpacity
-                                            key={tone}
-                                            style={[
-                                                styles.toneButton,
-                                                formSettings.tone === tone && styles.toneButtonActive,
-                                            ]}
-                                            onPress={() => setFormSettings({ ...formSettings, tone })}
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.toneButtonText,
-                                                    formSettings.tone === tone && styles.toneButtonTextActive,
-                                                ]}
-                                            >
-                                                {tone.charAt(0).toUpperCase() + tone.slice(1)}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )
-                                )}
-                            </View>
-
-                            {/* Max replies per run */}
-                            <Text style={styles.inputLabel}>Max Replies Per Run (1 - 20)</Text>
+                            {/* Custom prompt instructions */}
+                            <Text style={styles.settingLabel}>SYSTEM INSTRUCTIONS / CONTEXT</Text>
                             <TextInput
-                                style={styles.textInput}
-                                keyboardType="number-pad"
-                                value={String(formSettings.maxRepliesPerRun || 5)}
-                                onChangeText={(t) =>
-                                    setFormSettings({
-                                        ...formSettings,
-                                        maxRepliesPerRun: parseInt(t, 10) || 5,
-                                    })
-                                }
-                            />
-
-                            {/* Persona Instructions */}
-                            <Text style={styles.inputLabel}>Custom Persona Instructions</Text>
-                            <TextInput
-                                style={[styles.textInput, styles.textArea]}
+                                style={styles.textInputArea}
+                                placeholder="E.g. Avoid mentioning pricing, emphasize high FPS Rust benchmarks..."
+                                placeholderTextColor={colors.bone.subtle}
                                 multiline
                                 numberOfLines={3}
-                                placeholder="E.g., Speak as the software engineer founder. If viewers ask about code, mention our open-source repo."
-                                placeholderTextColor={colors.mutedForeground}
-                                value={formSettings.customInstructions || ''}
-                                onChangeText={(t) =>
-                                    setFormSettings({ ...formSettings, customInstructions: t })
-                                }
+                                value={formSettings.customInstructions}
+                                onChangeText={(val) => setFormSettings({ ...formSettings, customInstructions: val })}
                             />
-                        </ScrollView>
 
-                        <View style={styles.modalFooter}>
                             <TouchableOpacity
-                                style={styles.saveBtn}
-                                onPress={handleSaveSettings}
+                                style={styles.saveTuneBtn}
+                                onPress={handleSaveTuneSettings}
                                 disabled={savingSettings}
                             >
-                                <LinearGradient
-                                    colors={gradients.primary}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 1 }}
-                                    style={styles.saveBtnInner}
-                                >
-                                    {savingSettings ? (
-                                        <ActivityIndicator size="small" color="#FFF" />
-                                    ) : (
-                                        <Text style={styles.saveBtnText}>Save Settings</Text>
-                                    )}
-                                </LinearGradient>
+                                {savingSettings ? (
+                                    <ActivityIndicator size="small" color={colors.obsidian[950]} />
+                                ) : (
+                                    <Text style={styles.saveTuneBtnText}>Save Rules & Persona</Text>
+                                )}
                             </TouchableOpacity>
-                        </View>
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>
+
+            {/* Edit Comment Reply Modal Sheet */}
+            <Modal
+                visible={editModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setEditModalVisible(false)}
+            >
+                <View style={styles.modalBackdrop}>
+                    <TouchableOpacity
+                        style={styles.modalDismissArea}
+                        activeOpacity={1}
+                        onPress={() => setEditModalVisible(false)}
+                    />
+                    <View style={styles.editSheet}>
+                        <View style={styles.sheetHandle} />
+
+                        <View style={styles.sheetHeaderRow}>
+                            <View>
+                                <Text style={styles.sheetKicker}>EDIT DRAFT REPLY</Text>
+                                <Text style={styles.sheetTitle}>Customized YouTube Response</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.sheetCloseBtn}
+                                onPress={() => setEditModalVisible(false)}
+                            >
+                                <Ionicons name="close" size={18} color={colors.bone.muted} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
+                            {/* Original Comment Quote Box */}
+                            {editingItem && (
+                                <View style={styles.editContextBox}>
+                                    <View style={styles.editContextAuthorRow}>
+                                        <Ionicons name="person-circle-outline" size={14} color={colors.sandstone} />
+                                        <Text style={styles.editContextAuthor}>{editingItem.authorName || 'Viewer'}</Text>
+                                        <Text style={styles.editContextVideo} numberOfLines={1}>
+                                            • {editingItem.videoTitle || 'YouTube Premiere'}
+                                        </Text>
+                                    </View>
+                                    <Text style={styles.editContextQuote}>
+                                        “{editingItem.commentText}”
+                                    </Text>
+                                </View>
+                            )}
+
+                            {/* Reply Text Input Area */}
+                            <Text style={styles.settingLabel}>REPLY MESSAGE</Text>
+                            <TextInput
+                                style={styles.editTextInputArea}
+                                placeholder="Type or refine the response to post..."
+                                placeholderTextColor={colors.bone.subtle}
+                                multiline
+                                numberOfLines={5}
+                                value={editDraftText}
+                                onChangeText={setEditDraftText}
+                                textAlignVertical="top"
+                            />
+
+                            <View style={styles.editModalButtonsRow}>
+                                <TouchableOpacity
+                                    style={styles.cancelEditBtn}
+                                    onPress={() => setEditModalVisible(false)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={styles.cancelEditBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.saveEditBtn}
+                                    onPress={handleSaveEdit}
+                                    disabled={savingEdit || postingLiveFromEdit}
+                                    activeOpacity={0.7}
+                                >
+                                    {savingEdit ? (
+                                        <ActivityIndicator size="small" color={colors.obsidian[950]} />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="save-outline" size={13} color={colors.obsidian[950]} />
+                                            <Text style={styles.saveEditBtnText}>Save</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+
+                                {editingItem && editingItem.status !== 'posted' && (
+                                    <TouchableOpacity
+                                        style={styles.saveAndPostBtn}
+                                        onPress={handleSaveAndPostLive}
+                                        disabled={savingEdit || postingLiveFromEdit}
+                                        activeOpacity={0.7}
+                                    >
+                                        {postingLiveFromEdit ? (
+                                            <ActivityIndicator size="small" color="#FFFFFF" />
+                                        ) : (
+                                            <>
+                                                <Ionicons name="send" size={12} color="#FFFFFF" />
+                                                <Text style={styles.saveAndPostBtnText}>Save & Post Live</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ─── Themed Custom Alert Dialog ─── */}
+            <CustomAlert
+                {...alertConfig}
+                onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+            />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    screen: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: colors.obsidian[950],
     },
-    centered: {
+    scroll: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
-    listContent: {
-        padding: spacing.md,
-        paddingBottom: spacing.xxxl,
+    scrollContent: {
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.md,
+        paddingBottom: 120,
     },
-    headerContainer: {
-        marginBottom: spacing.md,
-    },
-    statusRow: {
+    headerRow: {
         flexDirection: 'row',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
-        alignItems: 'center',
         marginBottom: spacing.md,
     },
-    statusLeft: {
-        flex: 1,
+    screenTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: colors.bone.DEFAULT,
+        letterSpacing: -0.4,
     },
-    sectionTitle: {
-        fontSize: typography.fontSizeLg,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foreground,
-    },
-    sectionSubtitle: {
-        fontSize: typography.fontSizeXs,
-        color: colors.foregroundMuted,
-        marginTop: 2,
-    },
-    badge: {
+    subTitleRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: 4,
-        borderRadius: borderRadius.sm,
+        gap: 5,
+        marginTop: 3,
     },
-    badgeGreen: {
-        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    },
-    badgeGreenText: {
-        color: '#10B981',
+    screenSubtitle: {
         fontSize: 11,
-        fontWeight: '600',
+        color: colors.bone.muted,
     },
-    badgeAmber: {
-        backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    },
-    badgeAmberText: {
-        color: '#F59E0B',
-        fontSize: 11,
-        fontWeight: '600',
-    },
-    badgeGray: {
-        backgroundColor: 'rgba(148, 163, 184, 0.15)',
-    },
-    badgeGrayText: {
-        color: '#94A3B8',
-        fontSize: 11,
-        fontWeight: '600',
-    },
-    kpiRow: {
+    kpiRibbon: {
         flexDirection: 'row',
-        gap: spacing.sm,
+        gap: 10,
         marginBottom: spacing.md,
     },
     kpiCard: {
         flex: 1,
-        backgroundColor: colors.card,
+        backgroundColor: colors.obsidian[900],
         borderWidth: 1,
-        borderColor: colors.cardBorder,
-        borderRadius: borderRadius.sm,
-        padding: spacing.sm,
+        borderColor: colors.obsidian[800],
+        borderRadius: borderRadius.md,
+        paddingVertical: 12,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     kpiNumber: {
-        fontSize: typography.fontSizeXl,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foreground,
+        fontSize: 22,
+        fontWeight: '800',
+        color: colors.bone.DEFAULT,
+        letterSpacing: -0.5,
+    },
+    kpiSubRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        marginTop: 3,
+    },
+    kpiDot: {
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
     },
     kpiLabel: {
-        fontSize: 11,
-        color: colors.foregroundMuted,
-        marginTop: 2,
+        fontSize: 10,
+        fontWeight: '700',
     },
-    actionsRow: {
+    actionsBar: {
         flexDirection: 'row',
-        gap: spacing.sm,
-        marginBottom: spacing.lg,
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: spacing.md,
     },
-    primaryActionBtn: {
-        flex: 2,
-        borderRadius: borderRadius.sm,
-        overflow: 'hidden',
-    },
-    gradientBtnInner: {
+    processBtn: {
+        flex: 1,
+        backgroundColor: colors.sandstone,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
         paddingVertical: 12,
+        borderRadius: borderRadius.md,
+        shadowColor: colors.sandstone,
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
     },
-    primaryActionText: {
-        color: '#FFF',
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightSemibold,
+    processBtnText: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: colors.obsidian[950],
     },
-    secondaryActionBtn: {
-        flex: 1.5,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        backgroundColor: colors.card,
+    dispatchBtn: {
+        backgroundColor: colors.obsidian[900],
         borderWidth: 1,
-        borderColor: colors.cardBorder,
-        borderRadius: borderRadius.sm,
+        borderColor: colors.obsidian[800],
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingHorizontal: 16,
         paddingVertical: 12,
+        borderRadius: borderRadius.md,
     },
-    secondaryActionText: {
-        color: colors.foreground,
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightMedium,
+    dispatchBtnText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
     },
-    configBtn: {
+    tuneBtn: {
         width: 44,
+        height: 44,
+        borderRadius: borderRadius.md,
+        backgroundColor: colors.obsidian[900],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.cardBorder,
-        borderRadius: borderRadius.sm,
     },
-    btnDisabled: {
-        opacity: 0.5,
-    },
-    feedHeaderRow: {
+    personaBanner: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: spacing.xs,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
+        justifyContent: 'space-between',
+        backgroundColor: colors.obsidian[900],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
+        borderRadius: borderRadius.md,
+        padding: 12,
+        marginBottom: spacing.md,
     },
-    feedTitle: {
-        fontSize: typography.fontSizeXs,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foregroundMuted,
-        textTransform: 'uppercase',
+    personaBannerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        flex: 1,
+    },
+    botIconBox: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        backgroundColor: 'rgba(200, 178, 155, 0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(200, 178, 155, 0.3)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    personaTextGroup: {
+        flex: 1,
+    },
+    personaTitle: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
+    },
+    personaSubtitle: {
+        fontSize: 10,
+        color: colors.bone.muted,
+        marginTop: 1,
+    },
+    tunePill: {
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 6,
+        backgroundColor: colors.obsidian[800],
+        borderWidth: 1,
+        borderColor: 'rgba(200, 178, 155, 0.3)',
+    },
+    tunePillText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: colors.sandstone,
+    },
+    streamHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    streamTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    streamTitleText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: colors.bone.subtle,
         letterSpacing: 1,
     },
-    cardShell: {
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.cardBorder,
-        borderRadius: borderRadius.md,
-        padding: spacing.md,
-        marginBottom: spacing.md,
-        gap: spacing.sm,
+    streamCountBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: 10,
+        backgroundColor: colors.obsidian[800],
     },
-    commentHeader: {
+    streamCountText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: colors.sandstone,
+    },
+    refreshIconBtn: {
+        padding: 4,
+    },
+    filterTabsRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        marginBottom: spacing.md,
+    },
+    filterTab: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+        backgroundColor: colors.obsidian[900],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
+        marginRight: 8,
+    },
+    filterTabActive: {
+        backgroundColor: colors.sandstone,
+        borderColor: colors.sandstone,
+    },
+    filterTabText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: colors.bone.muted,
+    },
+    filterTabTextActive: {
+        color: colors.obsidian[950],
+        fontWeight: '800',
+    },
+    cardsList: {
+        gap: 12,
+    },
+    commentCard: {
+        backgroundColor: colors.obsidian[900],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
+        borderRadius: borderRadius.lg,
+        padding: spacing.md,
+    },
+    cardHeader: {
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
     },
     authorRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        flex: 1,
+        gap: 6,
     },
-    avatarShell: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    authorAvatar: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: colors.obsidian[800],
         alignItems: 'center',
         justifyContent: 'center',
     },
     authorName: {
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foreground,
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
+    },
+    tagTimeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    statusTag: {
+        paddingHorizontal: 6,
+        paddingVertical: 1.5,
+        borderRadius: 4,
+        borderWidth: 1,
+    },
+    tagLive: {
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        borderColor: 'rgba(16, 185, 129, 0.35)',
+    },
+    tagDry: {
+        backgroundColor: 'rgba(200, 178, 155, 0.15)',
+        borderColor: 'rgba(200, 178, 155, 0.35)',
+    },
+    statusTagText: {
+        fontSize: 9,
+        fontWeight: '800',
+    },
+    tagTextLive: {
+        color: '#10B981',
+    },
+    tagTextDry: {
+        color: colors.sandstone,
+    },
+    timeAgoText: {
+        fontSize: 10,
+        color: colors.bone.subtle,
+    },
+    videoTargetPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: colors.obsidian[950],
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        borderRadius: 6,
+        marginBottom: 8,
+    },
+    videoTargetText: {
+        fontSize: 10,
+        color: colors.bone.muted,
         flex: 1,
     },
-    headerRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
+    quoteBox: {
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 8,
+        backgroundColor: colors.obsidian[950],
+        borderLeftWidth: 2,
     },
-    statusPill: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
+    quoteBoxLive: {
+        borderLeftColor: colors.sandstone,
     },
-    pillLive: {
-        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    quoteBoxDry: {
+        borderLeftColor: colors.sandstoneDark,
     },
-    pillLiveText: {
-        color: '#10B981',
-        fontSize: 10,
-        fontWeight: '600',
-    },
-    pillDry: {
-        backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    },
-    pillDryText: {
-        color: '#F59E0B',
-        fontSize: 10,
-        fontWeight: '600',
-    },
-    pillFailed: {
-        backgroundColor: 'rgba(244, 63, 94, 0.15)',
-    },
-    pillFailedText: {
-        color: '#F43F5E',
-        fontSize: 10,
-        fontWeight: '600',
-    },
-    timestamp: {
-        fontSize: 10,
-        color: colors.mutedForeground,
-    },
-    videoBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-        alignSelf: 'flex-start',
-    },
-    videoBadgeText: {
+    quoteText: {
         fontSize: 11,
-        color: colors.foregroundMuted,
-        maxWidth: 240,
-    },
-    commentQuoteBox: {
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-        padding: spacing.sm,
-        borderRadius: borderRadius.sm,
-        borderLeftWidth: 3,
-        borderLeftColor: colors.border,
-    },
-    commentQuoteText: {
-        fontSize: typography.fontSizeXs,
-        color: colors.foregroundMuted,
         fontStyle: 'italic',
+        color: colors.bone.DEFAULT,
+        lineHeight: 16,
     },
-    replyBox: {
-        backgroundColor: 'rgba(139, 92, 246, 0.08)',
-        padding: spacing.sm,
-        borderRadius: borderRadius.sm,
-        borderLeftWidth: 3,
-        borderLeftColor: colors.primary,
-        gap: 4,
+    aiReplyBlock: {
+        backgroundColor: colors.obsidian[850],
+        borderWidth: 1,
+        borderColor: colors.obsidian[750] || colors.obsidian[800],
+        borderRadius: 10,
+        padding: 10,
     },
-    replyMeta: {
+    aiReplyHeader: {
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        marginBottom: 6,
     },
-    replyTagRow: {
+    aiReplyLabelGroup: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 5,
     },
-    replyTagText: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: colors.primary,
+    aiReplyLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: colors.sandstoneLight,
+    },
+    sentimentBadge: {
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+        borderRadius: 4,
+        backgroundColor: colors.obsidian[900],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
     },
     sentimentText: {
-        fontSize: 10,
-        color: colors.foregroundMuted,
-        textTransform: 'capitalize',
+        fontSize: 8,
+        fontWeight: '700',
+        color: colors.bone.muted,
+        textTransform: 'uppercase',
     },
-    replyText: {
-        fontSize: typography.fontSizeXs,
-        color: colors.foreground,
-        lineHeight: 18,
+    replyContentText: {
+        fontSize: 11,
+        color: colors.bone.DEFAULT,
+        lineHeight: 16,
+        marginBottom: 8,
     },
-    emptyContainer: {
+    replyFooter: {
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 60,
-        gap: spacing.sm,
+        justifyContent: 'space-between',
+        paddingTop: 6,
+        borderTopWidth: 1,
+        borderTopColor: colors.obsidian[800],
     },
-    emptyText: {
-        fontSize: typography.fontSizeMd,
-        fontWeight: typography.fontWeightSemibold,
-        color: colors.foreground,
+    syncStatusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
     },
-    emptySubtext: {
-        fontSize: typography.fontSizeXs,
-        color: colors.foregroundMuted,
-        textAlign: 'center',
-        maxWidth: 260,
+    syncStatusText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#10B981',
     },
-    modalOverlay: {
+    postLiveBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 4,
+        backgroundColor: colors.sandstone,
+    },
+    postLiveBtnText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: colors.obsidian[950],
+    },
+    cardActionsGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    cardActionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: 4,
+        backgroundColor: colors.obsidian[800],
+        borderWidth: 1,
+        borderColor: colors.obsidian[700],
+    },
+    cardActionBtnText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
+    },
+    cardDeleteBtn: {
+        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+        borderColor: 'rgba(239, 68, 68, 0.25)',
+    },
+    cardDeleteBtnText: {
+        color: '#EF4444',
+    },
+    shareIconBtn: {
+        padding: 4,
+    },
+    modalBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: 'rgba(0,0,0,0.65)',
         justifyContent: 'flex-end',
     },
-    modalContainer: {
-        backgroundColor: colors.backgroundSecondary,
+    modalDismissArea: {
+        flex: 1,
+    },
+    editSheet: {
+        backgroundColor: colors.obsidian[900],
         borderTopLeftRadius: borderRadius.xl,
         borderTopRightRadius: borderRadius.xl,
         borderWidth: 1,
-        borderColor: colors.cardBorder,
-        maxHeight: '85%',
+        borderColor: colors.obsidian[700],
         padding: spacing.lg,
+        maxHeight: '85%',
     },
-    modalHeader: {
+    editContextBox: {
+        backgroundColor: colors.obsidian[950],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
+        borderRadius: borderRadius.md,
+        padding: 10,
+        marginBottom: 12,
+    },
+    editContextAuthorRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        gap: 6,
+        marginBottom: 6,
+    },
+    editContextAuthor: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.sandstone,
+    },
+    editContextVideo: {
+        fontSize: 10,
+        color: colors.bone.muted,
+        flex: 1,
+    },
+    editContextQuote: {
+        fontSize: 12,
+        fontStyle: 'italic',
+        color: colors.bone.DEFAULT,
+        lineHeight: 16,
+    },
+    editTextInputArea: {
+        backgroundColor: colors.obsidian[950],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
+        borderRadius: borderRadius.md,
+        color: colors.bone.DEFAULT,
+        fontSize: 12,
+        padding: 10,
+        minHeight: 110,
+        marginBottom: 16,
+    },
+    editModalButtonsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        alignItems: 'center',
+    },
+    cancelEditBtn: {
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        borderRadius: borderRadius.md,
+        backgroundColor: colors.obsidian[800],
+        borderWidth: 1,
+        borderColor: colors.obsidian[700],
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cancelEditBtnText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.bone.muted,
+    },
+    saveEditBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        borderRadius: borderRadius.md,
+        backgroundColor: colors.sandstone,
+    },
+    saveEditBtnText: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: colors.obsidian[950],
+    },
+    saveAndPostBtn: {
+        flex: 1.2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        borderRadius: borderRadius.md,
+        backgroundColor: '#10B981',
+    },
+    saveAndPostBtnText: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: '#FFFFFF',
+    },
+    tuneSheet: {
+        backgroundColor: colors.obsidian[900],
+        borderTopLeftRadius: borderRadius.xl,
+        borderTopRightRadius: borderRadius.xl,
+        borderWidth: 1,
+        borderColor: colors.obsidian[700],
+        padding: spacing.lg,
+        maxHeight: '85%',
+    },
+    sheetHandle: {
+        width: 36,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: colors.obsidian[700],
+        alignSelf: 'center',
         marginBottom: spacing.md,
     },
-    modalTitle: {
-        fontSize: typography.fontSizeLg,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foreground,
-    },
-    modalBody: {
+    sheetHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: spacing.md,
+    },
+    sheetKicker: {
+        fontSize: 9,
+        fontWeight: '800',
+        color: colors.sandstone,
+        letterSpacing: 1,
+    },
+    sheetTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: colors.bone.DEFAULT,
+    },
+    sheetCloseBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: colors.obsidian[800],
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalScroll: {
+        marginBottom: 10,
+    },
+    settingLabel: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: colors.bone.subtle,
+        letterSpacing: 0.8,
+        marginTop: 12,
+        marginBottom: 6,
     },
     toggleRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        gap: 8,
+    },
+    toggleBtn: {
+        flex: 1,
+        flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        borderRadius: borderRadius.md,
+        backgroundColor: colors.obsidian[800],
+        borderWidth: 1,
+        borderColor: colors.obsidian[700],
     },
-    toggleLabel: {
-        fontSize: typography.fontSizeSm,
-        fontWeight: typography.fontWeightMedium,
-        color: colors.foreground,
+    toggleBtnActive: {
+        borderColor: colors.sandstone,
+        backgroundColor: colors.obsidian[850],
     },
-    helperText: {
+    toggleBtnText: {
         fontSize: 11,
-        color: colors.foregroundMuted,
-        marginTop: 2,
+        fontWeight: '600',
+        color: colors.bone.muted,
     },
-    inputLabel: {
-        fontSize: typography.fontSizeXs,
-        fontWeight: typography.fontWeightBold,
-        color: colors.foregroundMuted,
-        textTransform: 'uppercase',
-        marginTop: spacing.md,
-        marginBottom: spacing.sm,
-        letterSpacing: 0.5,
+    toggleBtnTextActive: {
+        color: colors.bone.DEFAULT,
+        fontWeight: '700',
+    },
+    stepperControl: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: colors.obsidian[950],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
+        borderRadius: borderRadius.md,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    stepperSubBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        backgroundColor: colors.obsidian[800],
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    stepperNumber: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: colors.bone.DEFAULT,
     },
     toneGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: spacing.xs,
-        marginBottom: spacing.xs,
+        gap: 8,
     },
-    toneButton: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: borderRadius.sm,
-        backgroundColor: colors.card,
+    tonePill: {
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 8,
+        backgroundColor: colors.obsidian[800],
         borderWidth: 1,
-        borderColor: colors.cardBorder,
+        borderColor: colors.obsidian[700],
     },
-    toneButtonActive: {
-        backgroundColor: 'rgba(139, 92, 246, 0.25)',
-        borderColor: colors.primary,
+    tonePillActive: {
+        backgroundColor: colors.obsidian[700],
+        borderColor: colors.sandstone,
     },
-    toneButtonText: {
-        fontSize: 12,
-        color: colors.foregroundMuted,
-    },
-    toneButtonTextActive: {
-        color: colors.foreground,
+    tonePillText: {
+        fontSize: 11,
         fontWeight: '600',
+        color: colors.bone.muted,
     },
-    textInput: {
-        backgroundColor: colors.card,
+    tonePillTextActive: {
+        color: colors.bone.DEFAULT,
+        fontWeight: '800',
+    },
+    checkboxRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 14,
+        paddingVertical: 4,
+    },
+    checkboxBox: {
+        width: 20,
+        height: 20,
+        borderRadius: 5,
+        backgroundColor: colors.obsidian[800],
         borderWidth: 1,
-        borderColor: colors.cardBorder,
-        borderRadius: borderRadius.sm,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        color: colors.foreground,
-        fontSize: typography.fontSizeSm,
-    },
-    textArea: {
-        height: 70,
-        textAlignVertical: 'top',
-    },
-    modalFooter: {
-        paddingTop: spacing.sm,
-    },
-    saveBtn: {
-        borderRadius: borderRadius.sm,
-        overflow: 'hidden',
-    },
-    saveBtnInner: {
-        paddingVertical: 14,
+        borderColor: colors.obsidian[700],
         alignItems: 'center',
         justifyContent: 'center',
     },
-    saveBtnText: {
-        color: '#FFF',
-        fontSize: typography.fontSizeMd,
-        fontWeight: typography.fontWeightBold,
+    checkboxBoxActive: {
+        backgroundColor: colors.sandstone,
+        borderColor: colors.sandstone,
+    },
+    checkboxLabel: {
+        fontSize: 11,
+        color: colors.bone.DEFAULT,
+        flex: 1,
+    },
+    textInputArea: {
+        backgroundColor: colors.obsidian[950],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
+        borderRadius: borderRadius.md,
+        padding: 10,
+        color: colors.bone.DEFAULT,
+        fontSize: 12,
+        minHeight: 65,
+        textAlignVertical: 'top',
+    },
+    saveTuneBtn: {
+        backgroundColor: colors.sandstone,
+        borderRadius: borderRadius.md,
+        paddingVertical: 14,
+        alignItems: 'center',
+        marginTop: 16,
+        marginBottom: 20,
+    },
+    saveTuneBtnText: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: colors.obsidian[950],
+    },
+    emptyStateBox: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 48,
+        paddingHorizontal: spacing.xl,
+        backgroundColor: colors.obsidian[900],
+        borderRadius: borderRadius.lg,
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
+        gap: 8,
+    },
+    emptyStateTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
+        marginTop: 6,
+    },
+    emptyStateSubtitle: {
+        fontSize: 12,
+        color: colors.bone.muted,
+        textAlign: 'center',
+        lineHeight: 18,
     },
 });

@@ -1,0 +1,1186 @@
+<!DOCTYPE html><html class="dark" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Serenity — Ideas Queue</title>
+<!-- Fonts: Newsreader (Editorial Serif) & Plus Jakarta Sans (Warm Geometric Sans) -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet" class="">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS with custom plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "outline-variant": "#4d453e",
+            "surface-container": "#231f19",
+            "surface-variant": "#39342d",
+            "primary-container": "#c8b29b",
+            "surface-elevated": "#272523",
+            "surface-canvas": "#161514",
+            "surface-dim": "#16130d",
+            "on-secondary": "#382f24",
+            "error-container": "#93000a",
+            "text-ivory": "#EAE5DC",
+            "on-primary": "#3c2e1d",
+            "surface-container-highest": "#39342d",
+            "surface-recessed": "#121110",
+            "on-surface": "#eae1d7",
+            "secondary-container": "#504539",
+            "tertiary-fixed-dim": "#d7c3b0",
+            "surface-container-high": "#2e2923",
+            "on-primary-container": "#544432",
+            "primary": "#e5cdb5",
+            "secondary-fixed": "#f1e0d0",
+            "alert-surface": "#281D1B",
+            "on-surface-variant": "#d0c4ba",
+            "text-whisper": "#6E6860",
+            "on-primary-fixed-variant": "#544432",
+            "surface-container-lowest": "#110e08",
+            "on-tertiary-container": "#524536",
+            "secondary-fixed-dim": "#d4c4b4",
+            "border-subtle": "#3D3934",
+            "on-primary-fixed": "#25190a",
+            "inverse-surface": "#eae1d7",
+            "background": "#16130d",
+            "tertiary-container": "#c6b3a0",
+            "tertiary": "#e2ceba",
+            "secondary": "#d4c4b4",
+            "surface-bright": "#3d3931",
+            "outline": "#998f86",
+            "surface-container-low": "#1f1b15",
+            "surface-tint": "#dac3ab",
+            "primary-fixed": "#f7dfc6",
+            "text-stone": "#9C958C",
+            "on-error-container": "#ffdad6",
+            "alert-warm": "#C47768",
+            "tertiary-fixed": "#f4dfcb",
+            "primary-fixed-dim": "#dac3ab",
+            "state-accent-hover": "#D6C3AF",
+            "on-background": "#eae1d7",
+            "on-secondary-fixed": "#221a10",
+            "on-tertiary-fixed": "#241a0d",
+            "on-secondary-fixed-variant": "#504539",
+            "text-linen": "#F7F4EE",
+            "surface": "#16130d",
+            "on-tertiary": "#3a2e21",
+            "error": "#ffb4ab",
+            "inverse-primary": "#6d5b48",
+            "on-error": "#690005",
+            "surface-card": "#1E1D1B",
+            "border-hairline": "#302D29",
+            "on-tertiary-fixed-variant": "#524436",
+            "on-secondary-container": "#c2b3a4",
+            "surface-highlight": "#312F2C",
+            "inverse-on-surface": "#343029"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-xs": "0.25rem",
+            "gutter-mobile": "0.875rem",
+            "margin-mobile": "1.25rem",
+            "space-lg": "1.5rem",
+            "space-md": "1rem",
+            "space-sm": "0.5rem",
+            "margin": "2.5rem",
+            "gutter": "1.5rem",
+            "space-xl": "2.5rem"
+          },
+          "fontFamily": {
+            "body-md": ["Plus Jakarta Sans"],
+            "headline-lg": ["Newsreader"],
+            "headline-lg-mobile": ["Newsreader"],
+            "body-sm": ["Plus Jakarta Sans"],
+            "display-lg": ["Newsreader"],
+            "headline-md": ["Newsreader"],
+            "label-md": ["Plus Jakarta Sans"],
+            "title-md": ["Plus Jakarta Sans"],
+            "body-lg": ["Plus Jakarta Sans"],
+            "title-sm": ["Plus Jakarta Sans"],
+            "label-sm": ["Plus Jakarta Sans"],
+            "display-lg-mobile": ["Newsreader"]
+          },
+          "fontSize": {
+            "body-md": ["14px", { "lineHeight": "22px", "fontWeight": "400" }],
+            "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.015em", "fontWeight": "400" }],
+            "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+            "body-sm": ["12px", { "lineHeight": "18px", "fontWeight": "400" }],
+            "display-lg": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "400" }],
+            "headline-md": ["22px", { "lineHeight": "30px", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+            "title-md": ["17px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "body-lg": ["16px", { "lineHeight": "26px", "fontWeight": "400" }],
+            "title-sm": ["15px", { "lineHeight": "22px", "fontWeight": "600" }],
+            "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.06em", "fontWeight": "600" }],
+            "display-lg-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.015em", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    /* Material symbols helper */
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      line-height: 1;
+    }
+    .material-symbols-outlined.fill-icon {
+      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    
+    /* Smooth custom scrollbar for quiet aesthetics */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #161514;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #302D29;
+      border-radius: 2px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3D3934;
+    }
+
+    /* Expand transition helper */
+    .details-collapse {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 250ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .details-collapse.is-open {
+      grid-template-rows: 1fr;
+    }
+    .details-inner {
+      overflow: hidden;
+    }
+
+    /* Custom dropdown item active state */
+    .custom-select-option.is-selected {
+      background-color: #2e2923;
+      color: #e5cdb5;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface-canvas text-text-linen min-h-screen antialiased selection:bg-primary selection:text-surface-canvas font-body-md text-body-md flex flex-col justify-between relative overflow-x-hidden">
+<!-- Top Navigation Shell (TopAppBar Shared Component Anchor) -->
+<header class="sticky top-0 z-40 bg-surface-canvas/95 backdrop-blur-md border-b border-border-hairline transition-colors">
+<div class="flex justify-between items-center w-full px-margin-mobile max-w-[1040px] mx-auto h-16">
+<!-- Leading Identity: Avatar / Quiet Portrait -->
+<div class="flex items-center gap-3">
+<div class="relative w-8 h-8 rounded-full overflow-hidden border border-border-hairline bg-surface-recessed flex items-center justify-center">
+<img class="w-full h-full object-cover grayscale opacity-90 contrast-125" data-alt="A tranquil, artistic profile portrait rendered in muted warm golden light and deep soft shadows, representing an editorial author in a quiet contemplative studio." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0Ii3GLEnNhdySydBOqO904Y3jnhhvWuY2tG89q5r-wRyow3JNNVb6YmlagHBM2-OiAkK4lz3zUwXWe5YisNEqh3Re5a776OqZ7po0n1Dd-rGCxyS0cGEz1kIUTHZ7arRHwvE58eyFE0TJQFEw62AHv9OWEg7oWtmQZCde3RG1AZb9C0M_RuAT0D4LZ6AUi-NkPRx7nY_2kqSxoa_G3NLi2KkMZdwDwluqBc1fiYg">
+</div>
+<span class="font-medium text-[17px] tracking-[0.25em] text-text-linen uppercase select-none font-sans">SERENITY</span>
+</div>
+<!-- Desktop Nav Clusters (Responsive Mirror of BottomNav) -->
+<nav class="hidden md:flex items-center space-x-6">
+<a class="text-primary font-label-md text-label-md uppercase tracking-wider flex items-center gap-1.5 transition-colors" href="#">
+<span class="material-symbols-outlined text-[18px]">lightbulb</span>
+          Ideas
+        </a>
+<a class="text-text-stone hover:text-text-linen font-label-md text-label-md uppercase tracking-wider flex items-center gap-1.5 transition-colors" href="#">
+<span class="material-symbols-outlined text-[18px]">auto_stories</span>
+          Series
+        </a>
+<a class="text-text-stone hover:text-text-linen font-label-md text-label-md uppercase tracking-wider flex items-center gap-1.5 transition-colors" href="#">
+<span class="material-symbols-outlined text-[18px]">calendar_today</span>
+          Schedule
+        </a>
+<a class="text-text-stone hover:text-text-linen font-label-md text-label-md uppercase tracking-wider flex items-center gap-1.5 transition-colors" href="#">
+<span class="material-symbols-outlined text-[18px]">view_kanban</span>
+          Pipeline
+        </a>
+<a class="text-text-stone hover:text-text-linen font-label-md text-label-md uppercase tracking-wider flex items-center gap-1.5 transition-colors" href="#">
+<span class="material-symbols-outlined text-[18px]">forum</span>
+          Community
+        </a>
+</nav>
+<!-- Trailing Action: Settings -->
+<div class="flex items-center gap-1">
+<button aria-label="Settings" class="w-10 h-10 rounded-full flex items-center justify-center text-text-stone hover:text-primary transition-colors duration-200 active:scale-[0.985]" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+</button>
+</div>
+</div>
+<!-- Segment Flow Bar (Mobile visual equivalent for quick view filtering) -->
+<div class="md:hidden px-margin-mobile pb-3 pt-1">
+<div class="flex items-center justify-between bg-surface-card/60 p-1 rounded-full border border-border-hairline">
+<button class="flex-1 py-1.5 rounded-full bg-surface-elevated text-primary text-label-sm font-label-sm uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm">
+<span class="material-symbols-outlined text-[16px]">lightbulb</span>
+<span class="">Ideas</span>
+</button>
+<button class="flex-1 py-1.5 rounded-full text-text-whisper hover:text-text-stone text-label-sm font-label-sm uppercase tracking-wider flex items-center justify-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[16px]">auto_stories</span>
+<span class="hidden sm:inline">Series</span>
+</button>
+<button class="flex-1 py-1.5 rounded-full text-text-whisper hover:text-text-stone text-label-sm font-label-sm uppercase tracking-wider flex items-center justify-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[16px]">calendar_today</span>
+<span class="hidden sm:inline">Schedule</span>
+</button>
+<button class="flex-1 py-1.5 rounded-full text-text-whisper hover:text-text-stone text-label-sm font-label-sm uppercase tracking-wider flex items-center justify-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[16px]">view_kanban</span>
+<span class="hidden sm:inline">Pipeline</span>
+</button>
+<button class="flex-1 py-1.5 rounded-full text-text-whisper hover:text-text-stone text-label-sm font-label-sm uppercase tracking-wider flex items-center justify-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[16px]">forum</span>
+<span class="hidden sm:inline">Community</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Canvas: Queued Ideas Prominently at the Top -->
+<main class="w-full max-w-[1040px] mx-auto px-margin-mobile md:px-margin py-space-md md:py-space-lg flex-1 mb-28 md:mb-16 space-y-4">
+<!-- Section 1: Refined Queue Header & Action Bar Directly at Top -->
+<div class="flex items-center justify-between pb-1 border-b border-border-hairline/60">
+<div class="flex items-center gap-2">
+<!-- Pill Status Indicator -->
+<span class="inline-flex items-center gap-1.5 bg-surface-elevated text-primary text-label-sm font-label-sm uppercase tracking-wider px-3 py-1 rounded-full border border-border-hairline" id="queue-counter-badge">
+<span class="material-symbols-outlined text-[14px]">format_list_bulleted</span>
+<span id="queue-counter-text" class="">5 ideas queued</span>
+</span>
+</div>
+<!-- Queue Controls: Sort, Reorder, and subtle Clear Queue -->
+<div class="flex items-center gap-1.5 sm:gap-2">
+<button class="text-text-whisper hover:text-text-ivory text-label-sm font-label-sm flex items-center gap-1 py-1 px-2.5 rounded-lg hover:bg-surface-elevated transition-colors" title="Sort order" type="button">
+<span class="material-symbols-outlined text-[16px]">swap_vert</span>
+<span class="hidden sm:inline">Sort</span>
+</button>
+<button class="text-text-whisper hover:text-text-ivory text-label-sm font-label-sm flex items-center gap-1 py-1 px-2.5 rounded-lg hover:bg-surface-elevated transition-colors" title="Reorder list" type="button">
+<span class="material-symbols-outlined text-[16px]">drag_handle</span>
+<span class="hidden sm:inline">Reorder</span>
+</button>
+<span class="h-3 w-px bg-border-hairline hidden sm:inline-block"></span>
+<button class="text-text-whisper hover:text-alert-warm hover:bg-alert-surface text-label-sm font-label-sm flex items-center gap-1 py-1 px-2.5 rounded-lg transition-colors" id="clear-queue-btn" title="Clear all queued ideas" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+<span class="hidden sm:inline">Clear Queue</span>
+</button>
+</div>
+</div>
+<!-- Section 2: Ideas List (Interactive Expandable Cards) -->
+<div class="space-y-3" id="ideas-container">
+<!-- Card 1 (Pre-expanded so user immediately inspects details & action buttons) -->
+<article class="idea-card group bg-surface-card hover:bg-surface-elevated rounded-xl border border-border-hairline hover:border-border-subtle p-space-md transition-all duration-200 select-none cursor-pointer" data-id="1">
+<div class="flex items-start gap-3.5">
+<div class="flex-shrink-0 w-7 h-7 rounded-lg bg-surface-recessed border border-border-hairline flex items-center justify-center text-text-stone font-title-sm text-title-sm select-none group-hover:text-primary group-hover:border-primary/40 transition-colors">
+          1
+        </div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-1.5 mb-1.5 text-text-stone">
+<span class="material-symbols-outlined text-[14px] text-primary/80">layers</span>
+<span class="card-series text-label-sm font-label-sm tracking-wider uppercase truncate text-text-stone">THE CLOUD SURVIVAL GUIDE: ENGINEERING FOR HIGH AVAILABILITY</span>
+</div>
+<h2 class="card-title text-text-linen group-hover:text-primary transition-colors text-title-sm font-title-sm leading-snug font-body-md">
+            Architecting for Resilience: Balancing High Availability with Cost Constraints
+          </h2>
+</div>
+<!-- Collapsed quick actions & chevron indicator -->
+<div class="flex-shrink-0 flex items-center gap-1 text-text-whisper">
+<button aria-label="Edit idea" class="quick-edit-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-primary hover:bg-surface-highlight transition-colors" title="Edit idea" type="button">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+<button aria-label="Delete idea" class="quick-delete-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-alert-warm hover:bg-alert-surface transition-colors" title="Delete idea" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+<span class="chevron-icon material-symbols-outlined text-[20px] text-text-whisper/80 transition-transform duration-250 rotate-180">expand_more</span>
+</div>
+</div>
+<!-- Expandable Drawer Area (Pre-opened for Card 1) -->
+<div class="details-collapse is-open">
+<div class="details-inner pt-3.5 mt-3 border-t border-border-hairline/80 cursor-default" onclick="event.stopPropagation()">
+<div class="space-y-2.5">
+<p class="card-description text-text-stone text-body-md font-body-md leading-relaxed">
+            An architectural deep dive exploring fault domains, active-active failover strategies, and balancing multi-region availability targets against tight cloud infrastructure budgets.
+          </p>
+<div class="flex flex-wrap items-center gap-3 text-label-sm font-label-sm text-text-whisper pt-0.5">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+            Added 2 days ago
+          </span>
+<span class="w-1 h-1 rounded-full bg-border-subtle"></span>
+<span class="text-primary/90 font-medium">Production Ready</span>
+</div>
+<!-- Prominent Action Buttons -->
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center gap-2">
+<button class="open-edit-modal-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-elevated hover:bg-surface-highlight border border-border-hairline text-text-linen hover:text-primary text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px] text-primary">edit</span>
+<span class="">Edit Idea</span>
+</button>
+<button class="open-delete-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-text-whisper hover:text-alert-warm hover:bg-alert-surface border border-transparent hover:border-alert-warm/20 text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+<span class="">Delete</span>
+</button>
+</div>
+<span class="text-[11px] font-label-sm tracking-widest uppercase text-text-whisper/60">serenity id #01</span>
+</div>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="idea-card group bg-surface-card hover:bg-surface-elevated rounded-xl border border-border-hairline hover:border-border-subtle p-space-md transition-all duration-200 select-none cursor-pointer" data-id="2">
+<div class="flex items-start gap-3.5">
+<div class="flex-shrink-0 w-7 h-7 rounded-lg bg-surface-recessed border border-border-hairline flex items-center justify-center text-text-stone font-title-sm text-title-sm select-none group-hover:text-primary group-hover:border-primary/40 transition-colors">
+          2
+        </div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-1.5 mb-1.5 text-text-stone">
+<span class="material-symbols-outlined text-[14px] text-primary/80">layers</span>
+<span class="card-series text-label-sm font-label-sm tracking-wider uppercase truncate text-text-stone">THE SOFTWARE REALITY CHECK: AUDITING COMPLEXITY</span>
+</div>
+<h2 class="card-title text-text-linen group-hover:text-primary transition-colors text-title-sm font-title-sm leading-snug font-body-md">
+            The Allocator Audit: Fragmentation, TLB Misses, and Custom Memory Pools
+          </h2>
+</div>
+<div class="flex-shrink-0 flex items-center gap-1 text-text-whisper">
+<button aria-label="Edit idea" class="quick-edit-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-primary hover:bg-surface-highlight transition-colors" title="Edit idea" type="button">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+<button aria-label="Delete idea" class="quick-delete-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-alert-warm hover:bg-alert-surface transition-colors" title="Delete idea" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+<span class="chevron-icon material-symbols-outlined text-[20px] text-text-whisper/80 transition-transform duration-250">expand_more</span>
+</div>
+</div>
+<div class="details-collapse">
+<div class="details-inner pt-3.5 mt-3 border-t border-border-hairline/80 cursor-default" onclick="event.stopPropagation()">
+<div class="space-y-2.5">
+<p class="card-description text-text-stone text-body-md font-body-md leading-relaxed">
+            Diagnosing subtle latency spikes driven by memory allocator fragmentation, cache-line bouncing, and implementing custom arena allocators for high-throughput C++/Rust services.
+          </p>
+<div class="flex flex-wrap items-center gap-3 text-label-sm font-label-sm text-text-whisper pt-0.5">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+            Added 4 days ago
+          </span>
+</div>
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center gap-2">
+<button class="open-edit-modal-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-elevated hover:bg-surface-highlight border border-border-hairline text-text-linen hover:text-primary text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px] text-primary">edit</span>
+<span class="">Edit Idea</span>
+</button>
+<button class="open-delete-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-text-whisper hover:text-alert-warm hover:bg-alert-surface border border-transparent hover:border-alert-warm/20 text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+<span class="">Delete</span>
+</button>
+</div>
+<span class="text-[11px] font-label-sm tracking-widest uppercase text-text-whisper/60">serenity id #02</span>
+</div>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 3 -->
+<article class="idea-card group bg-surface-card hover:bg-surface-elevated rounded-xl border border-border-hairline hover:border-border-subtle p-space-md transition-all duration-200 select-none cursor-pointer" data-id="3">
+<div class="flex items-start gap-3.5">
+<div class="flex-shrink-0 w-7 h-7 rounded-lg bg-surface-recessed border border-border-hairline flex items-center justify-center text-text-stone font-title-sm text-title-sm select-none group-hover:text-primary group-hover:border-primary/40 transition-colors">
+          3
+        </div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-1.5 mb-1.5 text-text-stone">
+<span class="material-symbols-outlined text-[14px] text-primary/80">layers</span>
+<span class="card-series text-label-sm font-label-sm tracking-wider uppercase truncate text-text-stone">THE WORKFLOW ENGINEER: MASTERING HIGH VELOCITY</span>
+</div>
+<h2 class="card-title text-text-linen group-hover:text-primary transition-colors text-title-sm font-title-sm leading-snug font-body-md">
+            Evolutionary Architecture: Implementing Automated Fitness Functions in CI
+          </h2>
+</div>
+<div class="flex-shrink-0 flex items-center gap-1 text-text-whisper">
+<button aria-label="Edit idea" class="quick-edit-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-primary hover:bg-surface-highlight transition-colors" title="Edit idea" type="button">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+<button aria-label="Delete idea" class="quick-delete-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-alert-warm hover:bg-alert-surface transition-colors" title="Delete idea" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+<span class="chevron-icon material-symbols-outlined text-[20px] text-text-whisper/80 transition-transform duration-250">expand_more</span>
+</div>
+</div>
+<div class="details-collapse">
+<div class="details-inner pt-3.5 mt-3 border-t border-border-hairline/80 cursor-default" onclick="event.stopPropagation()">
+<div class="space-y-2.5">
+<p class="card-description text-text-stone text-body-md font-body-md leading-relaxed">
+            How to encode architectural rules, coupling constraints, and performance budgets into automated tests that enforce system fitness at every single pull request.
+          </p>
+<div class="flex flex-wrap items-center gap-3 text-label-sm font-label-sm text-text-whisper pt-0.5">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+            Added 5 days ago
+          </span>
+</div>
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center gap-2">
+<button class="open-edit-modal-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-elevated hover:bg-surface-highlight border border-border-hairline text-text-linen hover:text-primary text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px] text-primary">edit</span>
+<span class="">Edit Idea</span>
+</button>
+<button class="open-delete-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-text-whisper hover:text-alert-warm hover:bg-alert-surface border border-transparent hover:border-alert-warm/20 text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+<span class="">Delete</span>
+</button>
+</div>
+<span class="text-[11px] font-label-sm tracking-widest uppercase text-text-whisper/60">serenity id #03</span>
+</div>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 4 -->
+<article class="idea-card group bg-surface-card hover:bg-surface-elevated rounded-xl border border-border-hairline hover:border-border-subtle p-space-md transition-all duration-200 select-none cursor-pointer" data-id="4">
+<div class="flex items-start gap-3.5">
+<div class="flex-shrink-0 w-7 h-7 rounded-lg bg-surface-recessed border border-border-hairline flex items-center justify-center text-text-stone font-title-sm text-title-sm select-none group-hover:text-primary group-hover:border-primary/40 transition-colors">
+          4
+        </div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-1.5 mb-1.5 text-text-stone">
+<span class="material-symbols-outlined text-[14px] text-primary/80">layers</span>
+<span class="card-series text-label-sm font-label-sm tracking-wider uppercase truncate text-text-stone">THE AI-PROOF ARCHITECT: ENGINEERING BEYOND HYPE</span>
+</div>
+<h2 class="card-title text-text-linen group-hover:text-primary transition-colors text-title-sm font-title-sm leading-snug font-body-md">
+            Cross-System Orchestration: Managing AI Agents Across Service Boundaries
+          </h2>
+</div>
+<div class="flex-shrink-0 flex items-center gap-1 text-text-whisper">
+<button aria-label="Edit idea" class="quick-edit-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-primary hover:bg-surface-highlight transition-colors" title="Edit idea" type="button">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+<button aria-label="Delete idea" class="quick-delete-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-alert-warm hover:bg-alert-surface transition-colors" title="Delete idea" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+<span class="chevron-icon material-symbols-outlined text-[20px] text-text-whisper/80 transition-transform duration-250">expand_more</span>
+</div>
+</div>
+<div class="details-collapse">
+<div class="details-inner pt-3.5 mt-3 border-t border-border-hairline/80 cursor-default" onclick="event.stopPropagation()">
+<div class="space-y-2.5">
+<p class="card-description text-text-stone text-body-md font-body-md leading-relaxed">
+            Constructing reliable deterministic supervisory wrappers around stochastic agent workflows, telemetry integration, and zero-trust event contracts.
+          </p>
+<div class="flex flex-wrap items-center gap-3 text-label-sm font-label-sm text-text-whisper pt-0.5">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+            Added 1 week ago
+          </span>
+</div>
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center gap-2">
+<button class="open-edit-modal-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-elevated hover:bg-surface-highlight border border-border-hairline text-text-linen hover:text-primary text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px] text-primary">edit</span>
+<span class="">Edit Idea</span>
+</button>
+<button class="open-delete-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-text-whisper hover:text-alert-warm hover:bg-alert-surface border border-transparent hover:border-alert-warm/20 text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+<span class="">Delete</span>
+</button>
+</div>
+<span class="text-[11px] font-label-sm tracking-widest uppercase text-text-whisper/60">serenity id #04</span>
+</div>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 5 -->
+<article class="idea-card group bg-surface-card hover:bg-surface-elevated rounded-xl border border-border-hairline hover:border-border-subtle p-space-md transition-all duration-200 select-none cursor-pointer" data-id="5">
+<div class="flex items-start gap-3.5">
+<div class="flex-shrink-0 w-7 h-7 rounded-lg bg-surface-recessed border border-border-hairline flex items-center justify-center text-text-stone font-title-sm text-title-sm select-none group-hover:text-primary group-hover:border-primary/40 transition-colors">
+          5
+        </div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-1.5 mb-1.5 text-text-stone">
+<span class="material-symbols-outlined text-[14px] text-primary/80">layers</span>
+<span class="card-series text-label-sm font-label-sm tracking-wider uppercase truncate text-text-stone">THE PERFORMANCE ENGINEER: MASTERING RUNTIMES</span>
+</div>
+<h2 class="card-title text-text-linen group-hover:text-primary transition-colors text-title-sm font-title-sm leading-snug font-body-md">
+            Native Memory Management: Custom Allocators and Memory Pools
+          </h2>
+</div>
+<div class="flex-shrink-0 flex items-center gap-1 text-text-whisper">
+<button aria-label="Edit idea" class="quick-edit-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-primary hover:bg-surface-highlight transition-colors" title="Edit idea" type="button">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+<button aria-label="Delete idea" class="quick-delete-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-alert-warm hover:bg-alert-surface transition-colors" title="Delete idea" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+<span class="chevron-icon material-symbols-outlined text-[20px] text-text-whisper/80 transition-transform duration-250">expand_more</span>
+</div>
+</div>
+<div class="details-collapse">
+<div class="details-inner pt-3.5 mt-3 border-t border-border-hairline/80 cursor-default" onclick="event.stopPropagation()">
+<div class="space-y-2.5">
+<p class="card-description text-text-stone text-body-md font-body-md leading-relaxed">
+            Practical implementations of slab allocators, arena pointers, and benchmark comparisons versus jemalloc and mimalloc in low latency scenarios.
+          </p>
+<div class="flex flex-wrap items-center gap-3 text-label-sm font-label-sm text-text-whisper pt-0.5">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+            Added 10 days ago
+          </span>
+</div>
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center gap-2">
+<button class="open-edit-modal-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-elevated hover:bg-surface-highlight border border-border-hairline text-text-linen hover:text-primary text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px] text-primary">edit</span>
+<span class="">Edit Idea</span>
+</button>
+<button class="open-delete-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-text-whisper hover:text-alert-warm hover:bg-alert-surface border border-transparent hover:border-alert-warm/20 text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+<span class="">Delete</span>
+</button>
+</div>
+<span class="text-[11px] font-label-sm tracking-widest uppercase text-text-whisper/60">serenity id #05</span>
+</div>
+</div>
+</div>
+</div>
+</article>
+</div>
+<!-- Editorial Footer Reflection Note -->
+<div class="py-6 border-t border-border-hairline text-center text-text-whisper text-body-sm font-body-sm">
+<p class="text-[13px] font-medium tracking-wide uppercase text-text-stone">“Simplicity is the prerequisite for reliability.”</p>
+<p class="mt-1 text-label-sm uppercase tracking-widest text-text-whisper" id="footer-sync-note">Autosynced to workspace • 5 active items</p>
+</div>
+</main>
+<!-- Floating Action Button (FAB): Mineral Sandstone Docked Pill -->
+<div class="fixed bottom-16 md:bottom-7 right-4 md:right-8 z-40">
+<button class="group flex items-center gap-2.5 bg-primary-container text-surface-canvas hover:bg-state-accent-hover font-title-sm text-title-sm px-4 md:px-5 py-3 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.45)] border border-primary-fixed-dim/30 transition-all duration-200 active:scale-[0.96] hover:shadow-[0_12px_28px_rgba(200,178,155,0.22)]" id="open-new-idea-fab" type="button">
+<span class="w-7 h-7 rounded-full bg-surface-canvas/15 flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px] text-surface-canvas group-hover:rotate-90 transition-transform duration-250">add</span>
+</span>
+<span class="font-semibold tracking-wide pr-1">New Idea</span>
+</button>
+</div>
+<!-- Bottom Navigation Shell (BottomNavBar Shared Component Anchor) -->
+<!-- Strictly renders on mobile viewports per layout mandate -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-40 bg-surface-card border-t border-border-hairline max-w-[1040px] mx-auto">
+<div class="flex justify-around items-center px-gutter-mobile py-space-xs">
+<!-- Tab 1: Ideas (Active Destination) -->
+<a class="flex flex-col items-center justify-center text-primary font-medium py-1 active:scale-[0.985] transition-transform duration-150" href="#">
+<span class="material-symbols-outlined text-[22px]" data-icon="lightbulb">lightbulb</span>
+<span class="text-label-sm font-label-sm uppercase tracking-wider mt-0.5">Ideas</span>
+</a>
+<!-- Tab 2: Series -->
+<a class="flex flex-col items-center justify-center text-text-whisper hover:text-text-ivory py-1 active:scale-[0.985] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined text-[22px]" data-icon="auto_stories">auto_stories</span>
+<span class="text-label-sm font-label-sm uppercase tracking-wider mt-0.5">Series</span>
+</a>
+<!-- Tab 3: Schedule -->
+<a class="flex flex-col items-center justify-center text-text-whisper hover:text-text-ivory py-1 active:scale-[0.985] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined text-[22px]" data-icon="calendar_today">calendar_today</span>
+<span class="text-label-sm font-label-sm uppercase tracking-wider mt-0.5">Schedule</span>
+</a>
+<!-- Tab 4: Pipeline -->
+<a class="flex flex-col items-center justify-center text-text-whisper hover:text-text-ivory py-1 active:scale-[0.985] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined text-[22px]" data-icon="view_kanban">view_kanban</span>
+<span class="text-label-sm font-label-sm uppercase tracking-wider mt-0.5">Pipeline</span>
+</a>
+<!-- Tab 5: Community -->
+<a class="flex flex-col items-center justify-center text-text-whisper hover:text-text-ivory py-1 active:scale-[0.985] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined text-[22px]" data-icon="forum">forum</span>
+<span class="text-label-sm font-label-sm uppercase tracking-wider mt-0.5">Community</span>
+</a>
+</div>
+</nav>
+<!-- Interactive Bottom Sheet Modal: "Add New Idea" -->
+<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-surface-canvas/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-250" id="new-idea-modal">
+<div class="relative w-full max-w-lg bg-surface-card border border-border-hairline rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl transform translate-y-full sm:translate-y-0 sm:scale-95 transition-all duration-250 max-h-[90vh] overflow-y-auto font-sans" id="new-idea-sheet-panel">
+<!-- Drag handle indicator for mobile sheet feel -->
+<div class="sm:hidden flex justify-center pb-2 -mt-1">
+<span class="w-10 h-1 rounded-full bg-border-subtle/80"></span>
+</div>
+<!-- Modal Header -->
+<div class="flex items-center justify-between pb-3.5 border-b border-border-hairline">
+<div class="flex items-center gap-2.5">
+<span class="w-2.5 h-2.5 rounded-full bg-primary-container inline-block"></span>
+<div>
+<h3 class="font-sans font-semibold text-[20px] leading-[28px] text-text-linen">New Video Idea</h3>
+<span class="text-label-sm font-label-sm text-text-whisper block -mt-0.5">Serenity Editorial Queue</span>
+</div>
+</div>
+<button aria-label="Close" class="w-8 h-8 rounded-full flex items-center justify-center text-text-whisper hover:text-text-linen hover:bg-surface-highlight transition-colors" id="new-idea-close-btn" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Form -->
+<form class="space-y-4 pt-4" id="new-idea-form">
+<!-- Idea Title Area -->
+<div class="space-y-1.5">
+<label class="block text-label-sm font-label-sm uppercase tracking-wider text-text-stone" for="new-idea-title-input">
+      Idea Title / Core Hook
+    </label>
+<textarea class="w-full bg-surface-recessed text-text-linen placeholder-text-whisper text-body-md rounded-lg border border-border-hairline p-3 focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container/20 transition-all resize-none leading-relaxed" id="new-idea-title-input" placeholder="Enter a captivating video thesis, essay title, or inquiry..." required="" rows="2"></textarea>
+</div>
+<!-- Custom Bespoke Series Dropdown -->
+<div class="space-y-1.5">
+<label class="block text-label-sm font-label-sm uppercase tracking-wider text-text-stone">
+      Connected Playlist / Series
+    </label>
+<div class="relative" id="new-sheet-series-dropdown">
+<button aria-expanded="false" aria-haspopup="listbox" class="w-full flex items-center justify-between bg-surface-recessed hover:bg-surface-elevated/70 text-text-linen text-body-md rounded-lg border border-border-hairline p-3 focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container/20 transition-all text-left group" id="new-sheet-series-trigger" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[18px] text-primary/80 group-hover:text-primary transition-colors">layers</span>
+<span class="truncate" id="new-sheet-series-label">None (Standalone Idea)</span>
+</span>
+<span class="material-symbols-outlined text-text-whisper text-[20px] transition-transform duration-200" id="new-sheet-series-chevron">expand_more</span>
+</button>
+<input id="new-sheet-series-value" type="hidden" value="None (Standalone Idea)">
+<!-- Dropdown Menu -->
+<div class="absolute left-0 right-0 top-full mt-1.5 z-30 bg-[#1f1b15] border border-border-hairline rounded-xl shadow-2xl py-1 hidden overflow-hidden backdrop-blur-md max-h-56 overflow-y-auto" id="new-sheet-series-menu" role="listbox">
+<button class="custom-select-option is-selected w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="None (Standalone Idea)" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-text-whisper">adjust</span>
+<span class="truncate">None (Standalone Idea)</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE CLOUD SURVIVAL GUIDE: ENGINEERING FOR HIGH AVAILABILITY" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE CLOUD SURVIVAL GUIDE: ENGINEERING FOR HIGH AVAILABILITY</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE SOFTWARE REALITY CHECK: AUDITING COMPLEXITY" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE SOFTWARE REALITY CHECK: AUDITING COMPLEXITY</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE WORKFLOW ENGINEER: MASTERING HIGH VELOCITY" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE WORKFLOW ENGINEER: MASTERING HIGH VELOCITY</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE AI-PROOF ARCHITECT: ENGINEERING BEYOND HYPE" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE AI-PROOF ARCHITECT: ENGINEERING BEYOND HYPE</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE PERFORMANCE ENGINEER: MASTERING RUNTIMES" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE PERFORMANCE ENGINEER: MASTERING RUNTIMES</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Idea Description Field -->
+<div class="space-y-1.5">
+<label class="block text-label-sm font-label-sm uppercase tracking-wider text-text-stone" for="new-idea-desc-input">
+      Outline &amp; Narrative Angle <span class="text-text-whisper lowercase font-normal">(optional)</span>
+</label>
+<textarea class="w-full bg-surface-recessed text-text-linen placeholder-text-whisper text-body-md rounded-lg border border-border-hairline p-3 focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container/20 transition-all resize-none leading-relaxed" id="new-idea-desc-input" placeholder="Core thesis, references, or key talking points..." rows="3"></textarea>
+</div>
+<!-- Modal Actions -->
+<div class="flex items-center justify-end gap-2.5 pt-3 border-t border-border-hairline">
+<button class="px-4 py-2.5 rounded-lg text-text-stone hover:text-text-linen hover:bg-surface-elevated text-label-md font-label-md uppercase tracking-wider transition-colors" id="new-idea-cancel-btn" type="button">
+      Cancel
+    </button>
+<button class="inline-flex items-center justify-center gap-2 bg-primary-container text-surface-canvas font-title-sm text-title-sm px-6 py-2.5 rounded-lg hover:bg-state-accent-hover transition-colors duration-150 active:scale-[0.985] shadow-sm" type="submit">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span class="">Add to Queue</span>
+</button>
+</div>
+</form>
+</div>
+</div>
+<!-- Edit Modal / Bottom Sheet Flow -->
+<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-surface-canvas/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200" id="edit-modal">
+<div class="relative w-full max-w-lg bg-surface-card border border-border-hairline rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl transform translate-y-8 sm:translate-y-0 sm:scale-95 transition-all duration-200 max-h-[90vh] overflow-y-auto font-sans">
+<!-- Modal Header -->
+<div class="flex items-center justify-between pb-3.5 border-b border-border-hairline">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary inline-block"></span>
+<h3 class="font-sans font-semibold text-[20px] leading-[28px] text-text-linen">Edit Idea</h3>
+</div>
+<button class="w-8 h-8 rounded-full flex items-center justify-center text-text-whisper hover:text-text-linen hover:bg-surface-highlight transition-colors" id="modal-close-btn" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Modal Form -->
+<form class="space-y-4 pt-4" id="edit-idea-form">
+<input id="edit-card-id" type="hidden" value="">
+<!-- Title Field -->
+<div class="space-y-1.5">
+<label class="block text-label-sm font-label-sm uppercase tracking-wider text-text-stone" for="edit-title">
+      Idea Title
+    </label>
+<input class="w-full bg-surface-recessed text-text-linen placeholder-text-whisper text-body-md rounded-lg border border-border-hairline p-3 focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container/20 transition-colors" id="edit-title" required="" type="text">
+</div>
+<!-- Custom Bespoke Series Dropdown (Dark Sanctuary Styling) -->
+<div class="space-y-1.5">
+<label class="block text-label-sm font-label-sm uppercase tracking-wider text-text-stone">
+      Connected Playlist / Series
+    </label>
+<div class="relative" id="edit-series-dropdown">
+<button aria-expanded="false" aria-haspopup="listbox" class="w-full flex items-center justify-between bg-surface-recessed hover:bg-surface-elevated/70 text-text-linen text-body-md rounded-lg border border-border-hairline p-3 focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container/20 transition-all text-left group" id="edit-series-trigger" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[18px] text-primary/80 group-hover:text-primary transition-colors">layers</span>
+<span class="truncate" id="edit-series-label">None (Standalone Idea)</span>
+</span>
+<span class="material-symbols-outlined text-text-whisper text-[20px] transition-transform duration-200" id="edit-series-chevron">expand_more</span>
+</button>
+<input id="edit-series-value" type="hidden" value="None (Standalone Idea)">
+<!-- Dropdown Menu -->
+<div class="absolute left-0 right-0 top-full mt-1.5 z-30 bg-[#1f1b15] border border-border-hairline rounded-xl shadow-2xl py-1 hidden overflow-hidden backdrop-blur-md max-h-56 overflow-y-auto" id="edit-series-menu" role="listbox">
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="None (Standalone Idea)" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-text-whisper">adjust</span>
+<span class="truncate">None (Standalone Idea)</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE CLOUD SURVIVAL GUIDE: ENGINEERING FOR HIGH AVAILABILITY" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE CLOUD SURVIVAL GUIDE: ENGINEERING FOR HIGH AVAILABILITY</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE SOFTWARE REALITY CHECK: AUDITING COMPLEXITY" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE SOFTWARE REALITY CHECK: AUDITING COMPLEXITY</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE WORKFLOW ENGINEER: MASTERING HIGH VELOCITY" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE WORKFLOW ENGINEER: MASTERING HIGH VELOCITY</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE AI-PROOF ARCHITECT: ENGINEERING BEYOND HYPE" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE AI-PROOF ARCHITECT: ENGINEERING BEYOND HYPE</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+<button class="custom-select-option w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors" data-value="THE PERFORMANCE ENGINEER: MASTERING RUNTIMES" role="option" type="button">
+<span class="flex items-center gap-2.5 truncate">
+<span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+<span class="truncate">THE PERFORMANCE ENGINEER: MASTERING RUNTIMES</span>
+</span>
+<span class="material-symbols-outlined text-[16px] text-primary check-icon hidden">check</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Description Field -->
+<div class="space-y-1.5">
+<label class="block text-label-sm font-label-sm uppercase tracking-wider text-text-stone" for="edit-description">
+      Idea Description &amp; Talking Points
+    </label>
+<textarea class="w-full bg-surface-recessed text-text-linen placeholder-text-whisper text-body-md rounded-lg border border-border-hairline p-3 focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container/20 transition-colors resize-none leading-relaxed" id="edit-description" placeholder="Detailed outline, narrative premise, or target takeaways..." rows="4"></textarea>
+</div>
+<!-- Form Actions -->
+<div class="flex items-center justify-end gap-2.5 pt-3 border-t border-border-hairline">
+<button class="px-4 py-2 rounded-lg text-text-stone hover:text-text-linen hover:bg-surface-elevated text-label-md font-label-md uppercase tracking-wider transition-colors" id="modal-cancel-btn" type="button">
+      Cancel
+    </button>
+<button class="inline-flex items-center gap-2 bg-primary-container text-surface-canvas font-title-sm text-title-sm px-5 py-2.5 rounded-lg hover:bg-state-accent-hover transition-colors active:scale-[0.985]" type="submit">
+<span class="material-symbols-outlined text-[18px]">check</span>
+<span class="">Save Changes</span>
+</button>
+</div>
+</form>
+</div>
+</div>
+<!-- Subtle Notification Toast -->
+<div class="fixed bottom-16 md:bottom-6 right-1/2 translate-x-1/2 md:translate-x-0 md:right-6 z-50 bg-surface-elevated text-text-linen border border-border-hairline px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 opacity-0 pointer-events-none transition-all duration-200 text-body-sm" id="toast">
+<span class="material-symbols-outlined text-primary text-[18px]" id="toast-icon">check_circle</span>
+<span id="toast-message" class="">Idea updated successfully</span>
+</div>
+<!-- Interactive Logic for FAB Bottom Sheet, Expansion, Editing, Deletion & Queue Management -->
+<script>
+    // Elements & State
+    const container = document.getElementById('ideas-container');
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toast-message');
+    const toastIcon = document.getElementById('toast-icon');
+    const counterBadge = document.getElementById('queue-counter-text');
+    const footerNote = document.getElementById('footer-sync-note');
+    const clearQueueBtn = document.getElementById('clear-queue-btn');
+
+    // FAB and New Idea Bottom Sheet Elements
+    const fabBtn = document.getElementById('open-new-idea-fab');
+    const newIdeaModal = document.getElementById('new-idea-modal');
+    const newIdeaSheetPanel = document.getElementById('new-idea-sheet-panel');
+    const newIdeaCloseBtn = document.getElementById('new-idea-close-btn');
+    const newIdeaCancelBtn = document.getElementById('new-idea-cancel-btn');
+    const newIdeaForm = document.getElementById('new-idea-form');
+    const newIdeaTitleInput = document.getElementById('new-idea-title-input');
+    const newIdeaDescInput = document.getElementById('new-idea-desc-input');
+
+    const newSheetSeriesTrigger = document.getElementById('new-sheet-series-trigger');
+    const newSheetSeriesMenu = document.getElementById('new-sheet-series-menu');
+    const newSheetSeriesLabel = document.getElementById('new-sheet-series-label');
+    const newSheetSeriesValue = document.getElementById('new-sheet-series-value');
+    const newSheetSeriesChevron = document.getElementById('new-sheet-series-chevron');
+
+    // Edit Modal Elements
+    const editModal = document.getElementById('edit-modal');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    const modalCancelBtn = document.getElementById('modal-cancel-btn');
+    const editForm = document.getElementById('edit-idea-form');
+    const editCardId = document.getElementById('edit-card-id');
+    const editTitle = document.getElementById('edit-title');
+    const editDesc = document.getElementById('edit-description');
+
+    const editSeriesTrigger = document.getElementById('edit-series-trigger');
+    const editSeriesMenu = document.getElementById('edit-series-menu');
+    const editSeriesLabel = document.getElementById('edit-series-label');
+    const editSeriesValue = document.getElementById('edit-series-value');
+    const editSeriesChevron = document.getElementById('edit-series-chevron');
+
+    // Setup bespoke dropdown helper
+    function setupCustomDropdown(trigger, menu, label, hiddenInput, chevron) {
+      function openDropdown() {
+        menu.classList.remove('hidden');
+        chevron?.classList.add('rotate-180');
+        trigger.setAttribute('aria-expanded', 'true');
+      }
+      function closeDropdown() {
+        menu.classList.add('hidden');
+        chevron?.classList.remove('rotate-180');
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = !menu.classList.contains('hidden');
+        if (trigger === newSheetSeriesTrigger) editSeriesMenu?.classList.add('hidden');
+        if (trigger === editSeriesTrigger) newSheetSeriesMenu?.classList.add('hidden');
+        if (isOpen) closeDropdown();
+        else openDropdown();
+      });
+
+      menu.addEventListener('click', (e) => {
+        const option = e.target.closest('.custom-select-option');
+        if (!option) return;
+        e.stopPropagation();
+        const val = option.getAttribute('data-value');
+        setSelectedValue(val);
+        closeDropdown();
+      });
+
+      function setSelectedValue(val) {
+        hiddenInput.value = val;
+        label.textContent = val;
+        const options = menu.querySelectorAll('.custom-select-option');
+        let matched = false;
+        options.forEach(opt => {
+          const optVal = opt.getAttribute('data-value');
+          const check = opt.querySelector('.check-icon');
+          if (optVal.toLowerCase() === val.toLowerCase() || (val === 'STANDALONE ESSAY / UNASSIGNED' && optVal === 'None (Standalone Idea)')) {
+            opt.classList.add('is-selected');
+            check?.classList.remove('hidden');
+            matched = true;
+          } else {
+            opt.classList.remove('is-selected');
+            check?.classList.add('hidden');
+          }
+        });
+
+        // If not found in default list, dynamically inject option
+        if (!matched && val && val !== 'None (Standalone Idea)') {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'custom-select-option is-selected w-full px-3.5 py-2.5 text-left text-body-md flex items-center justify-between text-text-stone hover:text-text-linen hover:bg-surface-elevated transition-colors';
+          btn.setAttribute('data-value', val);
+          btn.setAttribute('role', 'option');
+          btn.innerHTML = `
+            <span class="flex items-center gap-2.5 truncate">
+              <span class="material-symbols-outlined text-[16px] text-primary/70">layers</span>
+              <span class="truncate">${val}</span>
+            </span>
+            <span class="material-symbols-outlined text-[16px] text-primary check-icon">check</span>
+          `;
+          menu.appendChild(btn);
+        }
+      }
+
+      return { setSelectedValue, closeDropdown };
+    }
+
+    const newSheetDropdownCtrl = setupCustomDropdown(newSheetSeriesTrigger, newSheetSeriesMenu, newSheetSeriesLabel, newSheetSeriesValue, newSheetSeriesChevron);
+    const editDropdownCtrl = setupCustomDropdown(editSeriesTrigger, editSeriesMenu, editSeriesLabel, editSeriesValue, editSeriesChevron);
+
+    // Global listener to close dropdowns when clicking outside
+    document.addEventListener('click', () => {
+      newSheetDropdownCtrl.closeDropdown();
+      editDropdownCtrl.closeDropdown();
+    });
+
+    let toastTimer = null;
+    function showToast(msg, isAlert = false) {
+      toastMessage.textContent = msg;
+      toastIcon.textContent = isAlert ? 'delete' : 'check_circle';
+      toastIcon.className = isAlert ? 'material-symbols-outlined text-alert-warm text-[18px]' : 'material-symbols-outlined text-primary text-[18px]';
+      toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-2');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-2');
+      }, 2500);
+    }
+
+    function updateCounters() {
+      const cards = container.querySelectorAll('.idea-card');
+      const count = cards.length;
+      counterBadge.textContent = `${count} ${count === 1 ? 'idea' : 'ideas'} queued`;
+      footerNote.textContent = `Autosynced to workspace • ${count} active ${count === 1 ? 'item' : 'items'}`;
+      // re-index badge numbers
+      cards.forEach((card, idx) => {
+        const badge = card.querySelector('.flex-shrink-0');
+        if (badge) badge.textContent = (idx + 1).toString();
+      });
+    }
+
+    // Expand / Collapse card helper
+    function toggleCard(card) {
+      const drawer = card.querySelector('.details-collapse');
+      const chevron = card.querySelector('.chevron-icon');
+      if (!drawer) return;
+      const isOpen = drawer.classList.contains('is-open');
+      if (isOpen) {
+        drawer.classList.remove('is-open');
+        chevron?.classList.remove('rotate-180');
+      } else {
+        drawer.classList.add('is-open');
+        chevron?.classList.add('rotate-180');
+      }
+    }
+
+    // --- New Idea Bottom Sheet Controls ---
+    function openNewIdeaSheet() {
+      newIdeaModal.classList.remove('opacity-0', 'pointer-events-none');
+      newIdeaSheetPanel.classList.remove('translate-y-full', 'sm:scale-95');
+      setTimeout(() => {
+        newIdeaTitleInput.focus();
+      }, 150);
+    }
+
+    function closeNewIdeaSheet() {
+      newIdeaModal.classList.add('opacity-0', 'pointer-events-none');
+      newIdeaSheetPanel.classList.add('translate-y-full', 'sm:scale-95');
+      newSheetDropdownCtrl.closeDropdown();
+      newIdeaForm.reset();
+      newSheetDropdownCtrl.setSelectedValue('None (Standalone Idea)');
+    }
+
+    fabBtn?.addEventListener('click', openNewIdeaSheet);
+    newIdeaCloseBtn?.addEventListener('click', closeNewIdeaSheet);
+    newIdeaCancelBtn?.addEventListener('click', closeNewIdeaSheet);
+    newIdeaModal?.addEventListener('click', (e) => {
+      if (e.target === newIdeaModal) closeNewIdeaSheet();
+    });
+
+    // Handle New Idea Submission
+    newIdeaForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title = newIdeaTitleInput.value.trim();
+      if (!title) return;
+      const desc = newIdeaDescInput.value.trim() || 'Raw idea thesis queued for script development and talking points refinement.';
+      const chosenSeries = newSheetSeriesValue.value || 'None (Standalone Idea)';
+      const newId = Date.now().toString();
+
+      const newCard = document.createElement('article');
+      newCard.className = 'idea-card group bg-surface-card hover:bg-surface-elevated rounded-xl border border-border-hairline hover:border-border-subtle p-space-md transition-all duration-200 select-none cursor-pointer';
+      newCard.setAttribute('data-id', newId);
+      newCard.innerHTML = `
+        <div class="flex items-start gap-3.5">
+          <div class="flex-shrink-0 w-7 h-7 rounded-lg bg-surface-recessed border border-border-hairline flex items-center justify-center text-text-stone font-title-sm text-title-sm select-none group-hover:text-primary group-hover:border-primary/40 transition-colors">
+            1
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 mb-1.5 text-text-stone">
+              <span class="material-symbols-outlined text-[14px] text-primary/80">layers</span>
+              <span class="card-series text-label-sm font-label-sm tracking-wider uppercase truncate text-text-stone">${chosenSeries}</span>
+            </div>
+            <h2 class="card-title text-text-linen group-hover:text-primary transition-colors text-title-sm font-title-sm leading-snug font-body-md">
+              ${title}
+            </h2>
+          </div>
+          <div class="flex-shrink-0 flex items-center gap-1 text-text-whisper">
+            <button class="quick-edit-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-primary hover:bg-surface-highlight transition-colors" title="Edit idea" type="button">
+              <span class="material-symbols-outlined text-[16px]">edit</span>
+            </button>
+            <button class="quick-delete-btn w-7 h-7 rounded-lg flex items-center justify-center text-text-whisper hover:text-alert-warm hover:bg-alert-surface transition-colors" title="Delete idea" type="button">
+              <span class="material-symbols-outlined text-[16px]">delete</span>
+            </button>
+            <span class="chevron-icon material-symbols-outlined text-[20px] text-text-whisper/80 transition-transform duration-250 rotate-180">expand_more</span>
+          </div>
+        </div>
+        <div class="details-collapse is-open">
+          <div class="details-inner pt-3.5 mt-3 border-t border-border-hairline/80 cursor-default" onclick="event.stopPropagation()">
+            <div class="space-y-2.5">
+              <p class="card-description text-text-stone text-body-md font-body-md leading-relaxed">
+                ${desc}
+              </p>
+              <div class="flex flex-wrap items-center gap-3 text-label-sm font-label-sm text-text-whisper pt-0.5">
+                <span class="flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[14px]">calendar_today</span>
+                  Added just now
+                </span>
+              </div>
+              <div class="flex items-center justify-between pt-2">
+                <div class="flex items-center gap-2">
+                  <button class="open-edit-modal-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-elevated hover:bg-surface-highlight border border-border-hairline text-text-linen hover:text-primary text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+                    <span class="material-symbols-outlined text-[16px] text-primary">edit</span>
+                    <span>Edit Idea</span>
+                  </button>
+                  <button class="open-delete-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-text-whisper hover:text-alert-warm hover:bg-alert-surface border border-transparent hover:border-alert-warm/20 text-label-md font-label-md tracking-wider transition-colors active:scale-[0.98]" type="button">
+                    <span class="material-symbols-outlined text-[16px]">delete</span>
+                    <span>Delete</span>
+                  </button>
+                </div>
+                <span class="text-[11px] font-label-sm tracking-widest uppercase text-text-whisper/60">serenity id #new</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.prepend(newCard);
+      closeNewIdeaSheet();
+      updateCounters();
+      showToast('New idea queued');
+    });
+
+    // --- Edit Modal Controls ---
+    function openEditModal(card) {
+      const cardId = card.getAttribute('data-id');
+      const titleEl = card.querySelector('.card-title');
+      const seriesEl = card.querySelector('.card-series');
+      const descEl = card.querySelector('.card-description');
+
+      editCardId.value = cardId;
+      editTitle.value = titleEl ? titleEl.textContent.trim() : '';
+      
+      const currentSeries = seriesEl ? seriesEl.textContent.trim() : 'None (Standalone Idea)';
+      editDropdownCtrl.setSelectedValue(currentSeries);
+
+      editDesc.value = descEl ? descEl.textContent.trim() : '';
+
+      editModal.classList.remove('opacity-0', 'pointer-events-none');
+      const modalInner = editModal.firstElementChild;
+      modalInner.classList.remove('translate-y-8', 'sm:scale-95');
+    }
+
+    function closeEditModal() {
+      editModal.classList.add('opacity-0', 'pointer-events-none');
+      const modalInner = editModal.firstElementChild;
+      modalInner.classList.add('translate-y-8', 'sm:scale-95');
+      editDropdownCtrl.closeDropdown();
+    }
+
+    modalCloseBtn?.addEventListener('click', closeEditModal);
+    modalCancelBtn?.addEventListener('click', closeEditModal);
+    editModal?.addEventListener('click', (e) => {
+      if (e.target === editModal) closeEditModal();
+    });
+
+    // Save Edit changes
+    editForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const id = editCardId.value;
+      const card = container.querySelector(`.idea-card[data-id="${id}"]`);
+      if (card) {
+        const titleEl = card.querySelector('.card-title');
+        const seriesEl = card.querySelector('.card-series');
+        const descEl = card.querySelector('.card-description');
+
+        if (titleEl) titleEl.textContent = editTitle.value;
+        const chosenSeries = editSeriesValue.value || 'None (Standalone Idea)';
+        if (seriesEl) seriesEl.textContent = chosenSeries;
+        if (descEl) descEl.textContent = editDesc.value || 'No description provided yet.';
+
+        // Ensure card is expanded to highlight edits
+        const drawer = card.querySelector('.details-collapse');
+        const chevron = card.querySelector('.chevron-icon');
+        if (drawer && !drawer.classList.contains('is-open')) {
+          drawer.classList.add('is-open');
+          chevron?.classList.add('rotate-180');
+        }
+      }
+      closeEditModal();
+      showToast('Idea updated successfully');
+    });
+
+    // Delete card helper
+    function deleteCard(card) {
+      card.style.transition = 'all 200ms ease-out';
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(8px) scale(0.98)';
+      setTimeout(() => {
+        card.remove();
+        updateCounters();
+        showToast('Idea removed from queue', true);
+      }, 200);
+    }
+
+    // Attach click listeners to cards & delegate
+    container?.addEventListener('click', (e) => {
+      const card = e.target.closest('.idea-card');
+      if (!card) return;
+
+      // Check edit button
+      if (e.target.closest('.quick-edit-btn') || e.target.closest('.open-edit-modal-btn')) {
+        e.stopPropagation();
+        openEditModal(card);
+        return;
+      }
+
+      // Check delete button
+      if (e.target.closest('.quick-delete-btn') || e.target.closest('.open-delete-btn')) {
+        e.stopPropagation();
+        deleteCard(card);
+        return;
+      }
+
+      // Otherwise click toggles the card
+      toggleCard(card);
+    });
+
+    // Clear queue button
+    clearQueueBtn?.addEventListener('click', () => {
+      if (confirm('Are you sure you want to clear all queued ideas?')) {
+        container.innerHTML = `
+          <div class="text-center py-16 px-4 rounded-xl border border-dashed border-border-hairline bg-surface-card/40">
+            <span class="material-symbols-outlined text-[36px] text-text-whisper/60 mb-2">lightbulb_outline</span>
+            <p class="font-headline-md text-[18px] text-text-stone">Queue is currently peaceful and empty</p>
+            <p class="text-label-sm text-text-whisper mt-1">Tap "+ New Idea" below to capture your next insight.</p>
+          </div>
+        `;
+        updateCounters();
+        showToast('Queue cleared', true);
+      }
+    });
+  </script>
+
+
+</body></html>

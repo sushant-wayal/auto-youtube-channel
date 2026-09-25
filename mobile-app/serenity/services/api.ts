@@ -19,12 +19,19 @@ export type PipelineStatus = {
     videoTitle: string;
     description?: string;          // YouTube description from script
     youtubeId?: string;            // main video YouTube ID
+    scheduledPublishTime?: string; // ISO scheduled publication time
     videoUrl?: string;             // assembled video Cloudinary URL
     thumbnailUrl?: string;         // thumbnail Cloudinary URL
     sceneUrls?: string[];          // per-scene rendered video URLs
     voiceoverUrls?: string[];      // per-scene audio URLs
     sceneNarrations?: string[];    // narration text per scene
     ideasAdded?: string[];         // ideas added to queue this run
+    queuedIdeas?: Array<{
+        topic: string;
+        isSeries?: boolean;
+        seriesTitle?: string | null;
+        learningObjective?: string | null;
+    }>;                            // candidate ideas currently queued in video:ideas
     shortHooks?: string[];         // hook text per short
     shortCaptions?: string[];      // paste-ready Instagram Reel captions
     shorts?: ShortResult[];        // per-short YouTube + video URLs
@@ -105,11 +112,20 @@ export type ShortsPublishTimeResponse = {
     error?: string;
 };
 
+// Retention Stat Type
+export type RetentionStat = {
+    estimatedRetention: number;
+    sampleCount: number;
+    hasHistory?: boolean;
+    isCalibrating?: boolean;
+};
+
 // Schedule Times API Types
 export type ScheduleTimesResponse = {
     ok: boolean;
     shortsTimes?: string[];
     longFormTime?: string;
+    retentionStats?: Record<string, RetentionStat>;
     error?: string;
 };
 
@@ -143,13 +159,13 @@ export const ideasApi = {
     },
 
     // Add a new idea
-    addIdea: async (idea: string): Promise<IdeasQueueResponse> => {
+    addIdea: async (idea: string, position: 'top' | 'bottom' = 'bottom'): Promise<IdeasQueueResponse> => {
         try {
-            console.log('[API] Adding idea:', idea);
+            console.log('[API] Adding idea:', idea, 'position:', position);
             const response = await fetchWithTimeout(`${API_BASE_URL}/api/ideas-queue`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'add', idea }),
+                body: JSON.stringify({ action: 'add', idea, position }),
             });
             const data = await response.json();
             console.log('[API] Idea added successfully');
@@ -705,6 +721,57 @@ export const commentsApi = {
         } catch (error: any) {
             console.error('[API] Error dispatching comments workflow:', error.message || error);
             return { success: false, error: error.message || String(error) };
+        }
+    },
+
+    postLiveReply: async (params: {
+        threadId: string;
+        commentId?: string;
+        replyText: string;
+        historyId?: string;
+    }): Promise<{ ok: boolean; message?: string; error?: string }> => {
+        try {
+            console.log('[API] Posting live reply for thread:', params.threadId);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/post-reply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            }, 25000);
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error posting live reply:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    updateReplyText: async (id: string, replyText: string): Promise<{ ok: boolean; error?: string; message?: string }> => {
+        try {
+            console.log('[API] Updating reply text for item:', id);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/history`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, replyText }),
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error updating reply text:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    deleteHistoryItem: async (id: string): Promise<{ ok: boolean; error?: string; message?: string }> => {
+        try {
+            console.log('[API] Deleting comment history item:', id);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/history?id=${encodeURIComponent(id)}`, {
+                method: 'DELETE',
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error deleting comment history item:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
         }
     },
 };
