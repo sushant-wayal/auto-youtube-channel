@@ -33,15 +33,9 @@ yarn-error.*
 **/.expo-shared/
 **/dist/
 **/web-build/
-**/android/app/build/
-**/android/.gradle/
-**/android/local.properties
-**/android/.idea/
-**/android/*.iml
-**/android/*.hprof
-**/android/.cxx/
-**/ios/build/
-**/ios/Pods/
+# Mobile native folders (CNG - Clean Cloud Prebuild)
+**/android/
+**/ios/
 
 # Environment files
 .env*
