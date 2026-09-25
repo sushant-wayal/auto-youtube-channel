@@ -2,6 +2,8 @@ import Redis from 'ioredis';
 import { CommentReplySettings, ReplyHistoryEntry, VideoMetadata } from '../types';
 
 const REPLIED_SET_KEY = 'youtube:comments:replied';
+const REPLIED_KEY_PREFIX = 'youtube:comment:replied:';
+const REPLIED_TTL_SECONDS = 86400 * 30; // 30 days
 const SETTINGS_KEY = 'settings:auto_comment_reply';
 const HISTORY_LIST_KEY = 'comments:reply_history';
 const VIDEO_META_PREFIX = 'youtube:video:meta:';
@@ -33,6 +35,9 @@ export class CommentStateService {
      */
     async isCommentReplied(commentId: string): Promise<boolean> {
         try {
+            const exists = await this.redis.exists(`${REPLIED_KEY_PREFIX}${commentId}`);
+            if (exists === 1) return true;
+
             const isMember = await this.redis.sismember(REPLIED_SET_KEY, commentId);
             return isMember === 1;
         } catch (error) {
@@ -42,11 +47,16 @@ export class CommentStateService {
     }
 
     /**
-     * Mark comment as replied in Redis set
+     * Mark comment as replied in Redis with 30-day TTL
      */
     async markCommentReplied(commentId: string): Promise<void> {
         try {
-            await this.redis.sadd(REPLIED_SET_KEY, commentId);
+            await this.redis.set(
+                `${REPLIED_KEY_PREFIX}${commentId}`,
+                '1',
+                'EX',
+                REPLIED_TTL_SECONDS
+            );
         } catch (error) {
             console.error(`⚠️ Redis error marking comment ${commentId} as replied:`, error);
         }
