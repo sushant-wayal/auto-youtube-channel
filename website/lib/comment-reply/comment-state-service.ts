@@ -77,12 +77,58 @@ export class CommentStateService {
         }
     }
 
+    private getCommentKey(entry: ReplyHistoryEntry): string {
+        if (entry.commentId && !entry.commentId.startsWith('c-')) {
+            return `cid:${entry.commentId}`;
+        }
+        if (entry.threadId && !entry.threadId.startsWith('th-')) {
+            return `th:${entry.threadId}`;
+        }
+        const normalizedText = (entry.commentText || '').trim().toLowerCase().slice(0, 80);
+        const normalizedAuthor = (entry.authorName || '').trim().toLowerCase();
+        return `text:${normalizedAuthor}:${normalizedText}`;
+    }
+
     async pushReplyHistory(entry: ReplyHistoryEntry): Promise<void> {
         try {
-            const serialized = JSON.stringify(entry);
+            const rawItems = await this.redis.lrange(HISTORY_LIST_KEY, 0, -1);
+            const currentEntries: ReplyHistoryEntry[] = [];
+            for (const raw of rawItems) {
+                try {
+                    currentEntries.push(JSON.parse(raw));
+                } catch {}
+            }
+
+            const targetKey = this.getCommentKey(entry);
+
+            // Filter out existing duplicates for the same comment
+            const filtered = currentEntries.filter((existing) => {
+                const existingKey = this.getCommentKey(existing);
+                if (existingKey === targetKey) {
+                    // If existing is already 'posted' and new entry is 'dry_run', discard the new dry run
+                    if (existing.status === 'posted' && entry.status === 'dry_run') {
+                        return true;
+                    }
+                    // Otherwise remove the old entry so the new one replaces it
+                    return false;
+                }
+                return true;
+            });
+
+            // If the existing entry was 'posted' and we received a 'dry_run', don't add the dry run
+            const alreadyPosted = currentEntries.some(
+                (existing) => this.getCommentKey(existing) === targetKey && existing.status === 'posted'
+            );
+            if (!alreadyPosted || entry.status === 'posted') {
+                filtered.unshift(entry);
+            }
+
+            const trimmed = filtered.slice(0, MAX_HISTORY_ITEMS);
             const multi = this.redis.multi();
-            multi.lpush(HISTORY_LIST_KEY, serialized);
-            multi.ltrim(HISTORY_LIST_KEY, 0, MAX_HISTORY_ITEMS - 1);
+            multi.del(HISTORY_LIST_KEY);
+            if (trimmed.length > 0) {
+                multi.rpush(HISTORY_LIST_KEY, ...trimmed.map((e) => JSON.stringify(e)));
+            }
             await multi.exec();
         } catch (error) {
             console.error('⚠️ Redis error pushing reply history entry:', error);
@@ -91,8 +137,27 @@ export class CommentStateService {
 
     async getReplyHistory(limit: number = 20): Promise<ReplyHistoryEntry[]> {
         try {
-            const entries = await this.redis.lrange(HISTORY_LIST_KEY, 0, Math.min(limit, MAX_HISTORY_ITEMS) - 1);
-            return entries.map((item) => JSON.parse(item) as ReplyHistoryEntry);
+            const rawItems = await this.redis.lrange(HISTORY_LIST_KEY, 0, MAX_HISTORY_ITEMS - 1);
+            const parsed: ReplyHistoryEntry[] = [];
+            for (const item of rawItems) {
+                try {
+                    parsed.push(JSON.parse(item));
+                } catch {}
+            }
+
+            // Deduplicate: if an entry is 'posted', it must strictly take precedence over any 'dry_run'
+            const uniqueMap = new Map<string, ReplyHistoryEntry>();
+            for (const entry of parsed) {
+                const key = this.getCommentKey(entry);
+                const existing = uniqueMap.get(key);
+                if (!existing) {
+                    uniqueMap.set(key, entry);
+                } else if (entry.status === 'posted' && existing.status !== 'posted') {
+                    uniqueMap.set(key, entry);
+                }
+            }
+
+            return Array.from(uniqueMap.values()).slice(0, limit);
         } catch (error) {
             console.error('⚠️ Redis error getting reply history:', error);
             return [];
@@ -103,24 +168,43 @@ export class CommentStateService {
         try {
             const items = await this.redis.lrange(HISTORY_LIST_KEY, 0, -1);
             let updated = false;
-            const newItems = items.map((raw) => {
+            let targetKey: string | null = null;
+
+            const parsedList: ReplyHistoryEntry[] = [];
+            for (const raw of items) {
                 try {
                     const parsed = JSON.parse(raw);
                     if (parsed.id === identifier || parsed.commentId === identifier || parsed.threadId === identifier) {
                         parsed.status = status;
                         if (error) parsed.error = error;
                         updated = true;
+                        targetKey = this.getCommentKey(parsed);
                     }
-                    return JSON.stringify(parsed);
-                } catch {
-                    return raw;
+                    parsedList.push(parsed);
+                } catch {}
+            }
+
+            // If we updated a comment to 'posted', ensure any other duplicate of that comment is removed or also marked 'posted'
+            const finalMap = new Map<string, ReplyHistoryEntry>();
+            for (const entry of parsedList) {
+                const key = this.getCommentKey(entry);
+                if (targetKey && key === targetKey) {
+                    entry.status = status;
                 }
-            });
+                const existing = finalMap.get(key);
+                if (!existing) {
+                    finalMap.set(key, entry);
+                } else if (entry.status === 'posted' && existing.status !== 'posted') {
+                    finalMap.set(key, entry);
+                }
+            }
+
             if (updated) {
                 const multi = this.redis.multi();
                 multi.del(HISTORY_LIST_KEY);
-                if (newItems.length > 0) {
-                    multi.rpush(HISTORY_LIST_KEY, ...newItems);
+                const resultList = Array.from(finalMap.values()).slice(0, MAX_HISTORY_ITEMS);
+                if (resultList.length > 0) {
+                    multi.rpush(HISTORY_LIST_KEY, ...resultList.map((e) => JSON.stringify(e)));
                 }
                 await multi.exec();
             }

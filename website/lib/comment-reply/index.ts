@@ -53,6 +53,11 @@ export async function processCommentReplies(
 
         let repliesProcessedCount = 0;
 
+        const existingHistory = await stateService.getReplyHistory(100);
+        const existingCommentIds = new Set(
+            existingHistory.map((h) => h.commentId).concat(existingHistory.map((h) => h.threadId))
+        );
+
         for (const thread of threads) {
             if (repliesProcessedCount >= maxReplies) {
                 break;
@@ -61,7 +66,7 @@ export async function processCommentReplies(
             const comment = thread.topLevelComment;
 
             const alreadyRepliedInRedis = await stateService.isCommentReplied(comment.id);
-            if (alreadyRepliedInRedis) {
+            if (alreadyRepliedInRedis || existingCommentIds.has(comment.id) || existingCommentIds.has(thread.threadId)) {
                 result.repliesSkipped++;
                 continue;
             }
