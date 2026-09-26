@@ -83,6 +83,10 @@ export class SeriesRedisService {
         await this.redis.rpush('video:ideas', JSON.stringify(payload));
     }
 
+    async getGlobalQueue(): Promise<string[]> {
+        return await this.redis.lrange('video:ideas', 0, -1);
+    }
+
     async close(): Promise<void> {
         await this.redis.quit();
     }

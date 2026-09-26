@@ -7,6 +7,7 @@ import { uploadToYouTube, formatYouTubeTitle } from '../../workers/youtube-uploa
 import { validateConfig } from '../../shared/config';
 import { getLongFormPublishTime } from '../../shared/services/shorts-publish-time-service';
 import { setJobStatus, setMetadata } from './utils/status-updater';
+import { SeriesManager } from '../../shared/services/series-manager';
 
 interface ScriptData {
     script: {
@@ -126,26 +127,44 @@ async function uploadVideo(videoUrl: string, scriptData: string, thumbnailUrl?: 
     console.error(`✅ Uploaded to YouTube: ${result.videoId}`);
 
     if (data.seriesContext) {
-        console.error(`📺 Video is part of series "${data.seriesContext.seriesTitle}". Triggering completion webhook...`);
-        const websiteDomain = process.env.WEBSITE_DOMAIN || 'http://localhost:3000';
+        console.error(`📺 Video is part of series "${data.seriesContext.seriesTitle}". Completing episode...`);
+        let completedDirectly = false;
         try {
-            const webhookRes = await fetch(`${websiteDomain}/api/series/complete-episode`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    seriesId: data.seriesContext.seriesId,
-                    episodeId: data.seriesContext.episodeId,
-                    topic: data.seriesContext.topic,
-                    videoId: result.videoId
-                })
-            });
-            if (webhookRes.ok) {
-                console.error(`✅ Webhook triggered successfully.`);
-            } else {
-                console.error(`⚠️ Webhook failed with status: ${webhookRes.status}`);
+            const sm = new SeriesManager();
+            await sm.completeEpisode(
+                data.seriesContext.seriesId,
+                data.seriesContext.episodeId,
+                data.seriesContext.topic,
+                result.videoId
+            );
+            await sm.close();
+            completedDirectly = true;
+            console.error(`✅ Series episode completed directly in Redis via SeriesManager.`);
+        } catch (directErr) {
+            console.error(`⚠️ Direct Redis series completion failed, falling back to webhook:`, directErr);
+        }
+
+        if (!completedDirectly) {
+            const websiteDomain = process.env.WEBSITE_DOMAIN || 'http://localhost:3000';
+            try {
+                const webhookRes = await fetch(`${websiteDomain}/api/series/complete-episode`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        seriesId: data.seriesContext.seriesId,
+                        episodeId: data.seriesContext.episodeId,
+                        topic: data.seriesContext.topic,
+                        videoId: result.videoId
+                    })
+                });
+                if (webhookRes.ok) {
+                    console.error(`✅ Series completion webhook triggered successfully.`);
+                } else {
+                    console.error(`⚠️ Webhook failed with status: ${webhookRes.status}`);
+                }
+            } catch (e) {
+                console.error(`⚠️ Failed to trigger series webhook:`, e);
             }
-        } catch (e) {
-            console.error(`⚠️ Failed to trigger series webhook:`, e);
         }
     }
 

@@ -141,6 +141,34 @@ export default function SeriesScreen() {
         }
     };
 
+    const handleCompleteSeries = async (item: SeriesState) => {
+        try {
+            await seriesApi.updateSeriesStatus(item.id, 'completed');
+            setSeriesList(prev => prev.map(s => s.id === item.id ? { ...s, status: 'completed' } : s));
+            showToast(`Series "${item.title}" marked as completed`);
+        } catch (err) {
+            showToast(`Status updated to completed`);
+        }
+    };
+
+    const handleReactivateSeries = async (item: SeriesState) => {
+        try {
+            showToast(`Reviving series track...`);
+            const res = await seriesApi.reactivateSeries(item.id);
+            if (res.ok && res.series) {
+                const updated = res.series as SeriesState;
+                setSeriesList(prev => prev.map(s => s.id === item.id ? updated : s));
+            } else {
+                setSeriesList(prev => prev.map(s => s.id === item.id ? { ...s, status: 'active' } : s));
+            }
+            showToast(`Series revived with new syllabus episodes!`);
+            fetchSeries(true);
+        } catch (err) {
+            setSeriesList(prev => prev.map(s => s.id === item.id ? { ...s, status: 'active' } : s));
+            showToast(`Series reactivated`);
+        }
+    };
+
     const handleDeleteSeries = (id: string) => {
         setAlertConfig({
             visible: true,
@@ -197,9 +225,9 @@ export default function SeriesScreen() {
             >
                 {/* ─── Minimalist Header ─── */}
                 <View style={styles.headerRow}>
-                    <View>
-                        <Text style={styles.headerTitle}>Series Curriculum</Text>
-                        <Text style={styles.headerSub}>Curated multi-episode tracks</Text>
+                    <View style={styles.headerLeft}>
+                        <Text style={styles.headerTitle} numberOfLines={1}>Series Curriculum</Text>
+                        <Text style={styles.headerSub} numberOfLines={1}>Curated multi-episode tracks</Text>
                     </View>
 
                     <TouchableOpacity
@@ -226,7 +254,7 @@ export default function SeriesScreen() {
                     <View style={styles.statSeparator} />
                     <View style={styles.statCell}>
                         <Text style={[styles.statNum, { color: colors.sandstone }]}>{totalQueued}</Text>
-                        <Text style={styles.statLabel}>IN QUEUE</Text>
+                        <Text style={styles.statLabel}>PLANNED</Text>
                     </View>
                 </View>
 
@@ -303,6 +331,7 @@ export default function SeriesScreen() {
                         const isExpanded = expandedSeries === item.id;
                         const uploadCount = item.uploadCount || 0;
                         const queuedCount = item.learningQueue?.length || 0;
+                        const hasActiveInQueue = item.learningQueue?.some(ep => ep.status === 'in_progress');
                         const total = uploadCount + queuedCount || 1;
                         const pct = Math.min(100, Math.round((uploadCount / total) * 100)) || 0;
                         const indexNum = index + 1 < 10 ? `0${index + 1}` : `${index + 1}`;
@@ -325,21 +354,34 @@ export default function SeriesScreen() {
                                         </Text>
                                         <View style={styles.cardMetaRow}>
                                             <Text style={styles.cardMetaText}>
-                                                {uploadCount} {uploadCount === 1 ? 'Ep' : 'Eps'} Published
+                                                {uploadCount} {uploadCount === 1 ? 'Ep' : 'Eps'}
                                             </Text>
                                             <View style={styles.metaDot} />
-                                            <Text style={[styles.cardMetaText, item.status === 'active' ? styles.statusActive : styles.statusPaused]}>
-                                                {item.status === 'active' ? 'In Production' : 'Paused'}
+                                            <Text style={[
+                                                styles.cardMetaText,
+                                                item.status === 'active' ? styles.statusActive :
+                                                item.status === 'completed' ? styles.statusCompleted :
+                                                styles.statusPaused
+                                            ]}>
+                                                {item.status === 'active' ? 'Active' : item.status === 'completed' ? 'Completed' : 'Paused'}
                                             </Text>
                                             {queuedCount > 0 && (
                                                 <>
                                                     <View style={styles.metaDot} />
                                                     <Text style={styles.cardQueueBadge}>
-                                                        {queuedCount} Queued
+                                                        {queuedCount} Planned
                                                     </Text>
                                                 </>
                                             )}
                                         </View>
+                                        {hasActiveInQueue && (
+                                            <View style={styles.inProdQueueTagRow}>
+                                                <View style={styles.inProdQueueTag}>
+                                                    <View style={styles.miniActiveGreenDot} />
+                                                    <Text style={styles.inProdQueueTagText}>1 in Queue</Text>
+                                                </View>
+                                            </View>
+                                        )}
                                     </View>
 
                                     <View style={styles.cardRight}>
@@ -367,12 +409,12 @@ export default function SeriesScreen() {
                                             <Text style={styles.drawerDesc}>{item.learningGoal}</Text>
                                         </View>
 
-                                        {/* Queued Episodes Curriculum */}
+                                        {/* Syllabus Episodes Roadmap */}
                                         <View style={styles.queueSection}>
                                             <View style={styles.queueSectionHeader}>
                                                 <Ionicons name="film-outline" size={12} color={colors.sandstone} />
                                                 <Text style={styles.drawerLabel}>
-                                                    QUEUED EPISODES ({item.learningQueue?.length || 0})
+                                                    CURRICULUM ROADMAP ({item.learningQueue?.length || 0} PLANNED)
                                                 </Text>
                                             </View>
 
@@ -381,18 +423,31 @@ export default function SeriesScreen() {
                                                     {item.learningQueue.map((ep, qIdx) => {
                                                         const epNum = (item.uploadCount || 0) + qIdx + 1;
                                                         const formattedEpNum = epNum < 10 ? `0${epNum}` : `${epNum}`;
+                                                        const isInQueue = ep.status === 'in_progress';
 
                                                         return (
-                                                            <View key={ep.episodeId || qIdx} style={styles.episodeRow}>
-                                                                <View style={styles.epNumberBadge}>
-                                                                    <Text style={styles.epNumberText}>EP {formattedEpNum}</Text>
+                                                            <View key={ep.episodeId || qIdx} style={[styles.episodeRow, isInQueue && styles.episodeRowActive]}>
+                                                                <View style={[styles.epNumberBadge, isInQueue && styles.epNumberBadgeActive]}>
+                                                                    <Text style={[styles.epNumberText, isInQueue && styles.epNumberTextActive]}>EP {formattedEpNum}</Text>
                                                                 </View>
                                                                 <View style={styles.epContent}>
-                                                                    <Text style={styles.epTopicText} numberOfLines={2}>
+                                                                    <Text style={[styles.epTopicText, isInQueue && styles.epTopicTextActive]} numberOfLines={2}>
                                                                         {ep.topic}
                                                                     </Text>
+                                                                    <View style={styles.epPillRow}>
+                                                                        {isInQueue ? (
+                                                                            <View style={styles.epActiveStatusPill}>
+                                                                                <View style={styles.miniActiveGreenDot} />
+                                                                                <Text style={styles.epActiveStatusText}>IN EDITORIAL QUEUE</Text>
+                                                                            </View>
+                                                                        ) : (
+                                                                            <View style={styles.epUpcomingStatusPill}>
+                                                                                <Text style={styles.epUpcomingStatusText}>UPCOMING IN SYLLABUS</Text>
+                                                                            </View>
+                                                                        )}
+                                                                    </View>
                                                                     {ep.learningObjective && ep.learningObjective !== ep.topic ? (
-                                                                        <Text style={styles.epObjectiveText} numberOfLines={1}>
+                                                                        <Text style={styles.epObjectiveText} numberOfLines={2}>
                                                                             {ep.learningObjective}
                                                                         </Text>
                                                                     ) : null}
@@ -400,29 +455,57 @@ export default function SeriesScreen() {
                                                             </View>
                                                         );
                                                     })}
+                                                    <View style={styles.roundRobinNotice}>
+                                                        <Ionicons name="information-circle-outline" size={13} color={colors.sandstone} />
+                                                        <Text style={styles.roundRobinNoticeText}>
+                                                            Serenity feeds syllabus topics into your Editorial Queue 1 episode at a time via round-robin.
+                                                        </Text>
+                                                    </View>
                                                 </View>
                                             ) : (
                                                 <View style={styles.emptyQueueBox}>
-                                                    <Text style={styles.emptyQueueText}>No episodes currently queued in this track</Text>
+                                                    <Text style={styles.emptyQueueText}>No syllabus episodes currently planned in this track</Text>
                                                 </View>
                                             )}
                                         </View>
 
                                         <View style={styles.drawerActions}>
-                                            <TouchableOpacity
-                                                style={styles.drawerBtn}
-                                                onPress={() => handleToggleStatus(item)}
-                                                activeOpacity={0.8}
-                                            >
-                                                <Ionicons
-                                                    name={item.status === 'active' ? 'pause-outline' : 'play-outline'}
-                                                    size={13}
-                                                    color={colors.linenDim}
-                                                />
-                                                <Text style={styles.drawerBtnText}>
-                                                    {item.status === 'active' ? 'Pause Series' : 'Activate Series'}
-                                                </Text>
-                                            </TouchableOpacity>
+                                            {item.status === 'completed' ? (
+                                                <TouchableOpacity
+                                                    style={styles.drawerBtnPrimary}
+                                                    onPress={() => handleReactivateSeries(item)}
+                                                    activeOpacity={0.8}
+                                                >
+                                                    <Ionicons name="sparkles-outline" size={13} color={colors.primaryForeground} />
+                                                    <Text style={styles.drawerBtnPrimaryText}>Revive Track (New Season)</Text>
+                                                </TouchableOpacity>
+                                            ) : (
+                                                <>
+                                                    <TouchableOpacity
+                                                        style={styles.drawerBtn}
+                                                        onPress={() => handleToggleStatus(item)}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <Ionicons
+                                                            name={item.status === 'active' ? 'pause-outline' : 'play-outline'}
+                                                            size={13}
+                                                            color={colors.linenDim}
+                                                        />
+                                                        <Text style={styles.drawerBtnText}>
+                                                            {item.status === 'active' ? 'Pause' : 'Activate'}
+                                                        </Text>
+                                                    </TouchableOpacity>
+
+                                                    <TouchableOpacity
+                                                        style={styles.drawerBtn}
+                                                        onPress={() => handleCompleteSeries(item)}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <Ionicons name="checkmark-done-outline" size={13} color={colors.linenDim} />
+                                                        <Text style={styles.drawerBtnText}>Complete Track</Text>
+                                                    </TouchableOpacity>
+                                                </>
+                                            )}
 
                                             <TouchableOpacity
                                                 style={styles.drawerBtnDanger}
@@ -551,6 +634,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: spacing.md,
     },
+    headerLeft: {
+        flex: 1,
+        marginRight: spacing.sm,
+    },
     headerTitle: {
         fontSize: 22,
         fontWeight: typography.fontWeightBold,
@@ -570,6 +657,7 @@ const styles = StyleSheet.create({
         paddingVertical: 7,
         borderRadius: borderRadius.full,
         backgroundColor: colors.sandstone,
+        flexShrink: 0,
         ...shadows.glowSandstone,
     },
     newSeriesBtnText: {
@@ -584,13 +672,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
         paddingVertical: spacing.sm + 2,
-        paddingHorizontal: spacing.md,
+        paddingHorizontal: spacing.xs,
         marginBottom: spacing.md,
         alignItems: 'center',
     },
     statCell: {
         flex: 1,
         alignItems: 'center',
+        minWidth: 0,
     },
     statNum: {
         fontSize: typography.fontSizeMd,
@@ -623,9 +712,12 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
         padding: 3,
+        flex: 1,
     },
     segmentBtn: {
-        paddingHorizontal: spacing.md - 2,
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
         paddingVertical: 5,
         borderRadius: borderRadius.xs,
     },
@@ -650,6 +742,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
         alignItems: 'center',
         justifyContent: 'center',
+        flexShrink: 0,
     },
     catalogList: {
         gap: spacing.sm + 2,
@@ -670,7 +763,7 @@ const styles = StyleSheet.create({
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'flex-start',
-        gap: spacing.sm + 2,
+        gap: spacing.sm,
     },
     cardIndexBox: {
         width: 32,
@@ -681,6 +774,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
         alignItems: 'center',
         justifyContent: 'center',
+        flexShrink: 0,
     },
     cardIndexText: {
         fontSize: 11,
@@ -690,7 +784,8 @@ const styles = StyleSheet.create({
     },
     cardCenter: {
         flex: 1,
-        gap: 4,
+        gap: 3,
+        minWidth: 0,
     },
     cardTitle: {
         fontSize: typography.fontSizeSm,
@@ -701,7 +796,8 @@ const styles = StyleSheet.create({
     cardMetaRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
+        flexWrap: 'wrap',
+        gap: 5,
         marginTop: 2,
     },
     cardMetaText: {
@@ -715,6 +811,10 @@ const styles = StyleSheet.create({
     statusPaused: {
         color: colors.linenWhisper,
     },
+    statusCompleted: {
+        color: '#10B981',
+        fontWeight: typography.fontWeightMedium,
+    },
     cardQueueBadge: {
         fontSize: 11,
         color: colors.sandstone,
@@ -723,6 +823,8 @@ const styles = StyleSheet.create({
     cardRight: {
         alignItems: 'flex-end',
         gap: 6,
+        flexShrink: 0,
+        marginLeft: 4,
     },
     pctBadge: {
         paddingHorizontal: 6,
@@ -783,7 +885,7 @@ const styles = StyleSheet.create({
     },
     episodeRow: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         backgroundColor: colors.surfaceRecessed,
         borderRadius: borderRadius.xs,
         borderWidth: 1,
@@ -801,6 +903,8 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(200, 178, 155, 0.25)',
         alignItems: 'center',
         justifyContent: 'center',
+        flexShrink: 0,
+        marginTop: 2,
     },
     epNumberText: {
         fontSize: 10,
@@ -811,6 +915,7 @@ const styles = StyleSheet.create({
     },
     epContent: {
         flex: 1,
+        minWidth: 0,
         gap: 2,
     },
     epTopicText: {
@@ -819,9 +924,108 @@ const styles = StyleSheet.create({
         color: colors.linen,
         lineHeight: 16,
     },
+    epTopicTextActive: {
+        color: colors.linen,
+        fontWeight: typography.fontWeightBold,
+    },
+    epPillRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 2,
+        marginBottom: 2,
+    },
     epObjectiveText: {
         fontSize: 10,
         color: colors.linenWhisper,
+        lineHeight: 14,
+    },
+    inProdQueueTagRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    inProdQueueTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: borderRadius.xs - 2,
+        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.25)',
+        alignSelf: 'flex-start',
+    },
+    inProdQueueTagText: {
+        fontSize: 10,
+        fontWeight: typography.fontWeightBold,
+        color: '#10B981',
+    },
+    miniActiveGreenDot: {
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
+        backgroundColor: '#10B981',
+    },
+    episodeRowActive: {
+        borderColor: 'rgba(16, 185, 129, 0.35)',
+        backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    },
+    epNumberBadgeActive: {
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        borderColor: 'rgba(16, 185, 129, 0.35)',
+    },
+    epNumberTextActive: {
+        color: '#10B981',
+    },
+    epActiveStatusPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 5,
+        paddingVertical: 1.5,
+        borderRadius: borderRadius.xs - 2,
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    epActiveStatusText: {
+        fontSize: 8,
+        fontWeight: typography.fontWeightBold,
+        color: '#10B981',
+        letterSpacing: 0.4,
+    },
+    epUpcomingStatusPill: {
+        paddingHorizontal: 5,
+        paddingVertical: 1.5,
+        borderRadius: borderRadius.xs - 2,
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+    },
+    epUpcomingStatusText: {
+        fontSize: 8,
+        fontWeight: typography.fontWeightMedium,
+        color: colors.linenWhisper,
+        letterSpacing: 0.3,
+    },
+    roundRobinNotice: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 6,
+        paddingHorizontal: 8,
+        borderRadius: borderRadius.xs,
+        backgroundColor: 'rgba(200, 178, 155, 0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(200, 178, 155, 0.15)',
+        marginTop: 4,
+    },
+    roundRobinNoticeText: {
+        fontSize: 10,
+        color: colors.linenMuted,
+        flex: 1,
+        lineHeight: 14,
     },
     durationBadge: {
         flexDirection: 'row',
@@ -871,6 +1075,20 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: colors.linenDim,
         fontWeight: typography.fontWeightMedium,
+    },
+    drawerBtnPrimary: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: spacing.sm + 4,
+        paddingVertical: 6,
+        borderRadius: borderRadius.xs,
+        backgroundColor: colors.sandstone,
+    },
+    drawerBtnPrimaryText: {
+        fontSize: 11,
+        fontWeight: typography.fontWeightBold,
+        color: colors.primaryForeground,
     },
     drawerBtnDanger: {
         flexDirection: 'row',

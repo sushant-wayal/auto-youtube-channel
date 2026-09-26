@@ -141,38 +141,54 @@ Be specific and data-driven. Focus on actionable insights.`;
         channelInsights: string,
         analytics: YouTubeAnalytics[],
         count: number = 10,
-        trendingSignals?: TrendingSignals
+        trendingSignals?: TrendingSignals,
+        historicalTitles?: string[]
     ): Promise<TopicIdea[]> {
         console.error(`🎯 Generating ${count} topic ideas with Gemini AI...`);
 
-        const recentTitles = analytics.slice(0, 20).map(a => a.title);
+        // Use full historical long-form titles if provided, otherwise fallback to recent analytics
+        const allTitles = historicalTitles && historicalTitles.length > 0 
+            ? historicalTitles 
+            : analytics.map(a => a.title);
 
         const trendingSection = trendingSignals
             ? `\nEXTERNAL TRENDING SIGNALS (use these to make ideas timely and topical):\n${formatTrendingSignalsForPrompt(trendingSignals)}`
             : '';
 
-        const prompt = `You are an expert YouTube content strategist. Based on the channel analysis below, generate ${count} curiosity-driven video topic ideas for developers and engineers.
+        const prompt = `You are an expert YouTube content strategist for a high-end engineering YouTube channel. Based on the channel analysis below, generate ${count} curiosity-driven standalone video topic ideas for senior software engineers, systems developers, and backend architects.
 
 CHANNEL INSIGHTS:
 ${channelInsights}
 
-RECENT VIDEOS (to avoid repetition):
-${recentTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}${trendingSection}
+ALL PREVIOUS VIDEOS PUBLISHED ON THIS CHANNEL (LAST 9-10 MONTHS - STRICTLY DO NOT REPEAT OR RESPIN ANY OF THESE TOPICS):
+${allTitles.slice(0, 100).map((t, i) => `${i + 1}. ${t}`).join('\n')}${trendingSection}
 
-REQUIREMENTS:
-- Each topic should be GENERIC enough to produce 1 long-form video (8-15 min) AND 3-5 shorts (30-60 sec)
-- Topics should leverage identified successful patterns while favoring broad developer relevance over niche implementation detail
-- Avoid topics too similar to recent videos
-- Balance evergreen content with trending opportunities
-- Where relevant, use the EXTERNAL TRENDING SIGNALS above to pick timely topics that are being discussed RIGHT NOW
-- Optimize for curiosity, tension, and discovery rather than calm explanation or documentation style
+STRICT EXCLUSION RULES (CRITICAL):
+- ABSOLUTELY DO NOT suggest any topic covered in the list above, even with different phrasing!
+- STRICTLY FORBIDDEN TOPICS (Already saturated / too cliché / beaten to death):
+  * Unified Memory vs RAM / "Is 16GB RAM enough?" / "The Unified Memory Myth" / RAM swap SSD wear
+  * Clean Code vs Fast Code / "The Clean Code Lie" / premature optimization debates
+  * Smartphone magnetic interference / wireless charging myths / phone radiation
+  * Basic async/await vs promises / JavaScript event loop basics
+  * Electron RAM consumption / "Why Electron apps eat memory"
+  * Junior vs Senior developer obsolescence / "Is the junior developer dead?"
+- The audience is SENIOR AND EXPERIENCED. Do not suggest beginner tutorials, surface-level explanations, or generic debates.
+
+CONTENT CRITERIA:
+- Propose FRESH, DEEP, FORENSIC technical topics that have NOT yet been covered on this channel.
+- Great topic domains:
+  * Linux kernel internals & OS primitives (e.g., page tables, TLB shootdowns, io_uring pitfalls, futex deadlocks)
+  * Memory allocator forensics (e.g., arena contention in jemalloc vs mimalloc, false sharing in cache lines)
+  * Distributed systems realities (e.g., clock skew, split-brain failure modes, metadata storage traps, quorum tradeoffs)
+  * Database & Storage engine internals (e.g., WAL fsync stall latency, LSM compaction storms, B-tree write amplification)
+  * Network & Protocol engineering (e.g., TCP head-of-line blocking in HTTP/2 vs QUIC UDP packet drops, bufferbloat)
+  * Hardware microarchitecture (e.g., branch misprediction penalty in modern speculative CPUs, AVX-512 frequency scaling downclocking)
 - Every selected topic MUST be framed through at least one of: Myth, Hidden Cost, Surprising Truth, Counterintuitive Behavior, Tradeoff, Failure Mode, Common Mistake
-- Reject purely descriptive topics that do not naturally create a curiosity angle
-- Heavily favor topics with Audience Breadth Score 60+ and strongly penalize topics below 50
-- Prioritize topics in these areas when they are relevant: databases, caching, APIs, performance, memory, networking, scaling, developer productivity, cloud architecture
+- Heavily favor topics with Audience Breadth Score 60+ and Title Potential Score 75+
+- Each topic should be standalone (not part of an existing series track)
 
 For each idea, provide:
-1. Topic (clear, specific)
+1. Topic (clear, specific, provocative)
 2. Curiosity angle (one of: Myth, Hidden Cost, Surprising Truth, Counterintuitive Behavior, Tradeoff, Failure Mode, Common Mistake)
 3. Audience breadth score (0-100)
 4. Title potential score (0-100)

@@ -62,18 +62,22 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
             console.error(`⚠️  Trend detection failed (non-fatal), continuing without: ${err.message}`);
         }
 
-        // Step 1: Fetch channel videos from YouTube
-        console.error('\n📊 STEP 1: Fetching channel data from YouTube...');
+        // Step 1: Fetch channel videos from YouTube (last 10 months for complete topic history)
+        console.error('\n📊 STEP 1: Fetching channel data from YouTube (last 10 months)...');
         const youtubeService = new YouTubeDataService();
-        const recentVideos = await youtubeService.fetchRecentVideos(500, 90);
+        const allRecentVideos = await youtubeService.fetchRecentVideos(500, 300);
 
-        if (recentVideos.length === 0) {
+        if (allRecentVideos.length === 0) {
             throw new Error('No videos found in channel. Cannot generate ideas.');
         }
 
-        // Step 2: Fetch analytics for videos
-        console.error('\n📈 STEP 2: Fetching video analytics...');
-        const analytics = await youtubeService.fetchVideoAnalytics(recentVideos, 90); // last 90 days
+        const historicalLongFormTitles = allRecentVideos.filter(v => !v.isShort).map(v => v.title);
+        console.error(`   Found ${allRecentVideos.length} total videos (${historicalLongFormTitles.length} long-form across past 10 months)`);
+
+        // Step 2: Fetch analytics for recent long-form videos (last 90 days)
+        console.error('\n📈 STEP 2: Fetching video analytics for recent long-form videos...');
+        const recentLongForm = allRecentVideos.filter(v => !v.isShort).slice(0, 25);
+        const analytics = await youtubeService.fetchVideoAnalytics(recentLongForm, 90);
 
         if (analytics.length === 0) {
             console.error('⚠️ No analytics data available. Using limited analysis...');
@@ -89,20 +93,31 @@ async function runIdeaSelector(options: IdeaSelectorOptions = {}): Promise<IdeaS
         console.error(channelInsights);
         console.error('─'.repeat(80));
 
-        // Step 4: Generate topic ideas with Gemini AI (+ trending signals)
+        // Step 4: Generate topic ideas with Gemini AI (+ trending signals + 10-month historical exclusion)
         console.error('\n💡 STEP 4: Generating video topic ideas with AI...');
-        const rawIdeas = await geminiGenerator.generateTopicIdeas(channelInsights, analytics, 15, trendingSignals);
+        const rawIdeas = await geminiGenerator.generateTopicIdeas(
+            channelInsights,
+            analytics,
+            15,
+            trendingSignals,
+            historicalLongFormTitles
+        );
 
         console.error(`   Generated ${rawIdeas.length} raw AI ideas`);
 
-        // Step 5: HYBRID - Apply hard elimination rules (anti-hallucination)
+        // Step 5: HYBRID - Apply hard elimination rules (anti-hallucination & anti-duplication)
         console.error('\n🛡️  STEP 5: Applying Hard Elimination Rules...');
         const validator = new HybridValidator();
         const history = validator.convertAnalyticsToHistory(analytics);
 
-        // Also consider existing queue ideas as "recent" to avoid duplicates
+        // Also consider existing queue ideas and full channel history to avoid duplicates
         const queueIdeas = options.existingQueueIdeas || [];
-        const nonEliminated = validator.applyHardElimination(rawIdeas, history, queueIdeas);
+        const nonEliminated = validator.applyHardElimination(
+            rawIdeas,
+            history,
+            queueIdeas,
+            historicalLongFormTitles
+        );
 
         console.error(`   ${nonEliminated.length} ideas passed elimination`);
 

@@ -47,43 +47,40 @@ export class HybridValidator {
     applyHardElimination(
         aiIdeas: TopicIdea[],
         history: UploadRecord[],
-        queueIdeas: string[] = []
+        queueIdeas: string[] = [],
+        historicalTitles: string[] = []
     ): TopicIdea[] {
-        console.error('\n🚫 STEP: Hard Elimination (Anti-Hallucination)');
+        console.error('\n🚫 STEP: Hard Elimination (Anti-Hallucination & Anti-Duplication)');
 
         const beforeCount = aiIdeas.length;
 
-        // Filter out ideas that are too similar to queue ideas
+        // Filter out ideas that are too similar to queue ideas or historical channel titles
         let remainingIdeas = aiIdeas;
-        if (queueIdeas.length > 0) {
-            console.error(`   📋 Checking against ${queueIdeas.length} queued ideas...`);
+        const exclusionTitles = [...queueIdeas, ...historicalTitles];
+        
+        if (exclusionTitles.length > 0) {
+            console.error(`   📋 Checking against ${exclusionTitles.length} existing/queued titles...`);
             remainingIdeas = aiIdeas.filter(aiIdea => {
-                // Check if AI idea topic is too similar to any queued idea
                 const aiTopicLower = aiIdea.topic.toLowerCase();
-                const isSimilarToQueue = queueIdeas.some(queueIdea => {
-                    const queueLower = queueIdea.toLowerCase();
-                    // Consider similar if:
-                    // 1. Exact match
-                    // 2. Queue idea is substring of AI idea
-                    // 3. AI idea is substring of queue idea
-                    // 4. High word overlap (>60%)
-                    if (aiTopicLower === queueLower) return true;
-                    if (aiTopicLower.includes(queueLower) || queueLower.includes(aiTopicLower)) return true;
+                const isSimilarToExisting = exclusionTitles.some(existingTitle => {
+                    const existingLower = existingTitle.toLowerCase();
+                    if (aiTopicLower === existingLower) return true;
+                    if (aiTopicLower.includes(existingLower) || existingLower.includes(aiTopicLower)) return true;
 
                     const aiWords = new Set(aiTopicLower.split(/\s+/).filter(w => w.length > 3));
-                    const queueWords = new Set(queueLower.split(/\s+/).filter(w => w.length > 3));
-                    const commonWords = [...aiWords].filter(w => queueWords.has(w));
-                    const overlapRatio = commonWords.length / Math.min(aiWords.size, queueWords.size);
+                    const existingWords = new Set(existingLower.split(/\s+/).filter(w => w.length > 3));
+                    const commonWords = [...aiWords].filter(w => existingWords.has(w));
+                    const overlapRatio = commonWords.length / Math.min(aiWords.size, existingWords.size);
 
                     return overlapRatio > 0.4;
                 });
 
-                return !isSimilarToQueue;
+                return !isSimilarToExisting;
             });
 
-            const queueEliminated = beforeCount - remainingIdeas.length;
-            if (queueEliminated > 0) {
-                console.error(`   ✗ ${queueEliminated} ideas eliminated (similar to queued ideas)`);
+            const duplicatesEliminated = beforeCount - remainingIdeas.length;
+            if (duplicatesEliminated > 0) {
+                console.error(`   ✗ ${duplicatesEliminated} ideas eliminated (similar to historical or queued topics)`);
             }
         }
 

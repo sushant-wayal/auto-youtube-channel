@@ -558,7 +558,7 @@ export const seriesApi = {
         }
     },
 
-    updateSeriesStatus: async (id: string, status: 'active' | 'paused'): Promise<SeriesResponse> => {
+    updateSeriesStatus: async (id: string, status: 'active' | 'paused' | 'completed'): Promise<SeriesResponse> => {
         try {
             console.log('[API] Updating series status:', id, status);
             const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
@@ -570,6 +570,22 @@ export const seriesApi = {
             return data;
         } catch (error: any) {
             console.error('[API] Error updating series status:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    reactivateSeries: async (id: string): Promise<SeriesResponse> => {
+        try {
+            console.log('[API] Reactivating series:', id);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reactivate', id }),
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error reactivating series:', error.message || error);
             return { ok: false, error: error.message || String(error) };
         }
     },

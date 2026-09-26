@@ -32,4 +32,9 @@ export interface SeriesState {
     
     // Completed Episodes
     history: SeriesHistoryItem[];
+
+    // Performance & Lifecycle Context
+    statusReason?: 'curriculum_completed' | 'performance_sunset' | 'user_paused' | 'reactivated' | string;
+    performanceRating?: 'high' | 'average' | 'underperforming';
+    lastAuditedAt?: string;
 }

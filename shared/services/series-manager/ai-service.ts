@@ -71,12 +71,15 @@ Return ONLY a valid JSON array of objects with this exact structure:
         activeCount: number,
         channelAnalytics: any[]
     ): Promise<{ shouldCreate: boolean; id?: string; title?: string; learningGoal?: string }> {
-        // Enforce hard constraints before asking AI
-        if (activeCount >= 10) {
+        // Enforce constraints before asking AI:
+        // Cap is 10, but the healthy target is only 2-3 active series to avoid overkilling the series format
+        if (activeCount >= 3) {
+            console.error(`[SeriesAIService] Healthy active series limit reached (${activeCount} active). Preserving channel bandwidth for standalone topics.`);
             return { shouldCreate: false };
         }
 
-        const forceCreate = activeCount < 2;
+        // Only force creation if there are literally zero active series on the channel
+        const forceCreate = activeCount === 0;
 
         const allSeriesStr = allSeriesContext.length > 0
             ? allSeriesContext.map(s => `- ID: ${s.id} | Title: ${s.title} | Goal: ${s.learningGoal} | Status: ${s.status}`).join("\n")
@@ -92,11 +95,17 @@ Return ONLY a valid JSON array of objects with this exact structure:
             : "No analytics available yet.";
 
         const prompt = `You are the lead channel strategist for a highly technical YouTube channel.
-Your goal is to decide if we should launch a NEW learning series (a multi-part journey), and if so, what it should be.
+Your goal is to decide if we should launch a NEW multi-part series, keeping in mind that STANDALONE videos are the primary format of this channel.
+
+CRITICAL POLICY:
+- Most videos on the channel MUST be standalone videos. Series/playlists must NOT dominate the channel.
+- A series should ONLY be created if there is overwhelming audience demand in a specific niche that cannot be satisfied in a single standalone video.
+- The healthy target is only 2 to 3 active series concurrently (absolute max cap 10). Currently active: ${activeCount}.
+- Do NOT create a series just because you can. Only create one if there is an undeniable performance signal.
 
 CURRENT CONTEXT:
-Active Series Count: ${activeCount} (Constraint: Min 2, Max 10)
-Force Creation? ${forceCreate ? "YES (You MUST return shouldCreate: true)" : "NO (Use your strategic judgement)"}
+Active Series Count: ${activeCount} (Target: 2-3, Max: 10)
+Force Creation? ${forceCreate ? "YES (Zero active series exist, create 1 focused series)" : "NO (Only create if analytics show overwhelming demand)"}
 
 PREVIOUS/EXISTING SERIES (Do NOT duplicate these):
 ${allSeriesStr}
@@ -105,9 +114,9 @@ CHANNEL PERFORMANCE ANALYTICS (Top recent long-form videos):
 ${analyticsStr}
 
 TASK:
-1. If Force Creation is YES, you MUST create a new series.
-2. If Force Creation is NO, analyze the channel performance. If there is a strong signal (high views/retention) for a topic that isn't currently an active series, you should create a new series for it. Otherwise, return shouldCreate: false.
-3. If creating a new series, brainstorm a catchy 'title', a comprehensive 'learningGoal', and a url-friendly 'id' (e.g. 'mastering-system-design').
+1. If Force Creation is YES, create 1 cohesive, high-demand series.
+2. If Force Creation is NO, default to shouldCreate: false unless you see exceptional breakout metrics for an uncovered topic.
+3. If creating a new series, provide a catchy 'title', a concise 'learningGoal', and a url-friendly 'id' (e.g. 'mastering-system-design').
 
 Return ONLY a valid JSON object with this exact structure:
 {

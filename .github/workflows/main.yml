@@ -72,6 +72,7 @@ jobs:
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
           GITHUB_RUN_ID: ${{ github.run_id }}
+          INIT_PIPELINE: 'true'
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}

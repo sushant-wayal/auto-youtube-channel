@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import Redis from 'ioredis';
+import { SeriesManager } from '@/lib/series-manager';
 
 function getRedisClient() {
     const redisUrl = process.env.REDIS_URL;
@@ -88,6 +89,17 @@ export async function POST(request: Request) {
             await multi.exec();
             
             return NextResponse.json({ ok: true, series });
+        }
+        else if (action === 'reactivate') {
+            if (!id) return NextResponse.json({ ok: false, error: 'Missing id' }, { status: 400 });
+            
+            const seriesManager = new SeriesManager();
+            try {
+                const updated = await seriesManager.reactivateSeries(id, true);
+                return NextResponse.json({ ok: true, series: updated });
+            } finally {
+                await seriesManager.close();
+            }
         }
         else if (action === 'delete') {
             if (!id) return NextResponse.json({ ok: false, error: 'Missing id' }, { status: 400 });
