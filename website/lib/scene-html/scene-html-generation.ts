@@ -219,7 +219,7 @@ export class SceneHtmlGenerationService {
   async generateSceneHtml(input: SceneHtmlGenerationInput): Promise<string> {
     const prompt = this.buildPrompt(input);
     const rawResponse = await this.gemini.generateText(prompt, {
-      model: "gemini-3-flash-preview",
+      model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
       temperature: 0.75,
       topP: 0.95
     });

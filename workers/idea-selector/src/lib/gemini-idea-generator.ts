@@ -29,6 +29,13 @@ export class GeminiIdeaGenerator {
     private readonly MAX_RETRIES = 5;
     private readonly BASE_DELAY_MS = 2_000;
     private readonly MAX_DELAY_MS = 30_000;
+    private readonly CANDIDATE_MODELS = [
+        process.env.GEMINI_MODEL,
+        'gemini-3.5-flash-lite',
+        'gemini-3.1-flash-lite',
+        'gemini-3.8-flash',
+        'gemini-3-flash-preview',
+    ].filter((m): m is string => Boolean(m));
 
     /**
      * Analyze channel performance and extract insights
@@ -87,11 +94,12 @@ Be specific and data-driven. Focus on actionable insights.`;
             attempt++;
 
             try {
-                console.error(`🧠 Gemini channel analysis (attempt ${attempt}/${this.MAX_RETRIES})`);
+                const model = this.CANDIDATE_MODELS[(attempt - 1) % this.CANDIDATE_MODELS.length];
+                console.error(`🧠 Gemini channel analysis [${model}] (attempt ${attempt}/${this.MAX_RETRIES})`);
 
                 const genAI = this.geminiClient.getGenAI();
                 const result = await genAI.models.generateContent({
-                    model: "gemini-3-flash-preview",
+                    model,
                     contents: prompt,
                     config: {
                         temperature: 0.7,
@@ -226,11 +234,12 @@ RESPOND ONLY WITH VALID JSON ARRAY. NO MARKDOWN, NO EXPLANATIONS.`;
             attempt++;
 
             try {
-                console.error(`🧠 Gemini idea generation (attempt ${attempt}/${this.MAX_RETRIES})`);
+                const model = this.CANDIDATE_MODELS[(attempt - 1) % this.CANDIDATE_MODELS.length];
+                console.error(`🧠 Gemini idea generation [${model}] (attempt ${attempt}/${this.MAX_RETRIES})`);
 
                 const genAI = this.geminiClient.getGenAI();
                 const result = await genAI.models.generateContent({
-                    model: "gemini-3-flash-preview",
+                    model,
                     contents: prompt,
                     config: {
                         temperature: 0.8,
@@ -343,11 +352,12 @@ RESPOND ONLY WITH VALID JSON. NO MARKDOWN.`;
             attempt++;
 
             try {
-                console.error(`🧠 Gemini topic selection (attempt ${attempt}/${this.MAX_RETRIES})`);
+                const model = this.CANDIDATE_MODELS[(attempt - 1) % this.CANDIDATE_MODELS.length];
+                console.error(`🧠 Gemini topic selection [${model}] (attempt ${attempt}/${this.MAX_RETRIES})`);
 
                 const genAI = this.geminiClient.getGenAI();
                 const result = await genAI.models.generateContent({
-                    model: "gemini-3-flash-preview",
+                    model,
                     contents: prompt,
                     config: {
                         temperature: 0.3, // Lower temperature for decisive selection

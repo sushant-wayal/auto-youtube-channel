@@ -9,6 +9,14 @@ export interface GeminiConfig {
     topK?: number;
 }
 
+const DEFAULT_CANDIDATE_MODELS = [
+    process.env.GEMINI_MODEL,
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-3-flash-preview",
+].filter((m): m is string => Boolean(m));
+
 class GeminiService {
     private client: GeminiClient;
     private genAI: GoogleGenAI;
@@ -20,25 +28,32 @@ class GeminiService {
 
     /**
      * Generate text content from a prompt
-     * Includes exponential backoff for transient 5xx / overload errors
+     * Includes multi-model fallback and exponential backoff for transient 503 / 429 / 5xx / overload errors
      */
     async generateText(
         prompt: string,
         config?: GeminiConfig
     ): Promise<string> {
         const MAX_RETRIES = 5;
-        const BASE_DELAY_MS = 2_000;
-        const MAX_DELAY_MS = 30_000;
+        const BASE_DELAY_MS = 1_500;
+        const MAX_DELAY_MS = 20_000;
 
-        const modelName = config?.model || "gemini-3-flash-preview";
+        const candidateModels = Array.from(
+            new Set(
+                [config?.model, ...DEFAULT_CANDIDATE_MODELS].filter((m): m is string => Boolean(m))
+            )
+        );
+
         let attempt = 0;
+        let modelIndex = 0;
 
         while (attempt < MAX_RETRIES) {
             attempt++;
+            const modelName = candidateModels[modelIndex % candidateModels.length];
 
             try {
                 console.log(
-                    `🧠 Gemini text generation (attempt ${attempt}/${MAX_RETRIES})`
+                    `🧠 Gemini text generation [${modelName}] (attempt ${attempt}/${MAX_RETRIES})`
                 );
 
                 const result = await this.genAI.models.generateContent({
@@ -69,28 +84,41 @@ class GeminiService {
 
                 if (!statusCode) console.error(`Failed to get status code from error:`, error);
 
-                const message = error?.message?.toLowerCase?.() || "";
+                const message = (error?.message || "").toLowerCase();
+                const errStr = JSON.stringify(error).toLowerCase();
 
                 if (!message) console.error(`Failed to get message from error:`, error);
 
                 const isRetryable =
                     statusCode === 500 ||
                     statusCode === 503 ||
+                    statusCode === 429 ||
+                    statusCode === 404 ||
                     message.includes("internal") ||
                     message.includes("overloaded") ||
                     message.includes("unavailable") ||
-                    JSON.stringify(error).toLowerCase().includes("500") ||
-                    JSON.stringify(error).toLowerCase().includes("503") ||
-                    JSON.stringify(error).toLowerCase().includes("internal") ||
-                    JSON.stringify(error).toLowerCase().includes("overloaded") ||
-                    JSON.stringify(error).toLowerCase().includes("unavailable");
+                    message.includes("high demand") ||
+                    message.includes("quota") ||
+                    message.includes("rate limit") ||
+                    message.includes("not found") ||
+                    errStr.includes("500") ||
+                    errStr.includes("503") ||
+                    errStr.includes("429") ||
+                    errStr.includes("internal") ||
+                    errStr.includes("overloaded") ||
+                    errStr.includes("unavailable") ||
+                    errStr.includes("high demand");
 
                 if (!isRetryable || attempt >= MAX_RETRIES) {
-                    console.error("❌ Gemini text generation failed permanently:", error);
+                    console.error(`❌ Gemini text generation failed permanently on model ${modelName}:`, error);
                     throw new Error(
                         `Failed to generate text with Gemini: ${error.message || error}`
                     );
                 }
+
+                // Rotate to next candidate model if available
+                modelIndex++;
+                const nextModel = candidateModels[modelIndex % candidateModels.length];
 
                 const delay =
                     Math.min(
@@ -99,7 +127,7 @@ class GeminiService {
                     ) + Math.floor(Math.random() * 1_000); // jitter
 
                 console.warn(
-                    `⚠️ Gemini text error (retryable). Retrying in ${delay}ms...`
+                    `⚠️ Gemini text error on model '${modelName}' (${statusCode || "retryable"}: ${error.message || "high demand / unavailable"}). Retrying with fallback model '${nextModel}' in ${delay}ms...`
                 );
 
                 await new Promise(res => setTimeout(res, delay));
@@ -119,7 +147,7 @@ class GeminiService {
         config?: GeminiConfig
     ): AsyncGenerator<string, void, unknown> {
         try {
-            const modelName = config?.model || "gemini-3-flash-preview";
+            const modelName = config?.model || DEFAULT_CANDIDATE_MODELS[0] || "gemini-3.5-flash-lite";
             const response = await this.genAI.models.generateContentStream({
                 model: modelName,
                 contents: prompt,
@@ -152,7 +180,7 @@ class GeminiService {
         config?: GeminiConfig,
         history?: Array<{ role: string; parts: string }>
     ): Chat {
-        const modelName = config?.model || "gemini-3-flash-preview";
+        const modelName = config?.model || DEFAULT_CANDIDATE_MODELS[0] || "gemini-3.5-flash-lite";
         return this.genAI.chats.create({
             model: modelName,
             history: history?.map((msg) => ({
@@ -179,36 +207,46 @@ class GeminiService {
         images: Array<{ mimeType: string; data: string }>,
         config?: GeminiConfig
     ): Promise<string> {
-        try {
-            const modelName = config?.model || "gemini-3-flash-preview";
+        const candidateModels = Array.from(
+            new Set(
+                [config?.model, ...DEFAULT_CANDIDATE_MODELS].filter((m): m is string => Boolean(m))
+            )
+        );
 
-            const imageParts = images.map((img) => ({
-                inlineData: {
-                    mimeType: img.mimeType,
-                    data: img.data,
-                },
-            }));
-
-            const result = await this.genAI.models.generateContent({
-                model: modelName,
-                contents: [
-                    {
-                        role: "user",
-                        parts: [{ text: prompt }, ...imageParts],
+        let lastError: any = null;
+        for (const modelName of candidateModels) {
+            try {
+                const imageParts = images.map((img) => ({
+                    inlineData: {
+                        mimeType: img.mimeType,
+                        data: img.data,
                     },
-                ],
-                config: {
-                    temperature: config?.temperature,
-                    maxOutputTokens: config?.maxOutputTokens,
-                    topP: config?.topP,
-                    topK: config?.topK,
-                },
-            });
-            return result.text || "";
-        } catch (error) {
-            console.error("Error generating multimodal content:", error);
-            throw new Error(`Failed to generate multimodal content: ${error}`);
+                }));
+
+                const result = await this.genAI.models.generateContent({
+                    model: modelName,
+                    contents: [
+                        {
+                            role: "user",
+                            parts: [{ text: prompt }, ...imageParts],
+                        },
+                    ],
+                    config: {
+                        temperature: config?.temperature,
+                        maxOutputTokens: config?.maxOutputTokens,
+                        topP: config?.topP,
+                        topK: config?.topK,
+                    },
+                });
+                return result.text || "";
+            } catch (error: any) {
+                lastError = error;
+                console.warn(`⚠️ Multimodal generation on ${modelName} failed, trying next model:`, error?.message || error);
+            }
         }
+
+        console.error("Error generating multimodal content across all candidates:", lastError);
+        throw new Error(`Failed to generate multimodal content: ${lastError}`);
     }
 
     /**
@@ -221,7 +259,7 @@ class GeminiService {
         config?: GeminiConfig
     ): Promise<number> {
         try {
-            const modelName = config?.model || "gemini-3-flash-preview";
+            const modelName = config?.model || DEFAULT_CANDIDATE_MODELS[0] || "gemini-3.5-flash-lite";
             const result = await this.genAI.models.countTokens({
                 model: modelName,
                 contents: prompt,

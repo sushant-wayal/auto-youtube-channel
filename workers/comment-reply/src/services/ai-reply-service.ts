@@ -80,7 +80,13 @@ Return ONLY a valid JSON object with this exact structure:
   "reason": "short explanation of the decision"
 }`;
 
-        const CANDIDATE_MODELS = ['gemini-3-flash-preview', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+        const CANDIDATE_MODELS = [
+            process.env.GEMINI_MODEL,
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-flash-lite',
+            'gemini-3.8-flash',
+            'gemini-3-flash-preview',
+        ].filter((m): m is string => Boolean(m));
         const BASE_DELAY_MS = 1500;
 
         for (let i = 0; i < CANDIDATE_MODELS.length; i++) {

@@ -41,29 +41,43 @@ Return ONLY a valid JSON array of objects with this exact structure:
   }
 ]`;
 
-        try {
-            const response = await this.ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: {
-                    temperature: 0.7,
-                    responseMimeType: "application/json",
-                }
-            });
+        const CANDIDATE_MODELS = [
+            process.env.GEMINI_MODEL,
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-flash-lite',
+            'gemini-3.8-flash',
+            'gemini-3-flash-preview',
+        ].filter((m): m is string => Boolean(m));
 
-            const text = response.text;
-            if (!text) throw new Error("Empty response from AI");
-            
-            const parsed = JSON.parse(text);
-            return parsed.map((item: any) => ({
-                ...item,
-                episodeId: crypto.randomUUID(),
-                status: "pending"
-            }));
-        } catch (error) {
-            console.error("Failed to generate next episodes:", error);
-            throw error;
+        let lastError: any = null;
+        for (const model of CANDIDATE_MODELS) {
+            try {
+                const response = await this.ai.models.generateContent({
+                    model,
+                    contents: prompt,
+                    config: {
+                        temperature: 0.7,
+                        responseMimeType: "application/json",
+                    }
+                });
+
+                const text = response.text;
+                if (!text) throw new Error("Empty response from AI");
+                
+                const parsed = JSON.parse(text);
+                return parsed.map((item: any) => ({
+                    ...item,
+                    episodeId: crypto.randomUUID(),
+                    status: "pending"
+                }));
+            } catch (error: any) {
+                lastError = error;
+                console.warn(`⚠️ Failed to generate next episodes with model ${model}:`, error?.message || error);
+            }
         }
+
+        console.error("Failed to generate next episodes across all candidate models:", lastError);
+        throw lastError;
     }
 
     async decideAndInventNewSeries(
@@ -126,23 +140,37 @@ Return ONLY a valid JSON object with this exact structure:
   "learningGoal": "string (optional)"
 }`;
 
-        try {
-            const response = await this.ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: {
-                    temperature: 0.7,
-                    responseMimeType: "application/json",
-                }
-            });
+        const CANDIDATE_MODELS = [
+            process.env.GEMINI_MODEL,
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-flash-lite',
+            'gemini-3.8-flash',
+            'gemini-3-flash-preview',
+        ].filter((m): m is string => Boolean(m));
 
-            const text = response.text;
-            if (!text) throw new Error("Empty response from AI");
-            
-            return JSON.parse(text);
-        } catch (error) {
-            console.error("Failed to decide on new series:", error);
-            throw error;
+        let lastError: any = null;
+        for (const model of CANDIDATE_MODELS) {
+            try {
+                const response = await this.ai.models.generateContent({
+                    model,
+                    contents: prompt,
+                    config: {
+                        temperature: 0.7,
+                        responseMimeType: "application/json",
+                    }
+                });
+
+                const text = response.text;
+                if (!text) throw new Error("Empty response from AI");
+                
+                return JSON.parse(text);
+            } catch (error: any) {
+                lastError = error;
+                console.warn(`⚠️ Failed to decide on new series with model ${model}:`, error?.message || error);
+            }
         }
+
+        console.error("Failed to decide on new series across all candidate models:", lastError);
+        throw lastError;
     }
 }

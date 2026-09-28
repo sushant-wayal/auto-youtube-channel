@@ -204,14 +204,34 @@ Return a STRICT JSON object with these exact keys:
 
 JSON Output:`;
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: {
-                    temperature: 0.4,
-                    responseMimeType: 'application/json'
+            const CANDIDATE_MODELS = [
+                process.env.GEMINI_MODEL,
+                'gemini-3.5-flash-lite',
+                'gemini-3.1-flash-lite',
+                'gemini-3.8-flash',
+                'gemini-3-flash-preview',
+            ].filter((m): m is string => Boolean(m));
+
+            let response: any = null;
+            for (const model of CANDIDATE_MODELS) {
+                try {
+                    response = await ai.models.generateContent({
+                        model,
+                        contents: prompt,
+                        config: {
+                            temperature: 0.4,
+                            responseMimeType: 'application/json'
+                        }
+                    });
+                    if (response?.text) break;
+                } catch (err: any) {
+                    console.warn(`⚠️ Thumbnail analysis failed on model ${model}:`, err?.message || err);
                 }
-            });
+            }
+
+            if (!response?.text) {
+                throw new Error("All candidate models failed for thumbnail analysis");
+            }
 
             const text = response.text || '';
             const parsed = JSON.parse(text);
