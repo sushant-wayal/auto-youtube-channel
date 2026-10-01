@@ -9,6 +9,7 @@ export type ShortResult = {
     videoUrl?: string;
     scheduledPublishTime?: string;
     rank?: number;
+    caption?: string;
 };
 
 export type PipelineStatus = {

@@ -307,11 +307,27 @@ export default function PipelineStatusScreen() {
     const currentVoNarration = narrations[selectedVoScene] ?? narrations[0] ?? '';
     const currentVoAudioUrl = voUrls[selectedVoScene];
 
-    const shortsList = [...(activeData.shorts || [])].sort((a, b) => (a.shortIndex ?? 0) - (b.shortIndex ?? 0));
+    const rawShortsList = [...(activeData.shorts || [])].sort((a, b) => (a.shortIndex ?? 0) - (b.shortIndex ?? 0));
     const shortHooks = activeData.shortHooks || [];
+    const shortCaptions = activeData.shortCaptions || [];
+    const shortsCount = Math.max(rawShortsList.length, shortHooks.length, shortCaptions.length);
+    const shortsList: ShortResult[] = rawShortsList.length > 0
+        ? rawShortsList
+        : Array.from({ length: shortsCount }, (_, idx) => ({
+            shortIndex: idx,
+            shortId: `short-${idx}`,
+            youtubeId: '',
+            caption: shortCaptions[idx] || '',
+        }));
     const activeShort = shortsList[selectedShortIndex] || shortsList[0];
     const actualShortIndex = activeShort?.shortIndex ?? selectedShortIndex;
     const activeHook = (shortHooks && shortHooks[actualShortIndex]) || (activeShort ? `Short #${actualShortIndex + 1}` : '');
+
+    const scriptShorts = (activeData.scriptData as any)?.shorts || (activeData.scriptData as any)?.script?.shorts;
+    const activeCaption = (activeShort as any)?.caption
+        || (shortCaptions && shortCaptions[actualShortIndex])
+        || (Array.isArray(scriptShorts) && (scriptShorts[actualShortIndex]?.instagramCaption || scriptShorts[actualShortIndex]?.caption))
+        || '';
 
     const currentVoAudioDuration = voAudioStatus.duration && voAudioStatus.duration > 0 ? voAudioStatus.duration : 0;
     const currentVoAudioTime = voAudioStatus.currentTime ?? 0;
@@ -1153,6 +1169,15 @@ export default function PipelineStatusScreen() {
                                                     ) : null}
                                                 </View>
 
+                                                {/* Caption Preview Box */}
+                                                {activeCaption ? (
+                                                    <View style={styles.captionBox}>
+                                                        <Text style={styles.captionText} numberOfLines={4}>
+                                                            "{activeCaption.replace(/\r?\n+/g, ' ')}"
+                                                        </Text>
+                                                    </View>
+                                                ) : null}
+
                                                 {activeShort?.scheduledPublishTime ? (
                                                     <View style={styles.innerBoxMetaRow}>
                                                         <Text style={styles.innerBoxMetaMono}>
@@ -1162,32 +1187,41 @@ export default function PipelineStatusScreen() {
                                                 ) : null}
 
                                                 {activeShort?.youtubeId ? (
-                                                    <View style={styles.innerBoxMetaRow}>
+                                                    <TouchableOpacity
+                                                        style={styles.innerBoxMetaRow}
+                                                        onPress={() => Linking.openURL(`https://youtu.be/${activeShort.youtubeId}`)}
+                                                        activeOpacity={0.7}
+                                                    >
                                                         <Text style={styles.shortUrlText}>youtu.be/{activeShort.youtubeId}</Text>
-                                                    </View>
+                                                        <Ionicons name="open-outline" size={11} color={colors.sandstoneLight} />
+                                                    </TouchableOpacity>
                                                 ) : null}
 
                                                 <View style={styles.cardActionsRow}>
-                                                    {activeShort?.youtubeId ? (
-                                                        <>
-                                                            <TouchableOpacity
-                                                                style={styles.cardActionBtnPrimary}
-                                                                onPress={() => copyToClipboard(`https://youtu.be/${activeShort.youtubeId}`, 'Short Link')}
-                                                                activeOpacity={0.8}
-                                                            >
-                                                                <Ionicons name="link-outline" size={13} color={colors.sandstone} />
-                                                                <Text style={styles.cardActionBtnPrimaryText}>Copy Link</Text>
-                                                            </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        style={styles.cardActionBtnSecondary}
+                                                        onPress={() => {
+                                                            if (activeCaption) {
+                                                                copyToClipboard(activeCaption, 'Caption');
+                                                            } else {
+                                                                showToast('No caption available for this short');
+                                                            }
+                                                        }}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <Ionicons name="copy-outline" size={13} color={colors.sandstone} />
+                                                        <Text style={styles.cardActionBtnSecondaryText}>Copy Caption</Text>
+                                                    </TouchableOpacity>
 
-                                                            <TouchableOpacity
-                                                                style={styles.cardActionBtnSecondary}
-                                                                onPress={() => Linking.openURL(`https://youtu.be/${activeShort.youtubeId}`)}
-                                                                activeOpacity={0.8}
-                                                            >
-                                                                <Ionicons name="open-outline" size={13} color={colors.linenDim} />
-                                                                <Text style={styles.cardActionBtnSecondaryText}>Open Short</Text>
-                                                            </TouchableOpacity>
-                                                        </>
+                                                    {activeShort?.youtubeId ? (
+                                                        <TouchableOpacity
+                                                            style={styles.cardActionBtnPrimary}
+                                                            onPress={() => copyToClipboard(`https://youtu.be/${activeShort.youtubeId}`, 'Short Link')}
+                                                            activeOpacity={0.8}
+                                                        >
+                                                            <Ionicons name="link-outline" size={13} color={colors.sandstone} />
+                                                            <Text style={styles.cardActionBtnPrimaryText}>Copy Link</Text>
+                                                        </TouchableOpacity>
                                                     ) : activeShort?.videoUrl ? (
                                                         <TouchableOpacity
                                                             style={styles.cardActionBtnPrimary}

@@ -554,9 +554,9 @@ jobs:
           DESCRIPTION=${DESCRIPTION:-}
           SCENE_NARRATIONS=$(echo "$SCRIPT_DATA" | jq -c '[.script.scenes[].narration] // []' 2>/dev/null || true)
           SCENE_NARRATIONS=${SCENE_NARRATIONS:-[]}
-          SHORT_HOOKS=$(echo "$SCRIPT_DATA" | jq -c '[.script.shorts[].hook] // []' 2>/dev/null || true)
+          SHORT_HOOKS=$(echo "$SCRIPT_DATA" | jq -c '[(.script.shorts // .shorts // [])[].hook // ""]' 2>/dev/null || true)
           SHORT_HOOKS=${SHORT_HOOKS:-[]}
-          SHORT_CAPTIONS=$(echo "$SCRIPT_DATA" | jq -c '[.script.shorts[].instagramCaption // ""]' 2>/dev/null || true)
+          SHORT_CAPTIONS=$(echo "$SCRIPT_DATA" | jq -c '[(.script.shorts // .shorts // [])[] | (.instagramCaption // .caption // "")]' 2>/dev/null || true)
           SHORT_CAPTIONS=${SHORT_CAPTIONS:-[]}
           # Keep full raw script for app display/copy
           RAW_SCRIPT=$(echo "$SCRIPT_DATA" | jq -c '.script // {}' 2>/dev/null || true)

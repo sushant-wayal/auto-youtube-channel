@@ -60,6 +60,8 @@ interface ScriptData {
         shorts: Array<{
             id: string;
             hook: string;
+            instagramCaption?: string;
+            caption?: string;
             scenes: ShortScene[];
         }>;
     };
@@ -172,6 +174,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         videoUrl: assembled.outputUrl,
         scheduledPublishTime,
         rank: shortsRank + 1,
+        caption: short.instagramCaption || short.caption || '',
     };
 
     // Persist result to Redis so the pipeline-status API can return it

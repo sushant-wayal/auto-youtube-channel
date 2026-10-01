@@ -208,7 +208,14 @@ export async function GET() {
             if (!raw) {
                 return NextResponse.json({ ok: true, status: null });
             }
-            return NextResponse.json({ ok: true, status: JSON.parse(raw) });
+            const parsed = JSON.parse(raw);
+            if (parsed && Array.isArray(parsed.shorts) && Array.isArray(parsed.shortCaptions)) {
+                parsed.shorts = parsed.shorts.map((s: any, idx: number) => ({
+                    ...s,
+                    caption: s.caption || parsed.shortCaptions[s.shortIndex ?? idx] || '',
+                }));
+            }
+            return NextResponse.json({ ok: true, status: parsed });
         }
 
         const metadata = await redis.hgetall('pipeline:status:metadata');
@@ -248,18 +255,31 @@ export async function GET() {
 
         if (metadata.scriptData) {
             try {
-                parsedScriptData = JSON.parse(metadata.scriptData);
-                if (parsedScriptData.scenes) {
-                    sceneNarrations = parsedScriptData.scenes.map((s: any) => s.narration || '');
+                parsedScriptData = typeof metadata.scriptData === 'string'
+                    ? JSON.parse(metadata.scriptData)
+                    : metadata.scriptData;
+                const scenesArr = parsedScriptData?.script?.scenes || parsedScriptData?.scenes;
+                const shortsArr = parsedScriptData?.script?.shorts || parsedScriptData?.shorts;
+                if (scenesArr) {
+                    sceneNarrations = scenesArr.map((s: any) => s.narration || '');
                 }
-                if (parsedScriptData.shorts) {
-                    shortHooks = parsedScriptData.shorts.map((s: any) => s.hook || '');
-                    shortCaptions = parsedScriptData.shorts.map((s: any) => s.instagramCaption || '');
+                if (shortsArr) {
+                    shortHooks = shortsArr.map((s: any) => s.hook || '');
+                    shortCaptions = shortsArr.map((s: any) => s.instagramCaption || s.caption || '');
                 }
             } catch (e) {
                 console.error('[pipeline-status] Error parsing scriptData:', e);
             }
         }
+
+        const enhancedShorts = shorts.map((s: any, idx: number) => {
+            const shortIdx = s.shortIndex ?? idx;
+            const caption = s.caption || shortCaptions[shortIdx] || parsedScriptData?.shorts?.[shortIdx]?.instagramCaption || parsedScriptData?.script?.shorts?.[shortIdx]?.instagramCaption || '';
+            return {
+                ...s,
+                caption,
+            };
+        });
 
         const isAnyJobRunning = Object.values(jobs).some(j => j === 'running');
         let computedOverall = overall;
@@ -285,7 +305,7 @@ export async function GET() {
             ideasAdded: ideasAdded || [],
             queuedIdeas: queuedIdeas || [],
             scriptData: parsedScriptData,
-            shorts,
+            shorts: enhancedShorts,
             errorSummary: metadata.errorSummary || null,
             jobs: {
                 populateIdeas: jobs.populateIdeas ?? null,
