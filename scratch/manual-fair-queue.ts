@@ -12,7 +12,7 @@ async function manualFairQueue() {
     const r = new Redis(redisUrl);
     const seriesManager = new SeriesManager();
     const QUEUE_KEY = 'video:ideas';
-    const TARGET_SIZE = 5;
+    const TARGET_SIZE = 6;
 
     try {
         console.log("Manually populating the queue up to 5 items (fairly)...");

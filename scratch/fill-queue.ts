@@ -55,7 +55,7 @@ async function fillQueue() {
 
         // 2. Fill the queue up to 5
         let currentCount = cleaned.length;
-        const targetCount = 5;
+        const targetCount = 6;
         const needed = targetCount - currentCount;
         
         if (needed > 0) {

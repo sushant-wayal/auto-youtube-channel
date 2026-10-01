@@ -14,8 +14,8 @@ import { SeriesManager } from '../../shared/services/series-manager';
 import { initPipeline, setJobStatus, pushArrayItem } from './utils/status-updater';
 
 const QUEUE_KEY = 'video:ideas';
-const TARGET_QUEUE_SIZE = 5; // Target ideas in queue (max 5 unless manually added)
-const MAX_SERIES_IN_QUEUE = 2; // At most 2 series episodes out of 5 (ensuring at least 3 standalone ideas)
+const TARGET_QUEUE_SIZE = parseInt(process.env.TARGET_QUEUE_SIZE || '6', 10); // Target ideas in queue (max 6 unless manually added)
+const MAX_SERIES_IN_QUEUE = parseInt(process.env.MAX_SERIES_IN_QUEUE || '2', 10); // At most 2 series episodes out of 6 (ensuring at least 4 standalone ideas)
 
 async function checkQueueAndPopulate(): Promise<void> {
     const redisUrl = process.env.REDIS_URL;
