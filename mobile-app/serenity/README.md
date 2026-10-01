@@ -82,8 +82,35 @@ mobile-app/dashboard-app/
 - Pull-to-refresh on both screens
 - Proper loading, error, and empty states
 
+## Over-The-Air (OTA) Updates & CI/CD
+
+An automated CI/CD pipeline is configured in `.github/workflows/serenity-ota-update.yml` to publish Over-The-Air updates using Expo EAS Update whenever changes are made to the Serenity app.
+
+### Branch Mapping
+
+- **Main Branch Updates**: Pushes to the `main` branch affecting `mobile-app/serenity/**` automatically publish updates to **both** the `preview` and `production` EAS update branches.
+- **Preview Updates**: Pushes to the `preview` branch affecting `mobile-app/serenity/**` publish an update to the `preview` EAS update branch.
+- **Production Updates**: Pushes to the `production` branch affecting `mobile-app/serenity/**` publish an update to the `production` EAS update branch.
+- **Manual Trigger**: The pipeline can also be triggered on demand via GitHub Actions (`workflow_dispatch`), allowing you to deploy to `both (preview & production)`, `preview`, or `production` with a custom message.
+
+### Required Secrets
+
+To enable the pipeline, configure the following secret in your GitHub repository:
+- **`EXPO_TOKEN`**: An Expo Access Token generated from your [Expo Access Tokens Dashboard](https://expo.dev/settings/access-tokens).
+
+### Local EAS Update Commands
+
+```bash
+# Update preview branch
+npm run update:preview "Update description"
+
+# Update production branch
+npm run update:production "Update description"
+```
+
 ## Future Enhancements (Not Implemented Yet)
 
 - Push notifications for job status
 - Settings screen for notification preferences
 - Offline support with local caching
+
