@@ -163,7 +163,15 @@ export class ThumbnailComposer {
         narration?: string,
         tags?: string[]
     ): Promise<DesignMetadata> {
-        const apiKey = config.gemini.apiKey1 || config.gemini.apiKey || process.env.GEMINI_API_KEY;
+        const candidateKeys = [
+            config.gemini.apiKey1,
+            config.gemini.apiKey2,
+            config.gemini.apiKey,
+            process.env.GEMINI_API_KEY_1,
+            process.env.GEMINI_API_KEY_2,
+            process.env.GEMINI_API_KEY,
+        ].filter((k): k is string => Boolean(k?.trim()));
+        const uniqueKeys = Array.from(new Set(candidateKeys));
 
         // Fallback default design if Gemini is unavailable
         const defaultDesign: DesignMetadata = {
@@ -176,14 +184,12 @@ export class ThumbnailComposer {
             pexelsQuery: 'dark tech server network'
         };
 
-        if (!apiKey) {
+        if (uniqueKeys.length === 0) {
             console.error('⚠️ No Gemini API key found, using heuristic thumbnail design.');
             return defaultDesign;
         }
 
-        try {
-            const ai = new GoogleGenAI({ apiKey });
-            const prompt = `You are an elite YouTube thumbnail designer for a high-end tech/engineering channel (similar to Fireship, Theo, ByteByteGo).
+        const prompt = `You are an elite YouTube thumbnail designer for a high-end tech/engineering channel (similar to Fireship, Theo, ByteByteGo).
 Analyze this video context and generate compelling thumbnail layout elements:
 
 Title: "${title}"
@@ -204,50 +210,55 @@ Return a STRICT JSON object with these exact keys:
 
 JSON Output:`;
 
-            const CANDIDATE_MODELS = [
-                process.env.GEMINI_MODEL,
-                'gemini-3.8-flash',
-                'gemini-3-flash-preview',
-                'gemini-3.5-flash-lite',
-                'gemini-3.1-flash-lite',
-            ].filter((m): m is string => Boolean(m));
+        const CANDIDATE_MODELS = [
+            process.env.GEMINI_MODEL,
+            'gemini-3.8-flash',
+            'gemini-3-flash-preview',
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-flash-lite',
+            'gemini-2.5-flash',
+        ].filter((m): m is string => Boolean(m));
 
-            let response: any = null;
-            for (const model of CANDIDATE_MODELS) {
-                try {
-                    response = await ai.models.generateContent({
-                        model,
-                        contents: prompt,
-                        config: {
-                            temperature: 0.4,
-                            responseMimeType: 'application/json'
-                        }
-                    });
-                    if (response?.text) break;
-                } catch (err: any) {
-                    console.warn(`⚠️ Thumbnail analysis failed on model ${model}:`, err?.message || err);
+        for (const apiKey of uniqueKeys) {
+            try {
+                const ai = new GoogleGenAI({ apiKey });
+                let response: any = null;
+
+                for (const model of CANDIDATE_MODELS) {
+                    try {
+                        response = await ai.models.generateContent({
+                            model,
+                            contents: prompt,
+                            config: {
+                                temperature: 0.4,
+                                responseMimeType: 'application/json'
+                            }
+                        });
+                        if (response?.text) break;
+                    } catch (err: any) {
+                        console.warn(`⚠️ Thumbnail analysis failed on model ${model}:`, err?.message || err);
+                    }
                 }
-            }
 
-            if (!response?.text) {
-                throw new Error("All candidate models failed for thumbnail analysis");
+                if (response?.text) {
+                    const parsed = JSON.parse(response.text);
+                    return {
+                        hook: (parsed.hook || defaultDesign.hook).toUpperCase(),
+                        badge: (parsed.badge || defaultDesign.badge).toUpperCase(),
+                        accentText: (parsed.accentText || defaultDesign.accentText).toUpperCase(),
+                        highlightText: (parsed.highlightText || defaultDesign.highlightText).toUpperCase(),
+                        themeColor: parsed.themeColor || defaultDesign.themeColor,
+                        iconType: ICONS[parsed.iconType] ? parsed.iconType : defaultDesign.iconType,
+                        pexelsQuery: parsed.pexelsQuery || defaultDesign.pexelsQuery
+                    };
+                }
+            } catch (keyErr: any) {
+                console.warn(`⚠️ Gemini API key attempt failed, trying next key:`, keyErr?.message || keyErr);
             }
-
-            const text = response.text || '';
-            const parsed = JSON.parse(text);
-            return {
-                hook: (parsed.hook || defaultDesign.hook).toUpperCase(),
-                badge: (parsed.badge || defaultDesign.badge).toUpperCase(),
-                accentText: (parsed.accentText || defaultDesign.accentText).toUpperCase(),
-                highlightText: (parsed.highlightText || defaultDesign.highlightText).toUpperCase(),
-                themeColor: parsed.themeColor || defaultDesign.themeColor,
-                iconType: ICONS[parsed.iconType] ? parsed.iconType : defaultDesign.iconType,
-                pexelsQuery: parsed.pexelsQuery || defaultDesign.pexelsQuery
-            };
-        } catch (err) {
-            console.error('⚠️ Gemini thumbnail analysis error, using fallback design:', err);
-            return defaultDesign;
         }
+
+        console.error('⚠️ All Gemini keys and models failed for thumbnail analysis, using fallback design.');
+        return defaultDesign;
     }
 
     /**
@@ -581,13 +592,28 @@ JSON Output:`;
 
         const browser = await puppeteer.launch({
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu'
+            ]
         });
 
         try {
             const page = await browser.newPage();
             await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-            await page.setContent(html, { waitUntil: 'networkidle0' });
+
+            try {
+                await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
+            } catch (navErr) {
+                console.warn('⚠️ Networkidle0 timed out while loading thumbnail HTML, proceeding with load state:', navErr);
+            }
+
+            await page.waitForFunction(
+                "typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded'",
+                { timeout: 5000 }
+            ).catch(() => {});
 
             await page.screenshot({
                 path: outputPath,
