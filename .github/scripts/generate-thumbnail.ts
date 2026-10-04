@@ -12,15 +12,20 @@ interface ScriptData {
         description: string;
         narration: string;
         tags?: string[];
+        scenes?: Array<{
+            id?: string;
+            narration?: string;
+            actions?: any[];
+        }>;
     };
 }
 
 async function generateThumbnail(videoId: string, scriptData: string) {
     const data: ScriptData = JSON.parse(scriptData);
-    console.error(`🖼️ Generating high-quality thumbnail for: ${data.script.title}`);
+    console.error(`🖼️ Generating Ask Studio quality thumbnail for: ${data.script.title}`);
 
-    // Generate thumbnail directly using Autonomous Thumbnail Composer (Gemini + Pexels + Puppeteer + Cloudinary)
-    console.error('🎨 Generating thumbnail using direct Autonomous Thumbnail Composer...');
+    // Generate thumbnail directly using Autonomous Thumbnail Composer (Gemini + FLUX.1 + Puppeteer + Cloudinary)
+    console.error('🎨 Generating thumbnail using YouTube Studio Ask Studio Composer...');
     const { ThumbnailComposer } = await import('../../shared/services/thumbnail-composer');
     const composer = ThumbnailComposer.getInstance();
     const result = await composer.compose({
@@ -28,7 +33,9 @@ async function generateThumbnail(videoId: string, scriptData: string) {
         title: data.script.title,
         description: data.script.description,
         narration: data.script.narration,
-        tags: data.script.tags || []
+        tags: data.script.tags || [],
+        scenes: data.script.scenes || [],
+        generateVariations: true
     });
     const thumbnailUrl = result.thumbnailUrl;
 

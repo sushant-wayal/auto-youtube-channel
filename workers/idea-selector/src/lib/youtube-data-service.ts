@@ -8,6 +8,7 @@ export interface YouTubeVideo {
     tags?: string[];
     duration: string; // ISO 8601 duration
     isShort: boolean;
+    thumbnailUrl?: string;
 }
 
 export interface YouTubeAnalytics {
@@ -123,16 +124,17 @@ export class YouTubeDataService {
                 const durationSeconds = this.parseDuration(duration);
                 const isShort = durationSeconds <= 60; // Shorts are <= 60 seconds
 
-                return {
-                    id: item.id!,
-                    title: item.snippet?.title || '',
-                    description: item.snippet?.description || '',
-                    publishedAt: item.snippet?.publishedAt || '',
-                    tags: item.snippet?.tags || [],
-                    duration,
-                    isShort,
-                };
-            }) || [];
+                    return {
+                        id: item.id!,
+                        title: item.snippet?.title || '',
+                        description: item.snippet?.description || '',
+                        publishedAt: item.snippet?.publishedAt || '',
+                        tags: item.snippet?.tags || [],
+                        duration,
+                        isShort,
+                        thumbnailUrl: item.snippet?.thumbnails?.maxres?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
+                    };
+                }) || [];
             
                 videos.push(...batchVideos);
             }

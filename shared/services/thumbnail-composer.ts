@@ -1,10 +1,20 @@
 /**
- * High-Quality Autonomous Thumbnail Composer
- * Generates professional, CTR-optimized YouTube thumbnails (1280x720)
- * using Gemini design direction, Pexels royalty-free tech backdrops,
- * and a Puppeteer typographic canvas renderer.
+ * YouTube Studio "Ask Studio" Autonomous Thumbnail Composer
  * 
- * 100% Free - No paid API subscriptions required.
+ * Analyzes:
+ * 1. Channel Past Videos & High-CTR styles via YouTube Data API
+ * 2. Video Audio/Visual Content (script narration, hooks, visual scene directives)
+ * 3. Free Generative Visuals:
+ *    - Pollinations.ai FLUX.1-schnell (100% free, no API keys, cinematic 3D renders)
+ *    - Pexels royalty-free backdrops (API fallback)
+ *    - Curated 4K Dark Tech Photography (local fallback)
+ * 4. Multi-Archetype Studio Canvas Renderer via Puppeteer:
+ *    - code_terminal_bug: VS Code / macOS dark terminal with syntax highlighting and bug pointer
+ *    - split_comparison: Dual card showdown (X vs Y / Old vs New) with glowing VS medallion
+ *    - metric_showdown: Horizontal performance benchmark comparison with speed multipliers
+ *    - cinematic_focal_hero: 3D holographic architecture schematic with cyber grid
+ * 
+ * 100% Free - Zero paid image generation subscriptions required.
  */
 
 import puppeteer from 'puppeteer';
@@ -13,6 +23,8 @@ import fs from 'fs';
 import path from 'path';
 import config from '../config';
 import CloudinaryService from './cloudinary-service';
+import { YouTubeDataService } from './youtube-data-service';
+import Redis from 'ioredis';
 
 export interface ThumbnailComposeOptions {
     videoId: string;
@@ -20,6 +32,12 @@ export interface ThumbnailComposeOptions {
     description?: string;
     narration?: string;
     tags?: string[];
+    scenes?: Array<{
+        id?: string;
+        narration?: string;
+        actions?: any[];
+    }>;
+    generateVariations?: boolean;
 }
 
 export interface ThumbnailComposeResult {
@@ -27,74 +45,66 @@ export interface ThumbnailComposeResult {
     localPath: string;
     hook: string;
     badge: string;
+    archetype: 'code_terminal_bug' | 'split_comparison' | 'metric_showdown' | 'cinematic_focal_hero';
     themeColor: string;
+    variations?: Array<{
+        thumbnailUrl: string;
+        localPath: string;
+        hook: string;
+        badge: string;
+        archetype: string;
+    }>;
+}
+
+interface CodeSnippet {
+    filename: string;
+    language: string;
+    lines: Array<{
+        num: number;
+        text: string;
+        isError?: boolean;
+        errorTag?: string;
+    }>;
+    pointerBadge?: string;
+}
+
+interface ComparisonData {
+    leftTitle: string;
+    leftMetric: string;
+    leftBadge: string;
+    leftNote: string;
+    rightTitle: string;
+    rightMetric: string;
+    rightBadge: string;
+    rightNote: string;
+    vsText: string;
+}
+
+interface MetricBenchmarkData {
+    metricTitle: string;
+    oldLabel: string;
+    oldValue: string;
+    oldBarPercent: number;
+    newLabel: string;
+    newValue: string;
+    newBarPercent: number;
+    multiplierBadge: string;
 }
 
 interface DesignMetadata {
+    archetype: 'code_terminal_bug' | 'split_comparison' | 'metric_showdown' | 'cinematic_focal_hero';
     hook: string;
     badge: string;
     accentText: string;
     highlightText: string;
     themeColor: string;
-    iconType: 'server' | 'database' | 'cpu' | 'cloud' | 'shield' | 'zap' | 'code' | 'warning';
+    fluxPrompt: string;
     pexelsQuery: string;
+    codeSnippet?: CodeSnippet;
+    comparison?: ComparisonData;
+    benchmark?: MetricBenchmarkData;
 }
 
-const ICONS: Record<string, string> = {
-    server: `
-      <svg viewBox="0 0 24 24">
-        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-        <line x1="6" y1="6" x2="6.01" y2="6"></line>
-        <line x1="6" y1="18" x2="6.01" y2="18"></line>
-        <path d="M13 6l3 3-3 3"></path>
-      </svg>`,
-    database: `
-      <svg viewBox="0 0 24 24">
-        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-      </svg>`,
-    cpu: `
-      <svg viewBox="0 0 24 24">
-        <rect x="4" y="4" width="16" height="16" rx="2"></rect>
-        <rect x="9" y="9" width="6" height="6"></rect>
-        <line x1="9" y1="1" x2="9" y2="4"></line>
-        <line x1="15" y1="1" x2="15" y2="4"></line>
-        <line x1="9" y1="20" x2="9" y2="23"></line>
-        <line x1="15" y1="20" x2="15" y2="23"></line>
-        <line x1="20" y1="9" x2="23" y2="9"></line>
-        <line x1="20" y1="15" x2="23" y2="15"></line>
-        <line x1="1" y1="9" x2="4" y2="9"></line>
-        <line x1="1" y1="15" x2="4" y2="15"></line>
-      </svg>`,
-    cloud: `
-      <svg viewBox="0 0 24 24">
-        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
-      </svg>`,
-    shield: `
-      <svg viewBox="0 0 24 24">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-        <polyline points="9 12 11 14 15 10"></polyline>
-      </svg>`,
-    zap: `
-      <svg viewBox="0 0 24 24">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-      </svg>`,
-    code: `
-      <svg viewBox="0 0 24 24">
-        <polyline points="16 18 22 12 16 6"></polyline>
-        <polyline points="8 6 2 12 8 18"></polyline>
-      </svg>`,
-    warning: `
-      <svg viewBox="0 0 24 24">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-        <line x1="12" y1="9" x2="12" y2="13"></line>
-        <line x1="12" y1="17" x2="12.01" y2="17"></line>
-      </svg>`
-};
-
-// Curated high-resolution dark tech backgrounds as bulletproof fallbacks
 const FALLBACK_BACKGROUNDS = [
     'https://images.pexels.com/photos/37730212/pexels-photo-37730212.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=720&w=1280',
     'https://images.pexels.com/photos/1181244/pexels-photo-1181244.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=720&w=1280',
@@ -113,29 +123,35 @@ export class ThumbnailComposer {
     }
 
     /**
-     * Generate a high quality thumbnail and upload to Cloudinary
+     * Generate a studio-grade YouTube thumbnail and publish to Cloudinary
      */
     async compose(options: ThumbnailComposeOptions): Promise<ThumbnailComposeResult> {
-        const { videoId, title, description, narration, tags } = options;
-        console.error(`\n🎨 === HIGH-QUALITY THUMBNAIL COMPOSER ===`);
+        const { videoId, title, description, narration, tags, scenes, generateVariations } = options;
+        console.error(`\n🎨 === YOUTUBE STUDIO "ASK STUDIO" THUMBNAIL COMPOSER ===`);
         console.error(`📹 Video ID: ${videoId}`);
         console.error(`📝 Title: ${title}`);
 
-        // 1. Analyze script with Gemini to derive optimal click-through design
-        const design = await this.analyzeWithGemini(title, description, narration, tags);
-        console.error(`🎯 Design Hook: "${design.hook}"`);
+        // 1. Gather Channel Intelligence (past videos & style patterns)
+        const channelContext = await this.getChannelIntelligence();
+        if (channelContext.length > 0) {
+            console.error(`📺 Grounded with ${channelContext.length} past channel video patterns`);
+        }
+
+        // 2. Synthesize Studio Design Metadata with Gemini
+        const design = await this.analyzeWithGemini(title, description, narration, tags, scenes, channelContext);
+        console.error(`🎯 Archetype: [${design.archetype.toUpperCase()}] | Hook: "${design.hook}"`);
         console.error(`🏷️  Badge: "${design.badge}" | Accent: "${design.accentText}"`);
         console.error(`🎨 Theme Color: ${design.themeColor}`);
 
-        // 2. Fetch high-res backdrop from Pexels or fallback
-        const bgImageUrl = await this.fetchBackdrop(design.pexelsQuery);
+        // 3. Fetch high-definition backdrop (FLUX.1 -> Pexels -> Curated 4K)
+        const bgImageUrl = await this.fetchBackdrop(design.fluxPrompt, design.pexelsQuery);
 
-        // 3. Render HTML template via Puppeteer
+        // 4. Render HTML canvas to JPEG via Puppeteer
         const html = this.buildHtml(design, bgImageUrl);
         const localPath = await this.renderToImage(videoId, html);
 
-        // 4. Upload to Cloudinary
-        console.error(`☁️ Uploading thumbnail to Cloudinary...`);
+        // 5. Upload to Cloudinary
+        console.error(`☁️ Uploading primary thumbnail to Cloudinary...`);
         const cloudinaryService = CloudinaryService.getInstance();
         const uploadResult = await cloudinaryService.uploadImage(
             localPath,
@@ -143,25 +159,127 @@ export class ThumbnailComposer {
             `${videoId}-thumbnail`
         );
 
-        console.error(`✅ Thumbnail published to Cloudinary: ${uploadResult.secureUrl}`);
+        console.error(`✅ Primary thumbnail published: ${uploadResult.secureUrl}`);
 
-        return {
+        const result: ThumbnailComposeResult = {
             thumbnailUrl: uploadResult.secureUrl,
             localPath,
             hook: design.hook,
             badge: design.badge,
-            themeColor: design.themeColor
+            archetype: design.archetype,
+            themeColor: design.themeColor,
+            variations: []
         };
+
+        // 6. Optional: Generate YouTube Studio "Test & Compare" variations
+        if (generateVariations) {
+            const alternativeArchetypes: Array<'split_comparison' | 'code_terminal_bug' | 'metric_showdown' | 'cinematic_focal_hero'> = [
+                'split_comparison', 'code_terminal_bug', 'metric_showdown', 'cinematic_focal_hero'
+            ].filter(a => a !== design.archetype) as any;
+
+            for (let i = 0; i < Math.min(2, alternativeArchetypes.length); i++) {
+                try {
+                    const altArch = alternativeArchetypes[i];
+                    console.error(`🧪 Generating Test & Compare variation #${i + 1} (${altArch})...`);
+                    const altDesign: DesignMetadata = {
+                        ...design,
+                        archetype: altArch,
+                        themeColor: i === 0 ? '#FF2A6D' : '#00FF66'
+                    };
+                    const altHtml = this.buildHtml(altDesign, bgImageUrl);
+                    const altLocalPath = await this.renderToImage(`${videoId}-var${i + 1}`, altHtml);
+                    const altUpload = await cloudinaryService.uploadImage(
+                        altLocalPath,
+                        'thumbnails',
+                        `${videoId}-thumbnail-var${i + 1}`
+                    );
+                    result.variations?.push({
+                        thumbnailUrl: altUpload.secureUrl,
+                        localPath: altLocalPath,
+                        hook: altDesign.hook,
+                        badge: altDesign.badge,
+                        archetype: altArch
+                    });
+                } catch (varErr) {
+                    console.warn(`⚠️ Failed to generate variation #${i + 1}:`, varErr);
+                }
+            }
+
+            // Cache variations in Redis for pipeline monitoring / mobile UI
+            if (process.env.REDIS_URL && result.variations && result.variations.length > 0) {
+                try {
+                    const redis = new Redis(process.env.REDIS_URL);
+                    await redis.set(
+                        `pipeline:status:thumbnail_variations`,
+                        JSON.stringify([result.thumbnailUrl, ...result.variations.map(v => v.thumbnailUrl)]),
+                        'EX',
+                        60 * 60 * 24 * 7
+                    );
+                    await redis.quit();
+                } catch (rErr) {
+                    // Non-fatal
+                }
+            }
+        }
+
+        return result;
     }
 
     /**
-     * Use Gemini to synthesize thumbnail metadata optimized for high click-through-rate (CTR)
+     * Gather channel intelligence: top past video titles & thumbnails for style consistency
+     */
+    private async getChannelIntelligence(): Promise<string[]> {
+        if (!config.youtube.clientId || !config.youtube.refreshToken) {
+            return [];
+        }
+
+        try {
+            // Check Redis cache first
+            if (process.env.REDIS_URL) {
+                try {
+                    const redis = new Redis(process.env.REDIS_URL);
+                    const cached = await redis.get('channel:thumbnail_context');
+                    await redis.quit();
+                    if (cached) {
+                        return JSON.parse(cached);
+                    }
+                } catch (e) {
+                    // Ignore cache read error
+                }
+            }
+
+            const yt = new YouTubeDataService();
+            const recent = await yt.fetchRecentVideos(20, 180);
+            const longForm = recent.filter(v => !v.isShort);
+            const titles = longForm.slice(0, 8).map(v => v.title);
+
+            if (process.env.REDIS_URL && titles.length > 0) {
+                try {
+                    const redis = new Redis(process.env.REDIS_URL);
+                    await redis.set('channel:thumbnail_context', JSON.stringify(titles), 'EX', 86400);
+                    await redis.quit();
+                } catch (e) {
+                    // Ignore cache write error
+                }
+            }
+
+            return titles;
+        } catch (err: any) {
+            console.warn('⚠️ Could not fetch YouTube channel history for thumbnail context:', err?.message || err);
+            return [];
+        }
+    }
+
+    /**
+     * Synthesize high-CTR thumbnail design metadata using Gemini
      */
     private async analyzeWithGemini(
         title: string,
         description?: string,
         narration?: string,
-        tags?: string[]
+        tags?: string[],
+        scenes?: Array<{ narration?: string; actions?: any[] }>,
+        channelTitles: string[] = []
     ): Promise<DesignMetadata> {
         const candidateKeys = [
             config.gemini.apiKey1,
@@ -173,15 +291,27 @@ export class ThumbnailComposer {
         ].filter((k): k is string => Boolean(k?.trim()));
         const uniqueKeys = Array.from(new Set(candidateKeys));
 
-        // Fallback default design if Gemini is unavailable
+        // Default heuristic design
         const defaultDesign: DesignMetadata = {
+            archetype: 'split_comparison',
             hook: this.cleanFallbackHook(title),
             badge: (tags && tags[0]) ? tags[0].toUpperCase() : 'TECH',
             accentText: 'DEEP DIVE',
-            highlightText: "Don't Make This Mistake",
+            highlightText: "DON'T MAKE THIS MISTAKE",
             themeColor: '#00F0FF',
-            iconType: 'server',
-            pexelsQuery: 'dark tech server network'
+            fluxPrompt: 'cinematic dark futuristic quantum server room glowing neon blue cables 8k octane render',
+            pexelsQuery: 'dark tech server network',
+            comparison: {
+                leftTitle: 'OLD WAY',
+                leftMetric: '450ms',
+                leftBadge: '⛔ SLOW',
+                leftNote: 'Traditional approach',
+                rightTitle: 'NEW WAY',
+                rightMetric: '12ms',
+                rightBadge: '⚡ 10X FASTER',
+                rightNote: 'Optimized modern pattern',
+                vsText: 'VS'
+            }
         };
 
         if (uniqueKeys.length === 0) {
@@ -189,26 +319,59 @@ export class ThumbnailComposer {
             return defaultDesign;
         }
 
-        const prompt = `You are an elite YouTube thumbnail designer for a high-end tech/engineering channel (similar to Fireship, Theo, ByteByteGo).
-Analyze this video context and generate compelling thumbnail layout elements:
+        // Extract scene excerpts for visual grounding
+        const sceneExcerpts = (scenes || [])
+            .slice(0, 3)
+            .map(s => s.narration || '')
+            .filter(Boolean)
+            .join(' | ')
+            .slice(0, 350);
 
+        const prompt = `You are the Lead YouTube Studio Thumbnail Designer for a top-tier engineering channel (similar to Fireship, Theo, ByteByteGo, ByteMonk).
+Your goal is to design an ultra-high CTR, clickable YouTube thumbnail (1280x720) that hooks engineers instantly.
+
+VIDEO CONTEXT:
 Title: "${title}"
 Description: "${description?.slice(0, 300) || ''}"
 Tags: "${tags?.join(', ') || ''}"
+Key Visual Cues from Script: "${sceneExcerpts || narration?.slice(0, 350) || ''}"
 
-Return a STRICT JSON object with these exact keys:
-1. "hook": 2 to 4 punchy, emotional, all-caps words that create curiosity/urgency for the big headline. (e.g. "EVENT LOOP DEAD?", "99% CRASH HERE", "REDIS 10X FASTER", "NEVER AWAIT HERE", "MEMORY LEAK KILLER"). Do NOT exceed 4 words!
-2. "badge": 1 or 2 uppercase words identifying the technology or topic (e.g. "NODE.JS", "POSTGRES", "DOCKER", "KAFKA", "SYSTEM DESIGN", "PYTHON").
-3. "accentText": 1 or 2 words sub-badge (e.g. "DEEP DIVE", "BENCHMARK", "ARCHITECTURE", "CRITICAL", "EXPLAINED").
-4. "highlightText": A concise bottom highlight phrase (e.g. "DON'T MAKE THIS MISTAKE", "WHY 99% GET THIS WRONG", "PRODUCTION NIGHTMARE", "SOLVED IN 5 MINUTES").
-5. "themeColor": A vibrant neon hex color fitting the mood:
-   - Performance / Danger / Warning: "#FF2A6D" or "#FF9900"
-   - Speed / Optimization / Success: "#00FF66" or "#FFDD00"
-   - Architecture / Future / Cyberpunk: "#00F0FF" or "#9D4EDD"
-6. "iconType": One of ["server", "database", "cpu", "cloud", "shield", "zap", "code", "warning"].
-7. "pexelsQuery": 3 to 4 English words for searching a dark atmospheric tech background photo (e.g. "server room dark glowing", "cyberpunk circuit motherboard", "cloud data center dark", "network wires fiber neon").
+${channelTitles.length > 0 ? `Channel Past Video Titles for tone consistency:\n${channelTitles.map(t => '- ' + t).join('\n')}\n` : ''}
 
-JSON Output:`;
+CRITICAL RULES:
+1. Select the BEST layout ARCHETYPE for this topic:
+   - "code_terminal_bug": Use when the video discusses a coding pitfall, bad syntax, concurrency bug, memory leak, or language feature mistake.
+   - "split_comparison": Use when the video compares two technologies, architectures, or frameworks (e.g., REST vs gRPC, Monolith vs Microservices, Postgres vs Mongo, Old vs New).
+   - "metric_showdown": Use when the video is about speed, latency, optimization, benchmarks, or throughput gains (e.g. 10x faster, memory reduction).
+   - "cinematic_focal_hero": Use for conceptual deep dives, hardware, AI, distributed systems, quantum computing, or architecture topology.
+2. "hook": 2 to 4 punchy, emotional, curiosity-gap all-caps words (e.g. "NEVER AWAIT HERE", "STOP USING REST", "EVENT LOOP DEAD", "REDIS 10X FASTER", "99% CRASH HERE"). DO NOT exceed 4 words!
+3. "badge": 1 or 2 uppercase words identifying the technology/topic (e.g. "NODE.JS", "POSTGRES", "DOCKER", "KAFKA", "KUBERNETES", "REACT").
+4. "accentText": 1 or 2 words sub-badge (e.g. "CRITICAL BUG", "ARCHITECTURE", "BENCHMARK", "EXPLAINED").
+5. "highlightText": Bottom high-contrast alert text (e.g. "KILLS SERVER THRUPUT", "DON'T MAKE THIS MISTAKE", "WHY 99% GET THIS WRONG").
+6. "themeColor": Neon accent hex fitting the mood:
+   - Danger/Bug/Crash: "#FF2A6D" or "#FF9900"
+   - Speed/Optimization/Success: "#00FF66" or "#00F0FF"
+   - Futuristic/Architecture/Deep Dive: "#00F0FF" or "#9D4EDD"
+7. "fluxPrompt": Highly detailed 10-word prompt for generating a photorealistic, cinematic 3D macro tech backdrop using FLUX.1.
+8. Archetype-specific structured data:
+   - If "code_terminal_bug": include "codeSnippet" with "filename", "language", 3-5 "lines" of code ({ "num": 1, "text": "...", "isError": true, "errorTag": "💥 10X SLOWER" }), and "pointerBadge" ("⚠️ DEADLOCK HAZARD").
+   - If "split_comparison": include "comparison" with left/right titles, metrics, badges, and notes.
+   - If "metric_showdown": include "benchmark" with old/new labels, values, percentages (0-100), and "multiplierBadge" ("35X FASTER").
+
+Return STRICT JSON only matching this schema:
+{
+  "archetype": "code_terminal_bug" | "split_comparison" | "metric_showdown" | "cinematic_focal_hero",
+  "hook": "string",
+  "badge": "string",
+  "accentText": "string",
+  "highlightText": "string",
+  "themeColor": "string",
+  "fluxPrompt": "string",
+  "pexelsQuery": "string",
+  "codeSnippet": { ... },
+  "comparison": { ... },
+  "benchmark": { ... }
+}`;
 
         const CANDIDATE_MODELS = [
             process.env.GEMINI_MODEL,
@@ -230,7 +393,7 @@ JSON Output:`;
                             model,
                             contents: prompt,
                             config: {
-                                temperature: 0.4,
+                                temperature: 0.35,
                                 responseMimeType: 'application/json'
                             }
                         });
@@ -242,14 +405,21 @@ JSON Output:`;
 
                 if (response?.text) {
                     const parsed = JSON.parse(response.text);
+                    const validArchetypes = ['code_terminal_bug', 'split_comparison', 'metric_showdown', 'cinematic_focal_hero'];
+                    const archetype = validArchetypes.includes(parsed.archetype) ? parsed.archetype : defaultDesign.archetype;
+
                     return {
+                        archetype,
                         hook: (parsed.hook || defaultDesign.hook).toUpperCase(),
                         badge: (parsed.badge || defaultDesign.badge).toUpperCase(),
                         accentText: (parsed.accentText || defaultDesign.accentText).toUpperCase(),
                         highlightText: (parsed.highlightText || defaultDesign.highlightText).toUpperCase(),
                         themeColor: parsed.themeColor || defaultDesign.themeColor,
-                        iconType: ICONS[parsed.iconType] ? parsed.iconType : defaultDesign.iconType,
-                        pexelsQuery: parsed.pexelsQuery || defaultDesign.pexelsQuery
+                        fluxPrompt: parsed.fluxPrompt || defaultDesign.fluxPrompt,
+                        pexelsQuery: parsed.pexelsQuery || defaultDesign.pexelsQuery,
+                        codeSnippet: parsed.codeSnippet,
+                        comparison: parsed.comparison,
+                        benchmark: parsed.benchmark
                     };
                 }
             } catch (keyErr: any) {
@@ -262,42 +432,57 @@ JSON Output:`;
     }
 
     /**
-     * Fetch high-res backdrop image from Pexels API
+     * Fetch high-definition backdrop image:
+     * 1. Pollinations.ai FLUX.1 (Free AI generation)
+     * 2. Pexels API (if key available)
+     * 3. Curated 4K Dark Tech Photography (local fallback)
      */
-    private async fetchBackdrop(query: string): Promise<string> {
-        const pexelsKey = process.env.PEXELS_API_KEY;
+    private async fetchBackdrop(fluxPrompt: string, pexelsQuery: string): Promise<string> {
         const randomFallback = FALLBACK_BACKGROUNDS[Math.floor(Math.random() * FALLBACK_BACKGROUNDS.length)];
 
-        if (!pexelsKey) {
-            return randomFallback;
+        // 1. Try Pollinations FLUX.1 (Free, stunning, zero API key)
+        try {
+            console.error(`🎨 Fetching AI backdrop via FLUX.1 (Pollinations)...`);
+            const promptEnc = encodeURIComponent(`${fluxPrompt}, dark atmosphere, cinematic lighting, 8k, photorealistic`);
+            const seed = Math.floor(Math.random() * 1000000);
+            const fluxUrl = `https://image.pollinations.ai/prompt/${promptEnc}?width=1280&height=720&model=flux&nologo=true&seed=${seed}`;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s max timeout
+
+            const res = await fetch(fluxUrl, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (res.ok && res.headers.get('content-type')?.includes('image')) {
+                console.error(`✅ FLUX.1 backdrop generated successfully!`);
+                return fluxUrl;
+            }
+        } catch (e: any) {
+            console.warn(`⚠️ FLUX.1 backdrop generation timed out or failed, falling back to photography:`, e?.message || e);
         }
 
-        try {
-            const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=5&orientation=landscape`;
-            const res = await fetch(url, {
-                headers: { Authorization: pexelsKey }
-            });
-
-            if (!res.ok) {
-                console.error(`⚠️ Pexels returned ${res.status}, using curated fallback.`);
-                return randomFallback;
+        // 2. Try Pexels API
+        const pexelsKey = process.env.PEXELS_API_KEY;
+        if (pexelsKey) {
+            try {
+                const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(pexelsQuery)}&per_page=5&orientation=landscape`;
+                const res = await fetch(url, { headers: { Authorization: pexelsKey } });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.photos && data.photos.length > 0) {
+                        return data.photos[0].src.large2x || data.photos[0].src.original || randomFallback;
+                    }
+                }
+            } catch (e) {
+                console.warn('⚠️ Pexels fetch failed, using curated backdrop.');
             }
-
-            const data = await res.json();
-            if (data.photos && data.photos.length > 0) {
-                // Pick the first photo with high resolution
-                const photo = data.photos[0];
-                return photo.src.large2x || photo.src.original || randomFallback;
-            }
-        } catch (e) {
-            console.error('⚠️ Failed to fetch from Pexels:', e);
         }
 
         return randomFallback;
     }
 
     /**
-     * Build the pixel-perfect HTML layout for 1280x720 16:9 canvas
+     * Build the pixel-perfect HTML layout based on selected archetype
      */
     private buildHtml(design: DesignMetadata, bgImageUrl: string): string {
         const words = design.hook.split(' ');
@@ -311,238 +496,388 @@ JSON Output:`;
             line2 = words.slice(mid).join(' ');
         }
 
-        const iconSvg = ICONS[design.iconType] || ICONS.server;
+        const baseCss = `
+            @import url('https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@500;700;800&family=Montserrat:wght@700;800;900&display=swap');
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                width: 1280px; height: 720px; overflow: hidden;
+                background: #030509; font-family: 'Montserrat', sans-serif;
+                position: relative; color: #FFF;
+            }
+            .bg-container {
+                position: absolute; inset: 0;
+                background-image: url('${bgImageUrl}');
+                background-size: cover; background-position: center right;
+                filter: saturate(1.35) contrast(1.2) brightness(0.42);
+            }
+            .overlay {
+                position: absolute; inset: 0;
+                background: linear-gradient(90deg, rgba(2,4,8,0.98) 0%, rgba(2,4,8,0.92) 46%, rgba(2,4,8,0.65) 75%, rgba(2,4,8,0.3) 100%);
+            }
+            .grid-lines {
+                position: absolute; inset: 0;
+                background-image: linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px);
+                background-size: 50px 50px; pointer-events: none;
+            }
+            .frame-border {
+                position: absolute; inset: 12px;
+                border: 2px solid rgba(255,255,255,0.07);
+                border-radius: 18px; pointer-events: none;
+            }
+            .corner-accent {
+                position: absolute; top: 12px; right: 12px; width: 42px; height: 42px;
+                border-top: 4px solid ${design.themeColor}; border-right: 4px solid ${design.themeColor};
+            }
+            .content-left {
+                position: absolute; top: 0; left: 0; bottom: 0; width: 620px;
+                z-index: 10; display: flex; flex-direction: column; justify-content: center;
+                padding-left: 64px;
+            }
+            .badge-row {
+                display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+            }
+            .pill-badge {
+                background: ${design.themeColor}; color: #000;
+                font-size: 19px; font-weight: 900; letter-spacing: 2px;
+                padding: 8px 18px; border-radius: 8px; text-transform: uppercase;
+                box-shadow: 0 0 25px ${design.themeColor}77;
+            }
+            .sub-pill {
+                background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+                color: rgba(255,255,255,0.85); font-size: 15px; font-weight: 800;
+                letter-spacing: 2px; padding: 7px 16px; border-radius: 8px;
+            }
+            .headline {
+                font-family: 'Anton', sans-serif; font-size: 82px; line-height: 0.96;
+                letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px;
+                background: linear-gradient(180deg, #FFFFFF 0%, #D8E2F0 50%, #90A4BF 100%);
+                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                filter: drop-shadow(0 6px 16px rgba(0,0,0,0.9));
+            }
+            .headline-glow {
+                color: ${design.themeColor}; -webkit-text-fill-color: ${design.themeColor};
+                filter: drop-shadow(0 0 35px ${design.themeColor}88);
+            }
+            .highlight-alert {
+                display: inline-flex; align-items: center; gap: 10px;
+                background: rgba(255, 42, 109, 0.15); border: 2px solid #FF2A6D;
+                border-radius: 10px; padding: 10px 18px; width: fit-content;
+                box-shadow: 0 0 25px rgba(255, 42, 109, 0.35);
+            }
+            .highlight-alert.cyan {
+                background: rgba(0, 240, 255, 0.15); border-color: #00F0FF;
+                box-shadow: 0 0 25px rgba(0, 240, 255, 0.35);
+            }
+            .highlight-alert.green {
+                background: rgba(0, 255, 102, 0.15); border-color: #00FF66;
+                box-shadow: 0 0 25px rgba(0, 255, 102, 0.35);
+            }
+            .alert-text {
+                color: #FFF; font-size: 18px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase;
+            }
+            .content-right {
+                position: absolute; top: 0; right: 48px; bottom: 0; width: 560px;
+                z-index: 10; display: flex; align-items: center; justify-content: center;
+            }
+        `;
+
+        let rightContentHtml = '';
+
+        if (design.archetype === 'code_terminal_bug') {
+            const snippet = design.codeSnippet || {
+                filename: 'worker-pool.ts',
+                language: 'typescript',
+                lines: [
+                    { num: 1, text: 'for (const item of queue) {' },
+                    { num: 2, text: '  await processItem(item);', isError: true, errorTag: '💥 10X SLOWER' },
+                    { num: 3, text: '}' }
+                ],
+                pointerBadge: 'DEADLOCK HAZARD'
+            };
+
+            const codeRowsHtml = snippet.lines.map(line => `
+                <div class="code-line ${line.isError ? 'error-line' : ''}">
+                    <span class="line-num">${line.num}</span>
+                    <span class="code-text">${this.escapeHtml(line.text)}</span>
+                    ${line.errorTag ? `<span class="error-tag">${line.errorTag}</span>` : ''}
+                </div>
+            `).join('');
+
+            rightContentHtml = `
+                <div class="terminal-window">
+                    <div class="terminal-header">
+                        <div class="traffic-lights">
+                            <div class="light red"></div>
+                            <div class="light yellow"></div>
+                            <div class="light green"></div>
+                        </div>
+                        <div class="filename">${snippet.filename}</div>
+                        <div style="width: 40px;"></div>
+                    </div>
+                    <div class="code-body">
+                        ${codeRowsHtml}
+                    </div>
+                </div>
+                ${snippet.pointerBadge ? `
+                    <div class="pointer-callout">
+                        <span>⚠️</span> ${snippet.pointerBadge}
+                    </div>
+                ` : ''}
+            `;
+        } else if (design.archetype === 'split_comparison') {
+            const comp = design.comparison || {
+                leftTitle: 'REST API',
+                leftMetric: '450ms',
+                leftBadge: '⛔ HIGH OVERHEAD',
+                leftNote: 'JSON Serialization Bottleneck',
+                rightTitle: 'gRPC',
+                rightMetric: '14ms',
+                rightBadge: '⚡ PRODUCTION READY',
+                rightNote: 'Binary Protocol Buffers',
+                vsText: 'VS'
+            };
+
+            rightContentHtml = `
+                <div class="vs-container">
+                    <div class="compare-card left">
+                        <div>
+                            <div class="card-header">${comp.leftTitle}</div>
+                            <div class="card-metric" style="color: #FF2A6D;">${comp.leftMetric}</div>
+                            <div class="card-badge left-badge">${comp.leftBadge}</div>
+                        </div>
+                        <div class="card-footer">${comp.leftNote}</div>
+                    </div>
+                    <div class="vs-circle">${comp.vsText || 'VS'}</div>
+                    <div class="compare-card right">
+                        <div>
+                            <div class="card-header">${comp.rightTitle}</div>
+                            <div class="card-metric" style="color: #00FF66;">${comp.rightMetric}</div>
+                            <div class="card-badge right-badge">${comp.rightBadge}</div>
+                        </div>
+                        <div class="card-footer">${comp.rightNote}</div>
+                    </div>
+                </div>
+            `;
+        } else if (design.archetype === 'metric_showdown') {
+            const bench = design.benchmark || {
+                metricTitle: 'LATENCY BENCHMARK',
+                oldLabel: 'BEFORE OPTIMIZATION',
+                oldValue: '480 ms',
+                oldBarPercent: 95,
+                newLabel: 'POST-OPTIMIZATION',
+                newValue: '14 ms',
+                newBarPercent: 18,
+                multiplierBadge: '34X FASTER'
+            };
+
+            rightContentHtml = `
+                <div class="metric-card">
+                    <div class="metric-title">${bench.metricTitle}</div>
+                    <div class="bar-group">
+                        <div class="bar-label-row">
+                            <span>${bench.oldLabel}</span>
+                            <span style="color: #FF2A6D; font-weight: 800;">${bench.oldValue}</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill red" style="width: ${bench.oldBarPercent}%;"></div>
+                        </div>
+                    </div>
+                    <div class="bar-group" style="margin-top: 24px;">
+                        <div class="bar-label-row">
+                            <span>${bench.newLabel}</span>
+                            <span style="color: #00FF66; font-weight: 800;">${bench.newValue}</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill green" style="width: ${bench.newBarPercent}%;"></div>
+                        </div>
+                    </div>
+                    <div class="multiplier-banner">
+                        <span>⚡</span> ${bench.multiplierBadge}
+                    </div>
+                </div>
+            `;
+        } else {
+            // cinematic_focal_hero
+            rightContentHtml = `
+                <div class="hero-schematic">
+                    <div class="schematic-halo"></div>
+                    <div class="schematic-node node-center">
+                        <svg viewBox="0 0 24 24" width="64" height="64" stroke="${design.themeColor}" stroke-width="2" fill="none">
+                            <rect x="2" y="2" width="20" height="8" rx="2"></rect>
+                            <rect x="2" y="14" width="20" height="8" rx="2"></rect>
+                            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                        </svg>
+                        <div class="node-tag">SYSTEM CORE</div>
+                    </div>
+                    <div class="node-satellites">
+                        <div class="sat-item sat-top">
+                            <span>99.99% UPTIME</span>
+                        </div>
+                        <div class="sat-item sat-bottom">
+                            <span>ZERO LATENCY</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        const alertClass = design.archetype === 'split_comparison' || design.archetype === 'metric_showdown'
+            ? 'green' : (design.archetype === 'cinematic_focal_hero' ? 'cyan' : '');
 
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@800;900&display=swap');
+    ${baseCss}
 
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    /* Terminal Styles */
+    .terminal-window {
+        width: 530px; background: rgba(9, 13, 20, 0.94);
+        border: 2px solid rgba(0, 240, 255, 0.35); border-radius: 14px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.85), 0 0 35px rgba(0, 240, 255, 0.2);
+        overflow: hidden; font-family: 'JetBrains Mono', monospace;
+    }
+    .terminal-header {
+        background: rgba(255,255,255,0.06); padding: 12px 16px;
+        display: flex; align-items: center; justify-content: space-between;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .traffic-lights { display: flex; gap: 8px; }
+    .light { width: 12px; height: 12px; border-radius: 50%; }
+    .light.red { background: #FF5F56; }
+    .light.yellow { background: #FFBD2E; }
+    .light.green { background: #27C93F; }
+    .filename { color: #8F9BA8; font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+    .code-body { padding: 22px; font-size: 16px; line-height: 1.7; }
+    .code-line { display: flex; align-items: center; }
+    .line-num { width: 32px; color: #4A5568; font-size: 13px; user-select: none; }
+    .code-text { color: #E2E8F0; }
+    .error-line {
+        background: rgba(255, 42, 109, 0.25); border-left: 4px solid #FF2A6D;
+        margin: 6px -22px; padding: 4px 18px;
+    }
+    .error-tag {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: #FF2A6D; color: #FFF; font-size: 12px; font-weight: 900;
+        padding: 3px 8px; border-radius: 4px; margin-left: 12px;
+        box-shadow: 0 0 12px #FF2A6D;
+    }
+    .pointer-callout {
+        position: absolute; bottom: 85px; right: 30px;
+        background: #FF2A6D; color: #FFF; font-weight: 900; font-size: 18px;
+        letter-spacing: 1.5px; padding: 12px 20px; border-radius: 8px;
+        box-shadow: 0 0 35px #FF2A6D; display: flex; align-items: center; gap: 8px;
+        transform: rotate(-3deg);
     }
 
-    body {
-      width: 1280px;
-      height: 720px;
-      overflow: hidden;
-      background: #06080E;
-      font-family: 'Montserrat', sans-serif;
-      position: relative;
+    /* Comparison Styles */
+    .vs-container { display: flex; align-items: center; gap: 18px; position: relative; }
+    .compare-card {
+        width: 240px; height: 330px; border-radius: 16px;
+        padding: 24px 18px; display: flex; flex-direction: column;
+        justify-content: space-between; backdrop-filter: blur(14px);
+        box-shadow: 0 16px 40px rgba(0,0,0,0.8);
+    }
+    .compare-card.left {
+        background: rgba(255, 42, 109, 0.08); border: 2px solid rgba(255, 42, 109, 0.5);
+    }
+    .compare-card.right {
+        background: rgba(0, 255, 102, 0.08); border: 2px solid rgba(0, 255, 102, 0.5);
+    }
+    .card-header {
+        font-size: 24px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase;
+    }
+    .compare-card.left .card-header { color: #FF2A6D; }
+    .compare-card.right .card-header { color: #00FF66; }
+    .card-metric {
+        font-family: 'Anton', sans-serif; font-size: 48px; line-height: 1; margin: 14px 0 6px;
+    }
+    .card-badge {
+        display: inline-block; font-size: 13px; font-weight: 900;
+        letter-spacing: 1px; padding: 6px 12px; border-radius: 6px;
+        text-transform: uppercase; width: fit-content;
+    }
+    .left-badge {
+        background: rgba(255, 42, 109, 0.2); color: #FF2A6D; border: 1px solid #FF2A6D;
+    }
+    .right-badge {
+        background: rgba(0, 255, 102, 0.2); color: #00FF66; border: 1px solid #00FF66;
+        box-shadow: 0 0 15px rgba(0, 255, 102, 0.4);
+    }
+    .card-footer {
+        font-size: 13px; color: rgba(255,255,255,0.7); font-weight: 700;
+        border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;
+    }
+    .vs-circle {
+        position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        width: 66px; height: 66px; border-radius: 50%;
+        background: #04060B; border: 3px solid #00F0FF; box-shadow: 0 0 35px #00F0FF;
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Anton', sans-serif; font-size: 26px; color: #00F0FF; z-index: 20;
     }
 
-    /* Background image container */
-    .bg-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image: url('${bgImageUrl}');
-      background-size: cover;
-      background-position: center right;
-      filter: saturate(1.4) contrast(1.15) brightness(0.65);
+    /* Metric Showdown Styles */
+    .metric-card {
+        width: 520px; background: rgba(9, 13, 20, 0.94);
+        border: 2px solid rgba(0, 255, 102, 0.35); border-radius: 16px;
+        padding: 32px 28px; box-shadow: 0 20px 50px rgba(0,0,0,0.85);
+    }
+    .metric-title {
+        font-size: 20px; font-weight: 900; letter-spacing: 2px; color: #FFF;
+        margin-bottom: 24px; text-transform: uppercase;
+    }
+    .bar-group { display: flex; flex-direction: column; gap: 8px; }
+    .bar-label-row {
+        display: flex; justify-content: space-between; font-size: 16px; font-weight: 800;
+    }
+    .bar-track {
+        height: 20px; background: rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden;
+    }
+    .bar-fill.red {
+        height: 100%; background: linear-gradient(90deg, #FF2A6D, #FF5F56);
+        box-shadow: 0 0 20px rgba(255, 42, 109, 0.6);
+    }
+    .bar-fill.green {
+        height: 100%; background: linear-gradient(90deg, #00FF66, #27C93F);
+        box-shadow: 0 0 20px rgba(0, 255, 102, 0.6);
+    }
+    .multiplier-banner {
+        margin-top: 28px; background: #00FF66; color: #000;
+        font-family: 'Anton', sans-serif; font-size: 34px; letter-spacing: 2px;
+        padding: 12px 20px; border-radius: 10px; text-align: center;
+        box-shadow: 0 0 35px rgba(0, 255, 102, 0.5);
     }
 
-    /* Gradient overlay for perfect contrast on left text */
-    .overlay {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(
-        90deg,
-        rgba(5, 7, 12, 0.98) 0%,
-        rgba(5, 7, 12, 0.92) 42%,
-        rgba(5, 7, 12, 0.65) 65%,
-        rgba(5, 7, 12, 0.25) 100%
-      );
+    /* Cinematic Focal Styles */
+    .hero-schematic {
+        position: relative; width: 440px; height: 440px;
+        display: flex; align-items: center; justify-content: center;
     }
-
-    /* Subtle neon tech grid lines */
-    .grid-lines {
-      position: absolute;
-      inset: 0;
-      background-image: 
-        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-      background-size: 60px 60px;
-      pointer-events: none;
+    .schematic-halo {
+        position: absolute; width: 380px; height: 380px; border-radius: 50%;
+        background: radial-gradient(circle, ${design.themeColor}33 0%, transparent 70%);
+        filter: blur(25px);
     }
-
-    /* Border Glow Frame */
-    .frame-border {
-      position: absolute;
-      inset: 14px;
-      border: 3px solid rgba(255, 255, 255, 0.08);
-      border-radius: 20px;
-      pointer-events: none;
+    .node-center {
+        width: 170px; height: 170px; border-radius: 24px;
+        background: rgba(10, 15, 24, 0.9); border: 3px solid ${design.themeColor};
+        box-shadow: 0 0 45px ${design.themeColor}66;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 12px; z-index: 10;
     }
-
-    .corner-accent {
-      position: absolute;
-      top: 14px;
-      right: 14px;
-      width: 44px;
-      height: 44px;
-      border-top: 4px solid ${design.themeColor};
-      border-right: 4px solid ${design.themeColor};
+    .node-tag {
+        font-size: 13px; font-weight: 900; letter-spacing: 1px; color: ${design.themeColor};
     }
-
-    /* Content Area */
-    .content {
-      position: relative;
-      z-index: 10;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding-left: 70px;
-      max-width: 820px;
+    .sat-item {
+        position: absolute; background: rgba(255,255,255,0.08);
+        border: 2px solid rgba(255,255,255,0.25); backdrop-filter: blur(10px);
+        padding: 10px 18px; border-radius: 10px; font-size: 15px; font-weight: 900;
+        letter-spacing: 1.5px;
     }
-
-    /* Category Pill Badge */
-    .badge-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 24px;
-    }
-
-    .pill-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: ${design.themeColor};
-      color: #05070C;
-      font-weight: 900;
-      font-size: 20px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      padding: 8px 22px;
-      border-radius: 8px;
-      box-shadow: 0 0 25px ${design.themeColor}66;
-    }
-
-    .sub-pill {
-      display: inline-flex;
-      align-items: center;
-      background: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #FFFFFF;
-      font-weight: 800;
-      font-size: 18px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      padding: 7px 18px;
-      border-radius: 8px;
-    }
-
-    /* Big Bold Headline */
-    .headline-container {
-      margin-bottom: 26px;
-    }
-
-    .headline-line1 {
-      font-family: 'Anton', 'Montserrat', sans-serif;
-      font-size: 108px;
-      line-height: 0.95;
-      letter-spacing: 1px;
-      color: #FFFFFF;
-      text-transform: uppercase;
-      text-shadow: 
-        0 4px 20px rgba(0, 0, 0, 0.9),
-        0 0 40px rgba(0, 0, 0, 0.8);
-      filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.9));
-    }
-
-    .headline-line2 {
-      font-family: 'Anton', 'Montserrat', sans-serif;
-      font-size: 104px;
-      line-height: 0.95;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      background: linear-gradient(180deg, #FFFFFF 20%, ${design.themeColor} 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 6px 20px ${design.themeColor}88);
-    }
-
-    /* Bottom Highlight Banner */
-    .highlight-card {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-      background: rgba(15, 20, 32, 0.85);
-      border-left: 5px solid ${design.themeColor};
-      border-radius: 0 10px 10px 0;
-      padding: 12px 24px;
-      backdrop-filter: blur(12px);
-      width: fit-content;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    }
-
-    .highlight-text {
-      color: #E2E8F0;
-      font-size: 20px;
-      font-weight: 800;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-
-    /* Right visual illustration card */
-    .right-graphic {
-      position: absolute;
-      right: 75px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 380px;
-      height: 380px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10;
-    }
-
-    .graphic-glow {
-      position: absolute;
-      width: 280px;
-      height: 280px;
-      background: ${design.themeColor}33;
-      border-radius: 50%;
-      filter: blur(60px);
-    }
-
-    .icon-container {
-      position: relative;
-      z-index: 2;
-      width: 240px;
-      height: 240px;
-      background: rgba(10, 15, 26, 0.75);
-      border: 2px solid ${design.themeColor}88;
-      border-radius: 28px;
-      box-shadow: 
-        0 0 40px ${design.themeColor}44,
-        inset 0 0 25px ${design.themeColor}22;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(16px);
-    }
-
-    .icon-container svg {
-      width: 130px;
-      height: 130px;
-      fill: none;
-      stroke: ${design.themeColor};
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      filter: drop-shadow(0 0 15px ${design.themeColor});
-    }
+    .sat-top { top: 40px; right: 20px; border-color: ${design.themeColor}; color: ${design.themeColor}; }
+    .sat-bottom { bottom: 40px; left: 20px; border-color: #FF2A6D; color: #FF2A6D; }
   </style>
 </head>
 <body>
@@ -552,35 +887,32 @@ JSON Output:`;
   <div class="frame-border"></div>
   <div class="corner-accent"></div>
 
-  <div class="content">
+  <div class="content-left">
     <div class="badge-row">
-      <div class="pill-badge">⚡ ${design.badge}</div>
-      <div class="sub-pill">${design.accentText}</div>
+      <span class="pill-badge">${design.badge}</span>
+      <span class="sub-pill">${design.accentText}</span>
     </div>
 
-    <div class="headline-container">
-      <div class="headline-line1">${line1}</div>
-      ${line2 ? `<div class="headline-line2">${line2}</div>` : ''}
+    <div class="headline">
+      ${line1}<br/>
+      ${line2 ? `<span class="headline-glow">${line2}</span>` : ''}
     </div>
 
-    <div class="highlight-card">
-      <span style="font-size: 22px;">⚠️</span>
-      <span class="highlight-text">${design.highlightText}</span>
+    <div class="highlight-alert ${alertClass}">
+      <span>⚠️</span>
+      <span class="alert-text">${design.highlightText}</span>
     </div>
   </div>
 
-  <div class="right-graphic">
-    <div class="graphic-glow"></div>
-    <div class="icon-container">
-      ${iconSvg}
-    </div>
+  <div class="content-right">
+    ${rightContentHtml}
   </div>
 </body>
 </html>`;
     }
 
     /**
-     * Render the HTML page to a high-quality JPEG image via Puppeteer
+     * Render HTML to JPEG via Puppeteer with zero-timeout safety
      */
     private async renderToImage(videoId: string, html: string): Promise<string> {
         const tmpDir = process.env.WORK_DIR || path.join(process.cwd(), 'videos', '.tmp-thumbnails');
@@ -604,16 +936,9 @@ JSON Output:`;
             const page = await browser.newPage();
             await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
 
-            try {
-                await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
-            } catch (navErr) {
-                console.warn('⚠️ Networkidle0 timed out while loading thumbnail HTML, proceeding with load state:', navErr);
-            }
-
-            await page.waitForFunction(
-                "typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded'",
-                { timeout: 5000 }
-            ).catch(() => {});
+            // Fast reliable page load
+            await page.setContent(html, { waitUntil: 'load', timeout: 12000 });
+            await page.evaluateHandle('document.fonts.ready').catch(() => {});
 
             await page.screenshot({
                 path: outputPath,
@@ -621,7 +946,7 @@ JSON Output:`;
                 quality: 95
             });
 
-            console.error(`✅ Rendered thumbnail image to: ${outputPath}`);
+            console.error(`✅ Rendered studio thumbnail image to: ${outputPath}`);
             return outputPath;
         } finally {
             await browser.close();
@@ -635,6 +960,15 @@ JSON Output:`;
         const clean = title.replace(/[:\-–—].*$/, '').trim();
         const words = clean.split(' ');
         return words.slice(0, 3).join(' ').toUpperCase();
+    }
+
+    private escapeHtml(str: string): string {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 }
 

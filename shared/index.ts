@@ -19,3 +19,7 @@ export { formatYouTubeTitle, YOUTUBE_MAX_TITLE_LENGTH } from './utils/title-form
 // High-quality autonomous thumbnail composer
 export { ThumbnailComposer } from './services/thumbnail-composer';
 export type { ThumbnailComposeOptions, ThumbnailComposeResult } from './services/thumbnail-composer';
+
+// YouTube Data Service
+export { YouTubeDataService } from './services/youtube-data-service';
+export type { YouTubeVideo, YouTubeAnalytics } from './services/youtube-data-service';
