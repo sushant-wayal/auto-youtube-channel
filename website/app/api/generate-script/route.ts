@@ -4,7 +4,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { MOCK_SCRIPT } from "@/app/constants";
 
-export const maxDuration = 120; // Allow ample time for multi-scene AI script generation and retries
+export const maxDuration = 300; // Allow up to 5 minutes for deep script generation, retries, and backoff
 
 export async function POST(request: NextRequest) {
     try {
