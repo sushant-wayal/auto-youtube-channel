@@ -4,6 +4,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import { MOCK_SCRIPT } from "@/app/constants";
 
+export const maxDuration = 120; // Allow ample time for multi-scene AI script generation and retries
+
 export async function POST(request: NextRequest) {
     try {
         const { videoIdea, sceneRenderMethod, seriesContext } = await request.json();
