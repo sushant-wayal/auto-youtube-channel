@@ -23,6 +23,13 @@ export type PipelineStatus = {
     scheduledPublishTime?: string; // ISO scheduled publication time
     videoUrl?: string;             // assembled video Cloudinary URL
     thumbnailUrl?: string;         // thumbnail Cloudinary URL
+    selectedThumbnailUrl?: string; // active thumbnail URL
+    thumbnailVariations?: (string | { url: string; archetype?: string })[]; // all generated thumbnail variations
+    abTesting?: {
+        enabled: boolean;
+        candidates?: string[];
+        updatedAt?: string;
+    } | null;
     sceneUrls?: string[];          // per-scene rendered video URLs
     voiceoverUrls?: string[];      // per-scene audio URLs
     sceneNarrations?: string[];    // narration text per scene
@@ -131,10 +138,20 @@ export type ScheduleTimesResponse = {
 };
 
 // Settings API Types
+export type CustomArchetype = {
+    id: string;
+    label: string;
+    promptHint?: string;
+};
+
 export type SettingsResponse = {
     ok: boolean;
     voiceoverProvider?: 'gemini' | 'f5';
     sceneRenderMethod?: 'code' | 'ai';
+    thumbnailPrimaryArchetype?: string;
+    thumbnailVariationsEnabled?: boolean;
+    thumbnailActiveArchetypes?: string[];
+    thumbnailCustomArchetypes?: CustomArchetype[];
     error?: string;
 };
 
@@ -476,15 +493,26 @@ export const settingsApi = {
 
     // Update settings
     updateSettings: async (
-        voiceoverProvider: 'gemini' | 'f5',
-        sceneRenderMethod: 'code' | 'ai'
+        arg1: {
+            voiceoverProvider?: 'gemini' | 'f5';
+            sceneRenderMethod?: 'code' | 'ai';
+            thumbnailPrimaryArchetype?: string;
+            thumbnailVariationsEnabled?: boolean;
+            thumbnailActiveArchetypes?: string[];
+            thumbnailCustomArchetypes?: CustomArchetype[];
+        } | 'gemini' | 'f5',
+        arg2?: 'code' | 'ai'
     ): Promise<SettingsResponse> => {
         try {
-            console.log('[API] Updating settings to:', { voiceoverProvider, sceneRenderMethod });
+            const payload = typeof arg1 === 'object'
+                ? arg1
+                : { voiceoverProvider: arg1, sceneRenderMethod: arg2 };
+
+            console.log('[API] Updating settings with:', payload);
             const response = await fetchWithTimeout(`${API_BASE_URL}/api/settings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ voiceoverProvider, sceneRenderMethod }),
+                body: JSON.stringify(payload),
             });
             const data = await response.json();
             console.log('[API] Settings updated successfully:', data);
@@ -495,6 +523,41 @@ export const settingsApi = {
                 ok: false,
                 error: error.message || String(error)
             };
+        }
+    },
+};
+
+// Thumbnail & A/B Testing API
+export const thumbnailApi = {
+    setActiveThumbnail: async (videoId: string, thumbnailUrl: string): Promise<{ ok: boolean; message?: string; error?: string }> => {
+        try {
+            console.log('[API] Setting active thumbnail:', { videoId, thumbnailUrl });
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/thumbnail`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'set-active', videoId, thumbnailUrl }),
+            }, 25000);
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error setting active thumbnail:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    setAbTest: async (videoId: string, enabled: boolean, candidates: string[]): Promise<{ ok: boolean; message?: string; error?: string }> => {
+        try {
+            console.log('[API] Setting thumbnail A/B test:', { videoId, enabled, candidates });
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/thumbnail`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'set-ab-test', videoId, enabled, candidates }),
+            }, 15000);
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error configuring A/B test:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
         }
     },
 };

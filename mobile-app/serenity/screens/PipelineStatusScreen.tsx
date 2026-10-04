@@ -13,13 +13,14 @@ import {
     Animated,
     Modal,
     Platform,
+    ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { pipelineApi, scheduleTimesApi, PipelineStatus, JobResult, ShortResult } from '../services/api';
+import { pipelineApi, scheduleTimesApi, thumbnailApi, PipelineStatus, JobResult, ShortResult } from '../services/api';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
 
@@ -135,6 +136,90 @@ export default function PipelineStatusScreen() {
     }, [toastOpacity]);
 
     const [longFormScheduleTime, setLongFormScheduleTime] = useState<string>('18:30');
+
+    // Thumbnail variations & A/B testing state
+    const [selectedThumbnailUrl, setSelectedThumbnailUrl] = useState<string>('');
+    const [settingActiveThumb, setSettingActiveThumb] = useState<string | null>(null);
+    const [abTestEnabled, setAbTestEnabled] = useState<boolean>(false);
+    const [abCandidates, setAbCandidates] = useState<string[]>([]);
+    const [savingAbTest, setSavingAbTest] = useState<boolean>(false);
+    const [showAbTestPanel, setShowAbTestPanel] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (status) {
+            const activeThumb = status.selectedThumbnailUrl || status.thumbnailUrl || '';
+            setSelectedThumbnailUrl(activeThumb);
+            setAbTestEnabled(status.abTesting?.enabled ?? false);
+            if (status.abTesting?.candidates && status.abTesting.candidates.length > 0) {
+                setAbCandidates(status.abTesting.candidates);
+            } else if (status.thumbnailVariations && status.thumbnailVariations.length >= 2) {
+                setAbCandidates(status.thumbnailVariations.slice(0, 2).map((item: any) => typeof item === 'string' ? item : item.url));
+            } else if (activeThumb) {
+                setAbCandidates([activeThumb]);
+            }
+        }
+    }, [status]);
+
+    const handleSetActiveThumbnail = async (thumbUrl: string) => {
+        if (!status?.videoId) {
+            showToast('No episode video ID found');
+            return;
+        }
+        setSettingActiveThumb(thumbUrl);
+        setSelectedThumbnailUrl(thumbUrl);
+        try {
+            const res = await thumbnailApi.setActiveThumbnail(status.videoId, thumbUrl);
+            if (res.ok) {
+                showToast(res.message || 'Set as active thumbnail on YouTube!');
+            } else {
+                showToast(res.error || 'Failed to update thumbnail');
+            }
+        } catch {
+            showToast('Error updating active thumbnail');
+        } finally {
+            setSettingActiveThumb(null);
+        }
+    };
+
+    const toggleAbCandidate = (thumbUrl: string) => {
+        if (abCandidates.includes(thumbUrl)) {
+            if (abCandidates.length <= 1 && abTestEnabled) {
+                showToast('At least 1 candidate required in A/B test');
+                return;
+            }
+            setAbCandidates(prev => prev.filter(u => u !== thumbUrl));
+        } else {
+            if (abCandidates.length >= 4) {
+                showToast('A/B test supports up to 4 thumbnail candidates');
+                return;
+            }
+            setAbCandidates(prev => [...prev, thumbUrl]);
+        }
+    };
+
+    const handleSaveAbTest = async () => {
+        if (!status?.videoId) {
+            showToast('No episode video ID found');
+            return;
+        }
+        if (abTestEnabled && abCandidates.length < 2) {
+            showToast('Please select at least 2 thumbnails for A/B testing');
+            return;
+        }
+        setSavingAbTest(true);
+        try {
+            const res = await thumbnailApi.setAbTest(status.videoId, abTestEnabled, abCandidates);
+            if (res.ok) {
+                showToast(abTestEnabled ? `A/B test active with ${abCandidates.length} variations!` : 'A/B testing disabled');
+            } else {
+                showToast(res.error || 'Failed to update A/B test');
+            }
+        } catch {
+            showToast('Error updating A/B test settings');
+        } finally {
+            setSavingAbTest(false);
+        }
+    };
 
     const fetchPipeline = useCallback(async (isSilent = false) => {
         if (!isSilent) setLoading(true);
@@ -982,7 +1067,16 @@ export default function PipelineStatusScreen() {
                                 >
                                     <View style={styles.stepHeaderLeft}>
                                         <Text style={styles.stepTitleText}>06. Generated Thumbnail</Text>
-                                        <Text style={styles.stepSubtitle}>Episode Cover Artwork</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                                            <Text style={styles.stepSubtitle}>Episode Cover Artwork</Text>
+                                            {((activeData.thumbnailVariations && activeData.thumbnailVariations.length > 1) || false) && (
+                                                <View style={styles.variationsCountBadge}>
+                                                    <Text style={styles.variationsCountText}>
+                                                        {activeData.thumbnailVariations!.length} VARIATIONS
+                                                    </Text>
+                                                </View>
+                                            )}
+                                        </View>
                                     </View>
                                     <View style={styles.stepHeaderRight}>
                                         {renderJobBadge(activeData.jobs?.generateThumbnail)}
@@ -995,33 +1089,252 @@ export default function PipelineStatusScreen() {
                                 </TouchableOpacity>
 
                                 {expandedSteps[6] ? (
-                                    activeData.thumbnailUrl ? (
-                                        <View style={styles.thumbnailContainer}>
-                                            <Image source={{ uri: activeData.thumbnailUrl }} style={styles.thumbnailImg} resizeMode="cover" />
-                                            <View style={styles.blockTopRightRow}>
-                                                <TouchableOpacity
-                                                    style={styles.blockTopRightBtn}
-                                                    onPress={() => copyToClipboard(activeData.thumbnailUrl!, 'Thumbnail Link')}
-                                                    activeOpacity={0.8}
-                                                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                                >
-                                                    <Ionicons name="link-outline" size={13} color={colors.sandstone} />
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={styles.blockTopRightBtn}
-                                                    onPress={() => handleDownload(activeData.thumbnailUrl!, 'Thumbnail')}
-                                                    activeOpacity={0.8}
-                                                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                                                >
-                                                    <Ionicons name="download-outline" size={13} color={colors.sandstone} />
-                                                </TouchableOpacity>
+                                    (() => {
+                                        const variationsList = (activeData.thumbnailVariations && activeData.thumbnailVariations.length > 0)
+                                            ? activeData.thumbnailVariations
+                                            : (activeData.thumbnailUrl ? [activeData.thumbnailUrl] : []);
+                                        const activeThumbUrl = selectedThumbnailUrl || activeData.selectedThumbnailUrl || activeData.thumbnailUrl;
+
+                                        const getArchetypeBadgeInfo = (thumbItem: any, index: number) => {
+                                            let rawArch = typeof thumbItem === 'object' && thumbItem?.archetype ? thumbItem.archetype : '';
+                                            const uri = typeof thumbItem === 'string' ? thumbItem : (thumbItem?.url || '');
+                                            if (!rawArch && uri) {
+                                                if (uri.includes('split_comparison') || uri.includes('-split-')) rawArch = 'split_comparison';
+                                                else if (uri.includes('code_terminal') || uri.includes('-code-')) rawArch = 'code_terminal_bug';
+                                                else if (uri.includes('metric_showdown') || uri.includes('-metric-')) rawArch = 'metric_showdown';
+                                                else if (uri.includes('cinematic_focal') || uri.includes('-cinematic-')) rawArch = 'cinematic_focal_hero';
+                                            }
+                                            if (!rawArch) {
+                                                const order = ['split_comparison', 'code_terminal_bug', 'metric_showdown', 'cinematic_focal_hero'];
+                                                rawArch = order[index % order.length];
+                                            }
+                                            const metaMap: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
+                                                split_comparison: { label: 'Split Comparison', icon: 'git-compare-outline' },
+                                                code_terminal_bug: { label: 'Code Terminal', icon: 'terminal-outline' },
+                                                metric_showdown: { label: 'Metric Showdown', icon: 'trending-up-outline' },
+                                                cinematic_focal_hero: { label: 'Cinematic Hero', icon: 'sparkles-outline' },
+                                            };
+                                            return metaMap[rawArch] || {
+                                                label: rawArch.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+                                                icon: 'image-outline',
+                                            };
+                                        };
+
+                                        return variationsList.length > 0 ? (
+                                            <View style={styles.thumbnailSectionBody}>
+                                                {/* Variations Gallery */}
+                                                <View style={styles.variationsList}>
+                                                    {variationsList.map((thumbItem, idx) => {
+                                                        const thumbUri = typeof thumbItem === 'string' ? thumbItem : thumbItem.url;
+                                                        const isActive = activeThumbUrl ? activeThumbUrl === thumbUri : idx === 0;
+                                                        const isInAbTest = abCandidates.includes(thumbUri);
+                                                        const isSetting = settingActiveThumb === thumbUri;
+                                                        const archInfo = getArchetypeBadgeInfo(thumbItem, idx);
+
+                                                        return (
+                                                            <View
+                                                                key={`thumb_var_${idx}`}
+                                                                style={[
+                                                                    styles.variationCard,
+                                                                    isActive && styles.variationCardActive,
+                                                                ]}
+                                                            >
+                                                                {/* Thumbnail Image Container */}
+                                                                <View style={styles.thumbnailContainer}>
+                                                                    <Image source={{ uri: thumbUri }} style={styles.thumbnailImg} resizeMode="cover" />
+
+                                                                    {/* Top Left Badges */}
+                                                                    <View style={styles.thumbTopLeftBadges}>
+                                                                        {isActive ? (
+                                                                            <View style={styles.activePillBadge}>
+                                                                                <Ionicons name="checkmark-circle" size={11} color={colors.sandstone} />
+                                                                                <Text style={styles.activePillBadgeText}>ACTIVE</Text>
+                                                                            </View>
+                                                                        ) : (
+                                                                            <View style={styles.variationIndexBadge}>
+                                                                                <Text style={styles.variationIndexText}>VAR #{idx + 1}</Text>
+                                                                            </View>
+                                                                        )}
+                                                                        <View style={styles.archetypeBadge}>
+                                                                            <Ionicons name={archInfo.icon} size={10} color={colors.sandstone} />
+                                                                            <Text style={styles.archetypeBadgeText} numberOfLines={1}>
+                                                                                {archInfo.label}
+                                                                            </Text>
+                                                                        </View>
+                                                                    </View>
+
+                                                                    {/* Top Right Action Buttons */}
+                                                                    <View style={styles.blockTopRightRow}>
+                                                                        <TouchableOpacity
+                                                                            style={styles.blockTopRightBtn}
+                                                                            onPress={() => copyToClipboard(thumbUri, `Thumbnail #${idx + 1} Link`)}
+                                                                            activeOpacity={0.8}
+                                                                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                                                        >
+                                                                            <Ionicons name="link-outline" size={13} color={colors.sandstone} />
+                                                                        </TouchableOpacity>
+                                                                        <TouchableOpacity
+                                                                            style={styles.blockTopRightBtn}
+                                                                            onPress={() => handleDownload(thumbUri, `Thumbnail #${idx + 1}`)}
+                                                                            activeOpacity={0.8}
+                                                                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                                                        >
+                                                                            <Ionicons name="download-outline" size={13} color={colors.sandstone} />
+                                                                        </TouchableOpacity>
+                                                                    </View>
+                                                                </View>
+
+                                                                {/* Action Footer */}
+                                                                <View style={styles.variationFooterRow}>
+                                                                    {/* Set Active Button */}
+                                                                    {isActive ? (
+                                                                        <View style={styles.activeStatusTag}>
+                                                                            <Ionicons name="radio-button-on" size={12} color={colors.sandstone} />
+                                                                            <Text style={styles.activeStatusTagText}>Active</Text>
+                                                                        </View>
+                                                                    ) : (
+                                                                        <TouchableOpacity
+                                                                            style={styles.setActiveBtn}
+                                                                            onPress={() => handleSetActiveThumbnail(thumbUri)}
+                                                                            disabled={isSetting}
+                                                                            activeOpacity={0.8}
+                                                                        >
+                                                                            {isSetting ? (
+                                                                                <ActivityIndicator size="small" color={colors.obsidian[950]} />
+                                                                            ) : (
+                                                                                <>
+                                                                                    <Ionicons name="sparkles-outline" size={12} color={colors.obsidian[950]} />
+                                                                                    <Text style={styles.setActiveBtnText}>Set Active</Text>
+                                                                                </>
+                                                                            )}
+                                                                        </TouchableOpacity>
+                                                                    )}
+
+                                                                    {/* A/B Test Candidate Checkbox */}
+                                                                    <TouchableOpacity
+                                                                        style={[
+                                                                            styles.abCandidateBtn,
+                                                                            isInAbTest && styles.abCandidateBtnSelected,
+                                                                        ]}
+                                                                        onPress={() => toggleAbCandidate(thumbUri)}
+                                                                        activeOpacity={0.7}
+                                                                    >
+                                                                        <Ionicons
+                                                                            name={isInAbTest ? 'checkbox' : 'square-outline'}
+                                                                            size={14}
+                                                                            color={isInAbTest ? colors.sandstone : colors.bone.muted}
+                                                                        />
+                                                                        <Text
+                                                                            style={[
+                                                                                styles.abCandidateBtnText,
+                                                                                isInAbTest && styles.abCandidateBtnTextSelected,
+                                                                            ]}
+                                                                        >
+                                                                            {isInAbTest ? 'In A/B Test' : '+ A/B Test'}
+                                                                        </Text>
+                                                                    </TouchableOpacity>
+                                                                </View>
+                                                            </View>
+                                                        );
+                                                    })}
+                                                </View>
+
+                                                {/* A/B Testing Management Panel */}
+                                                <View style={styles.abTestContainer}>
+                                                    <TouchableOpacity
+                                                        style={styles.abTestHeaderRow}
+                                                        onPress={() => setShowAbTestPanel(!showAbTestPanel)}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                                                            <Ionicons name="flask-outline" size={14} color={colors.sandstone} />
+                                                            <Text style={styles.abTestTitle}>A/B Test & Compare</Text>
+                                                            {abTestEnabled && (
+                                                                <View style={styles.liveTestBadge}>
+                                                                    <Text style={styles.liveTestBadgeText}>ACTIVE</Text>
+                                                                </View>
+                                                            )}
+                                                        </View>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                            <Text style={styles.abCollapsedCountText}>
+                                                                {abCandidates.length} selected
+                                                            </Text>
+                                                            <Ionicons
+                                                                name={showAbTestPanel ? 'chevron-up' : 'chevron-down'}
+                                                                size={14}
+                                                                color={colors.linenMuted}
+                                                            />
+                                                        </View>
+                                                    </TouchableOpacity>
+
+                                                    {showAbTestPanel && (
+                                                        <View style={styles.abTestBody}>
+                                                            {/* Purpose & Guidance text */}
+                                                            <Text style={styles.abTestDescription}>
+                                                                Select 2 to 4 thumbnails above to rotate on YouTube and discover the highest CTR.
+                                                            </Text>
+
+                                                            {/* Toggle Enabled Row */}
+                                                            <View style={styles.abTestToggleRow}>
+                                                                <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                                                                    <Text style={styles.abToggleLabel}>YouTube Rotation</Text>
+                                                                    <Text style={styles.abToggleSub}>
+                                                                        {abTestEnabled ? 'Live rotation active' : 'Rotation paused'}
+                                                                    </Text>
+                                                                </View>
+                                                                <View style={styles.miniSegmentedRow}>
+                                                                    <TouchableOpacity
+                                                                        style={[styles.miniSegment, abTestEnabled && styles.miniSegmentActive]}
+                                                                        onPress={() => setAbTestEnabled(true)}
+                                                                        activeOpacity={0.8}
+                                                                    >
+                                                                        <Text style={[styles.miniSegmentText, abTestEnabled && styles.miniSegmentTextActive]}>
+                                                                            ON
+                                                                        </Text>
+                                                                    </TouchableOpacity>
+                                                                    <TouchableOpacity
+                                                                        style={[styles.miniSegment, !abTestEnabled && styles.miniSegmentActiveOff]}
+                                                                        onPress={() => setAbTestEnabled(false)}
+                                                                        activeOpacity={0.8}
+                                                                    >
+                                                                        <Text style={[styles.miniSegmentText, !abTestEnabled && styles.miniSegmentTextActiveWhite]}>
+                                                                            OFF
+                                                                        </Text>
+                                                                    </TouchableOpacity>
+                                                                </View>
+                                                            </View>
+
+                                                            {/* Selected candidates summary & Save button */}
+                                                            <View style={styles.abCandidatesSummaryRow}>
+                                                                <Text style={styles.abCandidatesCountText}>
+                                                                    {abCandidates.length} of {variationsList.length} variations in test
+                                                                </Text>
+                                                                <TouchableOpacity
+                                                                    style={styles.saveAbBtn}
+                                                                    onPress={handleSaveAbTest}
+                                                                    disabled={savingAbTest}
+                                                                    activeOpacity={0.85}
+                                                                >
+                                                                    {savingAbTest ? (
+                                                                        <ActivityIndicator size="small" color={colors.obsidian[950]} />
+                                                                    ) : (
+                                                                        <>
+                                                                            <Ionicons name="checkmark" size={13} color={colors.obsidian[950]} />
+                                                                            <Text style={styles.saveAbBtnText}>Save A/B Test</Text>
+                                                                        </>
+                                                                    )}
+                                                                </TouchableOpacity>
+                                                            </View>
+                                                        </View>
+                                                    )}
+                                                </View>
                                             </View>
-                                        </View>
-                                    ) : (
-                                        <View style={styles.stepInnerBox}>
-                                            <Text style={styles.innerBoxParagraph}>Thumbnail generation pending or not available.</Text>
-                                        </View>
-                                    )
+                                        ) : (
+                                            <View style={styles.stepInnerBox}>
+                                                <Text style={styles.innerBoxParagraph}>Thumbnail generation pending or not available.</Text>
+                                            </View>
+                                        );
+                                    })()
                                 ) : null}
                             </View>
                         </View>
@@ -1533,6 +1846,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+        flexShrink: 0,
     },
     stepTitleRow: {
         flexDirection: 'row',
@@ -1842,92 +2156,281 @@ const styles = StyleSheet.create({
         color: colors.primaryForeground,
     },
     thumbnailContainer: {
-        height: 150,
-        borderRadius: borderRadius.sm,
+        height: 160,
+        borderRadius: borderRadius.xs,
         borderWidth: 1,
         borderColor: colors.border,
         overflow: 'hidden',
         position: 'relative',
+        backgroundColor: colors.obsidian[950],
     },
     thumbnailImg: {
         width: '100%',
         height: '100%',
     },
-    thumbnailPlaceholder: {
-        flex: 1,
-        padding: spacing.md,
-        justifyContent: 'space-between',
+    thumbnailSectionBody: {
+        gap: spacing.md,
     },
-    thumbnailHeaderRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    variantBadge: {
+    variationsCountBadge: {
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 4,
-        backgroundColor: 'rgba(12, 10, 7, 0.85)',
+        backgroundColor: 'rgba(200, 178, 155, 0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(200, 178, 155, 0.3)',
+    },
+    variationsCountText: {
+        fontSize: 8,
+        fontWeight: typography.fontWeightBlack,
+        color: colors.sandstone,
+    },
+    variationsList: {
+        gap: spacing.sm,
+    },
+    variationCard: {
+        backgroundColor: colors.card,
         borderWidth: 1,
         borderColor: colors.border,
+        borderRadius: borderRadius.sm,
+        padding: spacing.xs,
+        gap: 6,
     },
-    variantBadgeText: {
-        fontSize: 8,
-        color: colors.sandstone,
-        fontWeight: typography.fontWeightBold,
+    variationCardActive: {
+        borderColor: colors.sandstone,
+        borderWidth: 2,
+        backgroundColor: 'rgba(200, 178, 155, 0.04)',
     },
-    topPerformerBadge: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-        backgroundColor: 'rgba(74, 222, 128, 0.2)',
-    },
-    topPerformerBadgeText: {
-        fontSize: 8,
-        color: colors.success,
-        fontWeight: typography.fontWeightBold,
-    },
-    thumbnailCenterGraphic: {
+    thumbTopLeftBadges: {
+        position: 'absolute',
+        top: spacing.xs,
+        left: spacing.xs,
+        flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
     },
-    thumbnailTitleBox: {
-        backgroundColor: 'rgba(17, 14, 8, 0.9)',
-        paddingHorizontal: spacing.md,
-        paddingVertical: 4,
-        borderRadius: borderRadius.xs,
-        borderWidth: 1,
-        borderColor: colors.sandstoneBorder,
-    },
-    thumbnailTitleText: {
-        fontSize: 14,
-        fontWeight: typography.fontWeightBlack,
-        color: colors.linen,
-    },
-    thumbnailSubtitleText: {
-        fontSize: 9,
-        color: colors.sandstoneLight,
-        letterSpacing: 1.2,
-    },
-    thumbnailFooterRow: {
+    activePillBadge: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    smallToggleBtn: {
-        paddingHorizontal: spacing.sm,
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(12, 10, 7, 0.9)',
+        paddingHorizontal: 8,
         paddingVertical: 4,
-        borderRadius: borderRadius.xs,
-        backgroundColor: colors.cardElevated,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: colors.sandstone,
+    },
+    activePillBadgeText: {
+        fontSize: 9,
+        fontWeight: typography.fontWeightBlack,
+        color: colors.sandstone,
+        letterSpacing: 0.5,
+    },
+    variationIndexBadge: {
+        backgroundColor: 'rgba(12, 10, 7, 0.85)',
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: 4,
         borderWidth: 1,
         borderColor: colors.border,
     },
-    smallToggleBtnActive: {
-        borderColor: colors.sandstone,
+    variationIndexText: {
+        fontSize: 9,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linenMuted,
     },
-    smallToggleBtnText: {
-        fontSize: 10,
+    archetypeBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(12, 10, 7, 0.9)',
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(200, 178, 155, 0.35)',
+    },
+    archetypeBadgeText: {
+        fontSize: 8.5,
+        fontWeight: typography.fontWeightBold,
+        color: colors.sandstoneLight,
+        letterSpacing: 0.2,
+    },
+    variationFooterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 4,
+        paddingVertical: 4,
+    },
+    activeStatusTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    activeStatusTagText: {
+        fontSize: 11,
+        fontWeight: typography.fontWeightBold,
         color: colors.sandstone,
+    },
+    setActiveBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        backgroundColor: colors.sandstone,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: borderRadius.xs,
+    },
+    setActiveBtnText: {
+        fontSize: 10,
+        fontWeight: typography.fontWeightBlack,
+        color: colors.obsidian[950],
+    },
+    abCandidateBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        borderRadius: borderRadius.xs,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    },
+    abCandidateBtnSelected: {
+        borderColor: 'rgba(200, 178, 155, 0.5)',
+        backgroundColor: 'rgba(200, 178, 155, 0.1)',
+    },
+    abCandidateBtnText: {
+        fontSize: 10,
         fontWeight: typography.fontWeightMedium,
+        color: colors.linenMuted,
+    },
+    abCandidateBtnTextSelected: {
+        color: colors.sandstone,
+        fontWeight: typography.fontWeightBold,
+    },
+    abTestContainer: {
+        backgroundColor: 'rgba(17, 14, 8, 0.7)',
+        borderWidth: 1,
+        borderColor: colors.sandstoneBorder,
+        borderRadius: borderRadius.sm,
+        padding: spacing.sm,
+        gap: spacing.sm,
+        marginTop: 4,
+    },
+    abTestHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    abTestTitle: {
+        fontSize: 12,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linen,
+    },
+    abCollapsedCountText: {
+        fontSize: 10,
+        color: colors.linenMuted,
+        fontWeight: typography.fontWeightMedium,
+    },
+    liveTestBadge: {
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+        borderRadius: 3,
+        borderWidth: 1,
+        borderColor: '#10B981',
+    },
+    liveTestBadgeText: {
+        fontSize: 8,
+        fontWeight: typography.fontWeightBlack,
+        color: '#10B981',
+    },
+    abTestBody: {
+        gap: spacing.sm,
+        paddingTop: 4,
+    },
+    abTestDescription: {
+        fontSize: 10,
+        color: colors.linenMuted,
+        lineHeight: 14,
+    },
+    abTestToggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 2,
+    },
+    abToggleLabel: {
+        fontSize: 11,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linen,
+    },
+    abToggleSub: {
+        fontSize: 9,
+        color: colors.linenMuted,
+    },
+    miniSegmentedRow: {
+        flexDirection: 'row',
+        backgroundColor: colors.cardElevated,
+        borderRadius: borderRadius.xs,
+        padding: 2,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    miniSegment: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: borderRadius.xs - 1,
+    },
+    miniSegmentActive: {
+        backgroundColor: colors.sandstone,
+    },
+    miniSegmentActiveOff: {
+        backgroundColor: colors.border,
+    },
+    miniSegmentText: {
+        fontSize: 9,
+        fontWeight: typography.fontWeightBold,
+        color: colors.linenMuted,
+    },
+    miniSegmentTextActive: {
+        color: colors.obsidian[950],
+        fontWeight: typography.fontWeightBlack,
+    },
+    miniSegmentTextActiveWhite: {
+        color: colors.linen,
+        fontWeight: typography.fontWeightBlack,
+    },
+    abCandidatesSummaryRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingTop: 4,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+    },
+    abCandidatesCountText: {
+        fontSize: 10,
+        color: colors.linenMuted,
+        flex: 1,
+    },
+    saveAbBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: colors.sandstone,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: borderRadius.xs,
+    },
+    saveAbBtnText: {
+        fontSize: 10,
+        fontWeight: typography.fontWeightBlack,
+        color: colors.obsidian[950],
     },
     ytTag: {
         backgroundColor: 'rgba(239, 68, 68, 0.2)',
