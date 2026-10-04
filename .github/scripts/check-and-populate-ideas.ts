@@ -103,12 +103,19 @@ async function checkQueueAndPopulate(): Promise<void> {
 
         // Refresh existing queue ideas to avoid duplicates during standalone generation
         existingIdeas = await redis.lrange(QUEUE_KEY, 0, -1);
+        const cleanQueueTopics = existingIdeas.map(item => {
+            try {
+                const parsed = JSON.parse(item);
+                if (parsed.topic) return parsed.topic;
+            } catch {}
+            return item;
+        });
 
         // 5. Fill ALL remaining slots with standalone topics using idea-selector
         while (currentSize < TARGET_QUEUE_SIZE) {
             console.error(`\n🚀 Populating standalone idea (${currentSize + 1}/${TARGET_QUEUE_SIZE} queue slots)...`);
             const result = await runIdeaSelector({
-                existingQueueIdeas: existingIdeas,
+                existingQueueIdeas: cleanQueueTopics,
             });
 
             if (!result.success || !result.selectedTopic) {

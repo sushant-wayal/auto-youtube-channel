@@ -107,6 +107,31 @@ export async function POST(request: Request) {
             await redis.del(`series:${id}`);
             await redis.srem('series:all', id);
             await redis.srem('series:active', id);
+
+            // Clean up any pending items in video:ideas that belong to this deleted series
+            try {
+                const rawIdeas = await redis.lrange('video:ideas', 0, -1);
+                let queueModified = false;
+                const updatedIdeas = rawIdeas.filter(raw => {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (parsed.seriesContext?.seriesId === id) {
+                            queueModified = true;
+                            return false;
+                        }
+                    } catch {}
+                    return true;
+                });
+
+                if (queueModified) {
+                    await redis.del('video:ideas');
+                    if (updatedIdeas.length > 0) {
+                        await redis.rpush('video:ideas', ...updatedIdeas);
+                    }
+                }
+            } catch (queueCleanupErr) {
+                console.error('[API Series Delete] Error cleaning queued ideas:', queueCleanupErr);
+            }
             
             return NextResponse.json({ ok: true });
         }

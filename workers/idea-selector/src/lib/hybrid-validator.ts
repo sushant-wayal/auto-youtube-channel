@@ -56,7 +56,18 @@ export class HybridValidator {
 
         // Filter out ideas that are too similar to queue ideas or historical channel titles
         let remainingIdeas = aiIdeas;
-        const exclusionTitles = [...queueIdeas, ...historicalTitles];
+        const exclusionTitles = [...queueIdeas, ...historicalTitles].map(item => {
+            if (typeof item === 'string') {
+                const trimmed = item.trim();
+                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                    try {
+                        const parsed = JSON.parse(trimmed);
+                        if (parsed.topic) return parsed.topic;
+                    } catch {}
+                }
+            }
+            return item;
+        });
         
         if (exclusionTitles.length > 0) {
             console.error(`   📋 Checking against ${exclusionTitles.length} existing/queued titles...`);
@@ -67,9 +78,9 @@ export class HybridValidator {
                     if (aiTopicLower === existingLower) return true;
                     if (aiTopicLower.includes(existingLower) || existingLower.includes(aiTopicLower)) return true;
 
-                    const aiWords = new Set(aiTopicLower.split(/\s+/).filter(w => w.length > 3));
-                    const existingWords = new Set(existingLower.split(/\s+/).filter(w => w.length > 3));
-                    const commonWords = [...aiWords].filter(w => existingWords.has(w));
+                    const aiWords = new Set<string>(aiTopicLower.split(/\s+/).filter((w: string) => w.length > 3));
+                    const existingWords = new Set<string>(existingLower.split(/\s+/).filter((w: string) => w.length > 3));
+                    const commonWords = Array.from(aiWords).filter((w: string) => existingWords.has(w));
                     const overlapRatio = commonWords.length / Math.min(aiWords.size, existingWords.size);
 
                     return overlapRatio > 0.4;

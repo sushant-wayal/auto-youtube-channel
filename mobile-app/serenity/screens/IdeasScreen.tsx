@@ -38,7 +38,7 @@ const generateUUID = () => {
     });
 };
 
-const parseIdea = (raw: any, index: number): ParsedIdea => {
+const parseIdea = (raw: any, index: number, seriesList?: SeriesState[]): ParsedIdea => {
     if (!raw) {
         return {
             title: 'Untitled Production Idea',
@@ -73,11 +73,22 @@ const parseIdea = (raw: any, index: number): ParsedIdea => {
 
         const isSeries = Boolean(parsedObj.isSeries || parsedObj.seriesContext);
 
-        const seriesTitle = (
+        let seriesTitle = (
             parsedObj.seriesContext?.seriesTitle ||
             parsedObj.seriesTitle ||
             (isSeries ? 'Series Track' : 'Standalone Release')
         ).trim();
+
+        // If seriesContext provides seriesId or title, sync with canonical title from seriesList if present
+        if (isSeries && seriesList && seriesList.length > 0 && parsedObj.seriesContext?.seriesId) {
+            const matched = seriesList.find(s =>
+                s.id === parsedObj.seriesContext.seriesId ||
+                s.title.toLowerCase() === seriesTitle.toLowerCase()
+            );
+            if (matched) {
+                seriesTitle = matched.title;
+            }
+        }
 
         const description = (
             parsedObj.seriesContext?.learningObjective ||
@@ -104,24 +115,36 @@ const parseIdea = (raw: any, index: number): ParsedIdea => {
     }
 
     const str = String(raw).trim();
-    if (str.includes(':')) {
+
+    // Check if the string strictly starts with an actual known series from seriesList
+    // (e.g. "Series Title: Episode Name" or "series-id: Episode Name")
+    if (seriesList && seriesList.length > 0 && str.includes(':')) {
         const firstColon = str.indexOf(':');
-        const seriesPart = str.slice(0, firstColon).trim();
-        const titlePart = str.slice(firstColon + 1).trim();
-        return {
-            title: titlePart || seriesPart,
-            series: seriesPart.toUpperCase(),
-            description: `Production exploration of ${titlePart || seriesPart}.`,
-            isSeries: true,
-            raw: str,
-            originalIndex: index,
-        };
+        const prefix = str.slice(0, firstColon).trim().toLowerCase();
+        const suffix = str.slice(firstColon + 1).trim();
+
+        const matchedSeries = seriesList.find(
+            s => s.title.toLowerCase() === prefix || s.id.toLowerCase() === prefix
+        );
+
+        if (matchedSeries && suffix) {
+            return {
+                title: suffix,
+                series: matchedSeries.title.toUpperCase(),
+                description: matchedSeries.learningGoal || `Series episode for ${matchedSeries.title}.`,
+                learningGoal: matchedSeries.learningGoal,
+                isSeries: true,
+                raw: str,
+                originalIndex: index,
+            };
+        }
     }
 
+    // Default: Standalone production idea with full title preserved
     return {
-        title: str,
+        title: str || 'Untitled Production Idea',
         series: 'STANDALONE RELEASE',
-        description: `Production exploration of ${str}.`,
+        description: str ? `Production exploration of ${str}.` : 'No detailed objective specified.',
         isSeries: false,
         raw: str,
         originalIndex: index,
@@ -284,7 +307,7 @@ export default function IdeasScreen() {
     };
 
     const openEditModal = (index: number, rawPayload: string) => {
-        const parsed = parseIdea(rawPayload, index);
+        const parsed = parseIdea(rawPayload, index, seriesList);
         setEditingIndex(index);
         setEditTitle(parsed.title);
         setEditDescription(parsed.description || '');
@@ -399,7 +422,7 @@ export default function IdeasScreen() {
     };
 
     // Parse all ideas
-    const parsedIdeas = ideas.map((raw, idx) => parseIdea(raw, idx));
+    const parsedIdeas = ideas.map((raw, idx) => parseIdea(raw, idx, seriesList));
     const seriesCount = parsedIdeas.filter(i => i.isSeries).length;
     const standaloneCount = parsedIdeas.filter(i => !i.isSeries).length;
 
@@ -993,7 +1016,7 @@ export default function IdeasScreen() {
                         <View style={styles.sheetHandle} />
 
                         {selectedActionIndex !== null && ideas[selectedActionIndex] && (() => {
-                            const currentIdea = parseIdea(ideas[selectedActionIndex], selectedActionIndex);
+                            const currentIdea = parseIdea(ideas[selectedActionIndex], selectedActionIndex, seriesList);
                             const currentRankNum = selectedActionIndex + 1;
                             const currentRankStr = currentRankNum < 10 ? `#0${currentRankNum}` : `#${currentRankNum}`;
 
