@@ -43,10 +43,10 @@ Return ONLY a valid JSON array of objects with this exact structure:
 
         const CANDIDATE_MODELS = [
             process.env.GEMINI_MODEL,
-            'gemini-3.5-flash-lite',
-            'gemini-3.1-flash-lite',
             'gemini-3.8-flash',
             'gemini-3-flash-preview',
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-flash-lite',
         ].filter((m): m is string => Boolean(m));
 
         let lastError: any = null;
@@ -142,10 +142,10 @@ Return ONLY a valid JSON object with this exact structure:
 
         const CANDIDATE_MODELS = [
             process.env.GEMINI_MODEL,
-            'gemini-3.5-flash-lite',
-            'gemini-3.1-flash-lite',
             'gemini-3.8-flash',
             'gemini-3-flash-preview',
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-flash-lite',
         ].filter((m): m is string => Boolean(m));
 
         let lastError: any = null;

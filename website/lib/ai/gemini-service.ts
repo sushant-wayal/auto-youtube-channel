@@ -11,10 +11,10 @@ export interface GeminiConfig {
 
 const DEFAULT_CANDIDATE_MODELS = [
     process.env.GEMINI_MODEL,
-    "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite",
     "gemini-3.8-flash",
     "gemini-3-flash-preview",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
 ].filter((m): m is string => Boolean(m));
 
 class GeminiService {
@@ -147,7 +147,7 @@ class GeminiService {
         config?: GeminiConfig
     ): AsyncGenerator<string, void, unknown> {
         try {
-            const modelName = config?.model || DEFAULT_CANDIDATE_MODELS[0] || "gemini-3.5-flash-lite";
+            const modelName = config?.model || DEFAULT_CANDIDATE_MODELS[0] || "gemini-3.8-flash";
             const response = await this.genAI.models.generateContentStream({
                 model: modelName,
                 contents: prompt,
@@ -180,7 +180,7 @@ class GeminiService {
         config?: GeminiConfig,
         history?: Array<{ role: string; parts: string }>
     ): Chat {
-        const modelName = config?.model || DEFAULT_CANDIDATE_MODELS[0] || "gemini-3.5-flash-lite";
+        const modelName = config?.model || DEFAULT_CANDIDATE_MODELS[0] || "gemini-3.8-flash";
         return this.genAI.chats.create({
             model: modelName,
             history: history?.map((msg) => ({
@@ -259,7 +259,7 @@ class GeminiService {
         config?: GeminiConfig
     ): Promise<number> {
         try {
-            const modelName = config?.model || DEFAULT_CANDIDATE_MODELS[0] || "gemini-3.5-flash-lite";
+            const modelName = config?.model || DEFAULT_CANDIDATE_MODELS[0] || "gemini-3.8-flash";
             const result = await this.genAI.models.countTokens({
                 model: modelName,
                 contents: prompt,

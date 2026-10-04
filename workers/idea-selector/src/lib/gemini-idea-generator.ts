@@ -31,10 +31,10 @@ export class GeminiIdeaGenerator {
     private readonly MAX_DELAY_MS = 30_000;
     private readonly CANDIDATE_MODELS = [
         process.env.GEMINI_MODEL,
-        'gemini-3.5-flash-lite',
-        'gemini-3.1-flash-lite',
         'gemini-3.8-flash',
         'gemini-3-flash-preview',
+        'gemini-3.5-flash-lite',
+        'gemini-3.1-flash-lite',
     ].filter((m): m is string => Boolean(m));
 
     /**

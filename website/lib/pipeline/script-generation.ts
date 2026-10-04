@@ -28,6 +28,7 @@ class ScriptGenerationService {
 
     try {
       const response = await this.gemini.generateText(prompt, {
+        model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
         temperature: 0.8,
         topP: 0.95,
       });
@@ -209,7 +210,22 @@ Only use explicit fontSize if you need a specific pixel size.
 SCENE RULES (MAIN VIDEO)
 ========================
 
-- max 10 scenes, min 15 seconds baseDuration per scene
+- TOTAL VIDEO DURATION TARGET: STRICTLY ${duration} MINUTES (~${duration * 60} seconds total duration across all scenes, minimum 400 seconds).
+- EXACT SCENE COUNT: Generate exactly 7 to 8 scenes (MUST NOT be fewer than 7 scenes). Each scene is a distinct chapter in the story progression.
+- TOTAL NARRATION WORDS: Across all long-form scenes combined, narration MUST total between 1,050 and 1,250 words.
+- PER-SCENE NARRATION: Each scene's narration MUST contain 140 to 165 words (do not write brief or summarized scenes).
+- calculate baseDuration according to narration: baseDuration = Math.round(narration word count / 2.5). Each scene baseDuration MUST be between 52.0 and 66.0 seconds.
+- holdDuration: 2.0 seconds per scene.
+- narration length MUST match baseDuration + holdDuration.
+- The long-form video MUST follow this 7-8 scene story-first structure:
+  1. Scene 1: Unexpected Problem & High-Stakes Hook (~55-60s)
+  2. Scene 2: Why Common Intuition & Quick Fixes Fail (~55-60s)
+  3. Scene 3: Hidden Architectural Mechanism & Internal Dynamics (~55-65s)
+  4. Scene 4: Deep Dive / Core Bottleneck & Failure Under Pressure (~55-65s)
+  5. Scene 5: Real-World Catastrophe & Production Outage Consequences (~55-60s)
+  6. Scene 6: Architectural Solution & Robust Engineering Pattern (~55-65s)
+  7. Scene 7: Production Trade-offs, Edge Cases & Guardrails (~55-60s)
+  8. Scene 8: Resolution, Senior Engineering Takeaways & Rule of Thumb (~50-60s)
 - each scene MUST contain at least 4 actions and at most 35 actions
 - each scene MUST include at least 1 non-text shape (rect/ellipse/path/line)
 - each scene MUST include at least 1 connector or spatial relationship cue (line/path)
@@ -217,15 +233,6 @@ SCENE RULES (MAIN VIDEO)
 - each scene MUST have a "sceneTitle" field: short descriptive title (3-7 words)
 - sceneTitle should capture the key concept/topic of that scene section
 - sceneTitle will be used for YouTube chapter timestamps
-- narration ~130-150 words per scene for ${duration} min video
-- calculate duration according to the narration considering avg narration speed as 2.6 words/sec (baseDuration = narration word count / 2.6)
-- narration length should match baseDuration + holdDuration
-- The long-form video MUST follow this story-first structure:
-  1. Unexpected Problem
-  2. Why Common Intuition Fails
-  3. Hidden Mechanism
-  4. Real-World Consequence
-  5. Resolution / Takeaway
 - Start with tension, not definitions, historical background, or textbook explanations
 - The intro must create an unanswered question that is not resolved immediately
 - Delay key reveals so the viewer feels discovery unfolding over time
@@ -308,7 +315,7 @@ NARRATION RULES
 SHORTS RULES (CRITICAL)
 ========================
 
-- 3-5 shorts maximum
+- Generate EXACTLY 3 shorts (minimum 3 shorts, maximum 5 shorts)
 - Every short MUST include an "instagramCaption" string written specifically for publishing the corresponding video as an Instagram Reel.
 - The caption must be 3-4 paragraphs long, each containing 1-4 sentences. Use standard JSON newlines (\\n\\n) to separate paragraphs.
 - The caption must accurately match that short's hook and narration, open with a compelling human-readable line, add useful context or a natural call to action, and be ready to paste without editing.
@@ -624,7 +631,22 @@ If the format is violated, the output will be rejected.
         description: parsed.description || "",
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
         narration: this.preprocessNarration(narration),
-        scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [],
+        scenes: Array.isArray(parsed.scenes)
+          ? parsed.scenes.map((scene: any) => {
+              const narrationText = scene.narration || "";
+              const wordCount = narrationText.trim().split(/\s+/).filter(Boolean).length;
+              const calculatedDuration = Math.round((wordCount / 2.5) * 10) / 10;
+              // If baseDuration is missing or drastically smaller than spoken narration, align with spoken narration
+              const baseDuration = (typeof scene.baseDuration === "number" && scene.baseDuration >= calculatedDuration * 0.85)
+                ? scene.baseDuration
+                : Math.max(calculatedDuration, 15);
+              return {
+                ...scene,
+                baseDuration,
+                holdDuration: typeof scene.holdDuration === "number" ? scene.holdDuration : 2.0,
+              };
+            })
+          : [],
         shorts: Array.isArray(parsed.shorts)
           ? parsed.shorts.slice(0, 5).map((short: any) => ({
               ...short,
