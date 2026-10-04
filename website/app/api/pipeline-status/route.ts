@@ -287,6 +287,35 @@ export async function GET() {
             computedOverall = 'running';
         }
 
+        const [thumbnailVariationsRaw, abTestRaw] = await Promise.all([
+            redis.get('pipeline:status:thumbnail_variations'),
+            redis.get('pipeline:thumbnail:ab_test'),
+        ]);
+
+        let thumbnailVariations: string[] = [];
+        if (thumbnailVariationsRaw) {
+            try {
+                const parsed = JSON.parse(thumbnailVariationsRaw);
+                if (Array.isArray(parsed)) thumbnailVariations = parsed;
+            } catch {}
+        }
+        if (thumbnailVariations.length === 0 && metadata.thumbnailVariations) {
+            try {
+                const parsed = JSON.parse(metadata.thumbnailVariations);
+                if (Array.isArray(parsed)) thumbnailVariations = parsed;
+            } catch {}
+        }
+        if (thumbnailVariations.length === 0 && metadata.thumbnailUrl) {
+            thumbnailVariations = [metadata.thumbnailUrl];
+        }
+
+        let abTesting: any = null;
+        if (abTestRaw) {
+            try { abTesting = JSON.parse(abTestRaw); } catch {}
+        }
+
+        const activeThumb = metadata.selectedThumbnailUrl || metadata.thumbnailUrl || null;
+
         const status = {
             overallStatus: computedOverall,
             ranAt: metadata.ranAt || new Date().toISOString(),
@@ -295,7 +324,10 @@ export async function GET() {
             videoTitle: metadata.videoTitle || metadata.videoId,
             youtubeId: metadata.youtubeId || null,
             videoUrl: metadata.videoUrl || null,
-            thumbnailUrl: metadata.thumbnailUrl || null,
+            thumbnailUrl: activeThumb,
+            selectedThumbnailUrl: activeThumb,
+            thumbnailVariations,
+            abTesting,
             description: metadata.description || null,
             sceneUrls: sceneUrls || [],
             voiceoverUrls: voiceoverUrls || [],

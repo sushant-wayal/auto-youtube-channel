@@ -219,4 +219,33 @@ export class YouTubeDataService {
 
         return hours * 3600 + minutes * 60 + seconds;
     }
+
+    /**
+     * Upload / update custom thumbnail for a YouTube video
+     */
+    async updateThumbnail(youtubeVideoId: string, imageUrl: string): Promise<boolean> {
+        try {
+            console.error(`🖼️ Updating YouTube thumbnail for ${youtubeVideoId} from: ${imageUrl}`);
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch thumbnail image from ${imageUrl}: ${response.statusText}`);
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            const { Readable } = await import('stream');
+            const stream = Readable.from(Buffer.from(arrayBuffer));
+
+            await this.youtube.thumbnails.set({
+                videoId: youtubeVideoId,
+                media: {
+                    mimeType: 'image/jpeg',
+                    body: stream,
+                },
+            });
+            console.error(`✅ Successfully updated thumbnail on YouTube for video ${youtubeVideoId}`);
+            return true;
+        } catch (error: any) {
+            console.error(`❌ Failed to update YouTube thumbnail for ${youtubeVideoId}:`, error?.message || error);
+            throw error;
+        }
+    }
 }
