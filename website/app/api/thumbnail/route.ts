@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Redis from 'ioredis';
-import { YouTubeDataService } from '@/../../shared/services/youtube-data-service';
+import { YouTubeDataService } from '@/lib/youtube-data-service';
 
 const redis = new Redis(process.env.REDIS_URL!);
 
@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
         }
 
         if (action === 'set-ab-test') {
-            const { enabled, candidates } = abTesting || {};
+            const enabled = abTesting?.enabled ?? body.enabled;
+            const candidates = abTesting?.candidates ?? body.candidates;
             console.log(`[API] Setting A/B testing experiment: enabled=${enabled}, candidates count=${candidates?.length || 0}`);
 
             const abPayload = {
