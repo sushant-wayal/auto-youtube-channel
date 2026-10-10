@@ -30,18 +30,22 @@ async function sendPushNotification(
 ) {
     const isSuccess = overallStatus === 'success';
     const title = isSuccess
-        ? '✦ Serenity Studio • Video Scheduled'
-        : '▲ Serenity Studio • Pipeline Alert';
+        ? '✅ SUCCESS • Video Ready & Scheduled'
+        : '🚨 PIPELINE ALERT • Generation Halted';
+
+    const subtitle = isSuccess
+        ? 'Broadcast Queued • YouTube Premiere'
+        : 'Action Required • Inspect Telemetry';
 
     let body: string;
     if (!isSuccess) {
         body = errorSummary
-            ? `"${videoTitle}" halted: ${errorSummary}. Tap to inspect telemetry.`
-            : `"${videoTitle}" halted during generation. Tap to inspect telemetry.`;
+            ? `⚠️ Generation halted: ${errorSummary}. Video: "${videoTitle}". Tap to inspect.`
+            : `⚠️ Pipeline execution failed for "${videoTitle}". Tap to inspect telemetry & rerun.`;
     } else if (scheduledTime) {
-        body = `"${videoTitle}" is queued for broadcast • Goes live at ${scheduledTime} IST`;
+        body = `🎬 "${videoTitle}" is ready • Goes live at ${scheduledTime} IST on YouTube`;
     } else {
-        body = `"${videoTitle}" is rendered & scheduled for YouTube premiere`;
+        body = `🎬 "${videoTitle}" is rendered & queued for YouTube premiere`;
     }
 
     const message = {
@@ -49,7 +53,7 @@ async function sendPushNotification(
         sound: 'default',
         title,
         body,
-        subtitle: 'Studio Automation Telemetry',
+        subtitle,
         data: {
             screen: 'Pipeline',
             targetScreen: 'Pipeline',
@@ -58,7 +62,7 @@ async function sendPushNotification(
             status: overallStatus,
             videoTitle,
         },
-        channelId: 'pipeline',
+        channelId: isSuccess ? 'pipeline-success' : 'pipeline-alerts',
         priority: 'high',
     };
 

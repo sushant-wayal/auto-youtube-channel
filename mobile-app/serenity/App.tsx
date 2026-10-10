@@ -96,6 +96,7 @@ export default function App() {
         body: string;
         targetScreen: string;
         tabIndex: number;
+        status?: 'success' | 'failure' | 'info';
     } | null>(null);
     const inAppAnim = React.useRef(new Animated.Value(-140)).current;
 
@@ -213,10 +214,35 @@ export default function App() {
                 });
 
                 if (Platform.OS === 'android') {
+                    // 1. Success Channel (Emerald Green LED, broadcast chime)
+                    await Notifications.setNotificationChannelAsync('pipeline-success', {
+                        name: 'Pipeline Broadcasts (Success)',
+                        description: 'Notifications when videos are successfully produced and scheduled',
+                        importance: Notifications.AndroidImportance.HIGH,
+                        vibrationPattern: [0, 150, 100, 150],
+                        lightColor: '#22c55e',
+                        sound: 'default',
+                        enableVibrate: true,
+                        showBadge: true,
+                    });
+
+                    // 2. Alert / Failure Channel (Red LED, high-priority alert vibration)
+                    await Notifications.setNotificationChannelAsync('pipeline-alerts', {
+                        name: 'Pipeline Alerts (Failures)',
+                        description: 'Critical alerts when pipeline halts or encounters errors',
+                        importance: Notifications.AndroidImportance.MAX,
+                        vibrationPattern: [0, 350, 150, 350],
+                        lightColor: '#ef4444',
+                        sound: 'default',
+                        enableVibrate: true,
+                        showBadge: true,
+                    });
+
+                    // 3. Fallback / General Channel
                     await Notifications.setNotificationChannelAsync('pipeline', {
                         name: 'Serenity Studio Telemetry',
                         description: 'Real-time pipeline automation alerts and production notifications',
-                        importance: Notifications.AndroidImportance.MAX,
+                        importance: Notifications.AndroidImportance.HIGH,
                         vibrationPattern: [0, 250, 250, 250],
                         lightColor: colors.sandstone,
                         sound: 'default',
@@ -306,11 +332,28 @@ export default function App() {
             };
             const tabIdx = screenTabMap[target] ?? 3;
 
+            const isFailure = rawData?.status === 'failure' ||
+                content?.title?.toLowerCase().includes('alert') ||
+                content?.title?.toLowerCase().includes('halt') ||
+                content?.title?.toLowerCase().includes('fail') ||
+                content?.title?.includes('🚨') ||
+                content?.title?.includes('▲');
+
+            const isSuccess = rawData?.status === 'success' ||
+                content?.title?.toLowerCase().includes('ready') ||
+                content?.title?.toLowerCase().includes('success') ||
+                content?.title?.toLowerCase().includes('scheduled') ||
+                content?.title?.includes('✅') ||
+                content?.title?.includes('✦');
+
+            const status: 'success' | 'failure' | 'info' = isFailure ? 'failure' : isSuccess ? 'success' : 'info';
+
             setInAppNotification({
-                title: content?.title || '✦ Serenity Studio • Telemetry Alert',
+                title: content?.title || (isFailure ? '🚨 Pipeline Alert' : '✅ Video Ready'),
                 body: content?.body || 'New pipeline update available.',
                 targetScreen: target,
                 tabIndex: tabIdx,
+                status,
             });
 
             Animated.spring(inAppAnim, {
@@ -366,18 +409,72 @@ export default function App() {
                 {inAppNotification && (
                     <Animated.View style={[styles.inAppBannerContainer, { transform: [{ translateY: inAppAnim }] }]}>
                         <TouchableOpacity
-                            style={styles.inAppBannerCard}
+                            style={[
+                                styles.inAppBannerCard,
+                                inAppNotification.status === 'failure' && {
+                                    backgroundColor: '#1b0e10',
+                                    borderColor: 'rgba(248, 113, 113, 0.5)',
+                                },
+                                inAppNotification.status === 'success' && {
+                                    backgroundColor: '#0a1a10',
+                                    borderColor: 'rgba(74, 222, 128, 0.5)',
+                                },
+                            ]}
                             onPress={handleInAppBannerPress}
                             activeOpacity={0.88}
                         >
-                            <View style={styles.inAppBannerIconBox}>
-                                <Ionicons name="sparkles" size={16} color={colors.sandstone} />
+                            <View
+                                style={[
+                                    styles.inAppBannerIconBox,
+                                    inAppNotification.status === 'failure' && {
+                                        backgroundColor: 'rgba(248, 113, 113, 0.15)',
+                                        borderColor: 'rgba(248, 113, 113, 0.45)',
+                                    },
+                                    inAppNotification.status === 'success' && {
+                                        backgroundColor: 'rgba(74, 222, 128, 0.15)',
+                                        borderColor: 'rgba(74, 222, 128, 0.45)',
+                                    },
+                                ]}
+                            >
+                                {inAppNotification.status === 'failure' ? (
+                                    <Ionicons name="warning" size={17} color={colors.failed} />
+                                ) : inAppNotification.status === 'success' ? (
+                                    <Ionicons name="checkmark-circle" size={17} color={colors.success} />
+                                ) : (
+                                    <Ionicons name="sparkles" size={16} color={colors.sandstone} />
+                                )}
                             </View>
                             <View style={styles.inAppBannerTextBox}>
                                 <View style={styles.inAppBannerHeaderRow}>
-                                    <Text style={styles.inAppBannerKicker}>SERENITY TELEMETRY</Text>
-                                    <View style={styles.inAppBannerDot} />
-                                    <Text style={styles.inAppBannerActionHint}>TAP TO VIEW →</Text>
+                                    <Text
+                                        style={[
+                                            styles.inAppBannerKicker,
+                                            inAppNotification.status === 'failure' && { color: colors.failed },
+                                            inAppNotification.status === 'success' && { color: colors.success },
+                                        ]}
+                                    >
+                                        {inAppNotification.status === 'failure'
+                                            ? '▲ CRITICAL ALERT'
+                                            : inAppNotification.status === 'success'
+                                            ? '✦ BROADCAST READY'
+                                            : 'SERENITY TELEMETRY'}
+                                    </Text>
+                                    <View
+                                        style={[
+                                            styles.inAppBannerDot,
+                                            inAppNotification.status === 'failure' && { backgroundColor: colors.failed },
+                                            inAppNotification.status === 'success' && { backgroundColor: colors.success },
+                                        ]}
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.inAppBannerActionHint,
+                                            inAppNotification.status === 'failure' && { color: colors.failed },
+                                            inAppNotification.status === 'success' && { color: colors.success },
+                                        ]}
+                                    >
+                                        {inAppNotification.status === 'failure' ? 'INSPECT ERROR →' : 'VIEW PREVIEW →'}
+                                    </Text>
                                 </View>
                                 <Text style={styles.inAppBannerTitle} numberOfLines={1}>{inAppNotification.title}</Text>
                                 <Text style={styles.inAppBannerBody} numberOfLines={2}>{inAppNotification.body}</Text>
