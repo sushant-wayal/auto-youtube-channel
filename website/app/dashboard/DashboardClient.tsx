@@ -718,11 +718,50 @@ export default function DashboardClient() {
     const [scheduleError, setScheduleError] = useState<string | null>(null);
     const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
 
+    // Series management state
+    const [seriesList, setSeriesList] = useState<any[]>([]);
+    const [seriesLoading, setSeriesLoading] = useState(false);
+    const [pushingSeriesId, setPushingSeriesId] = useState<string | null>(null);
+
     useEffect(() => {
         loadIdeasQueue();
         loadShortsPublishTime();
         loadScheduleTimes();
+        loadSeries();
     }, []);
+
+    const loadSeries = async () => {
+        setSeriesLoading(true);
+        try {
+            const res = await fetch('/api/series');
+            const data = await res.json();
+            if (data.ok && Array.isArray(data.series)) {
+                setSeriesList(data.series);
+            }
+        } catch (err) {
+            console.error('Failed to load series in dashboard:', err);
+        } finally {
+            setSeriesLoading(false);
+        }
+    };
+
+    const pushSeriesEpisode = async (seriesId: string) => {
+        setPushingSeriesId(seriesId);
+        try {
+            const res = await fetch('/api/series', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'pushToQueue', id: seriesId }),
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to push episode to queue');
+            await Promise.all([loadIdeasQueue(), loadSeries()]);
+        } catch (err: any) {
+            setIdeasError(err.message || String(err));
+        } finally {
+            setPushingSeriesId(null);
+        }
+    };
 
     const loadIdeasQueue = async () => {
         try {
@@ -1029,6 +1068,69 @@ export default function DashboardClient() {
                     {ideasError && (
                         <div className="text-sm text-red-600 bg-red-50 p-3 rounded">
                             {ideasError}
+                        </div>
+                    )}
+
+                    {seriesList.length > 0 && (
+                        <div className="rounded-lg border bg-slate-50/60 p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                        📺 Series Tracks ({seriesList.length})
+                                    </span>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                    {seriesList.filter(s => s.hasQueuedEpisode).length} of {seriesList.length} queued
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {seriesList.map((s) => {
+                                    const isQueued = Boolean(s.hasQueuedEpisode);
+                                    const isPushing = pushingSeriesId === s.id;
+                                    return (
+                                        <div
+                                            key={s.id}
+                                            className="flex items-center justify-between gap-2 p-2.5 bg-white rounded border text-xs"
+                                        >
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-semibold text-slate-800 truncate" title={s.title}>
+                                                        {s.title}
+                                                    </span>
+                                                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                                                        s.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+                                                    }`}>
+                                                        {s.status}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                                    {isQueued
+                                                        ? `In queue: ${s.queuedEpisode?.topic || 'Episode active'}`
+                                                        : `${s.learningQueue?.length || 0} planned in roadmap`}
+                                                </p>
+                                            </div>
+
+                                            {isQueued ? (
+                                                <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded shrink-0 flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                    Queued
+                                                </span>
+                                            ) : (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => pushSeriesEpisode(s.id)}
+                                                    disabled={isPushing || ideasLoading}
+                                                    className="h-7 text-xs font-medium border-indigo-200 text-indigo-700 hover:bg-indigo-50 shrink-0"
+                                                >
+                                                    {isPushing ? 'Queueing...' : 'Push to Queue'}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 

@@ -11,6 +11,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     Animated,
+    ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,6 +32,7 @@ export default function SeriesScreen() {
     const [expandedSeries, setExpandedSeries] = useState<string | null>(null);
     const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
     const [creating, setCreating] = useState(false);
+    const [pushingQueueSeriesId, setPushingQueueSeriesId] = useState<string | null>(null);
 
     // Custom Themed Alert Dialog State
     const [alertConfig, setAlertConfig] = useState<CustomAlertConfig>({
@@ -166,6 +168,24 @@ export default function SeriesScreen() {
         } catch (err) {
             setSeriesList(prev => prev.map(s => s.id === item.id ? { ...s, status: 'active' } : s));
             showToast(`Series reactivated`);
+        }
+    };
+
+    const handlePushToQueue = async (item: SeriesState, episodeId?: string) => {
+        try {
+            setPushingQueueSeriesId(item.id);
+            showToast('Scheduling episode into queue...');
+            const res = await seriesApi.pushEpisodeToQueue(item.id, episodeId);
+            if (res.ok) {
+                showToast('Episode pushed to editorial queue!');
+                await fetchSeries(true);
+            } else {
+                showToast(res.error || 'Failed to push episode to queue');
+            }
+        } catch (err: any) {
+            showToast(err.message || 'Could not push episode to queue');
+        } finally {
+            setPushingQueueSeriesId(null);
         }
     };
 
@@ -331,7 +351,7 @@ export default function SeriesScreen() {
                         const isExpanded = expandedSeries === item.id;
                         const uploadCount = item.uploadCount || 0;
                         const queuedCount = item.learningQueue?.length || 0;
-                        const hasActiveInQueue = item.learningQueue?.some(ep => ep.status === 'in_progress');
+                        const hasActiveInQueue = item.hasQueuedEpisode ?? item.learningQueue?.some(ep => ep.status === 'in_progress');
                         const total = uploadCount + queuedCount || 1;
                         const pct = Math.min(100, Math.round((uploadCount / total) * 100)) || 0;
                         const indexNum = index + 1 < 10 ? `0${index + 1}` : `${index + 1}`;
@@ -374,14 +394,35 @@ export default function SeriesScreen() {
                                                 </>
                                             )}
                                         </View>
-                                        {hasActiveInQueue && (
+                                        {hasActiveInQueue ? (
                                             <View style={styles.inProdQueueTagRow}>
                                                 <View style={styles.inProdQueueTag}>
                                                     <View style={styles.miniActiveGreenDot} />
                                                     <Text style={styles.inProdQueueTagText}>1 in Queue</Text>
                                                 </View>
                                             </View>
-                                        )}
+                                        ) : item.status !== 'completed' ? (
+                                            <View style={styles.inProdQueueTagRow}>
+                                                <TouchableOpacity
+                                                    style={styles.notInQueueBtn}
+                                                    onPress={(e) => {
+                                                        e.stopPropagation();
+                                                        handlePushToQueue(item);
+                                                    }}
+                                                    disabled={pushingQueueSeriesId === item.id}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    {pushingQueueSeriesId === item.id ? (
+                                                        <ActivityIndicator size="small" color={colors.sandstone} />
+                                                    ) : (
+                                                        <Ionicons name="arrow-up-circle-outline" size={12} color={colors.sandstone} />
+                                                    )}
+                                                    <Text style={styles.notInQueueBtnText}>
+                                                        {pushingQueueSeriesId === item.id ? 'Queueing...' : 'Push to Queue'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : null}
                                     </View>
 
                                     <View style={styles.cardRight}>
@@ -441,8 +482,25 @@ export default function SeriesScreen() {
                                                                                 <Text style={styles.epActiveStatusText}>IN EDITORIAL QUEUE</Text>
                                                                             </View>
                                                                         ) : (
-                                                                            <View style={styles.epUpcomingStatusPill}>
-                                                                                <Text style={styles.epUpcomingStatusText}>UPCOMING IN SYLLABUS</Text>
+                                                                            <View style={styles.epUpcomingStatusRow}>
+                                                                                <View style={styles.epUpcomingStatusPill}>
+                                                                                    <Text style={styles.epUpcomingStatusText}>UPCOMING IN SYLLABUS</Text>
+                                                                                </View>
+                                                                                {!hasActiveInQueue && item.status !== 'completed' && (
+                                                                                    <TouchableOpacity
+                                                                                        style={styles.epPushBtn}
+                                                                                        onPress={() => handlePushToQueue(item, ep.episodeId)}
+                                                                                        disabled={pushingQueueSeriesId === item.id}
+                                                                                        activeOpacity={0.7}
+                                                                                    >
+                                                                                        {pushingQueueSeriesId === item.id ? (
+                                                                                            <ActivityIndicator size="small" color={colors.sandstone} />
+                                                                                        ) : (
+                                                                                            <Ionicons name="arrow-up-circle-outline" size={11} color={colors.sandstone} />
+                                                                                        )}
+                                                                                        <Text style={styles.epPushBtnText}>Queue This Episode</Text>
+                                                                                    </TouchableOpacity>
+                                                                                )}
                                                                             </View>
                                                                         )}
                                                                     </View>
@@ -481,6 +539,24 @@ export default function SeriesScreen() {
                                                 </TouchableOpacity>
                                             ) : (
                                                 <>
+                                                    {!hasActiveInQueue && (
+                                                        <TouchableOpacity
+                                                            style={styles.drawerBtnPushQueue}
+                                                            onPress={() => handlePushToQueue(item)}
+                                                            disabled={pushingQueueSeriesId === item.id}
+                                                            activeOpacity={0.8}
+                                                        >
+                                                            {pushingQueueSeriesId === item.id ? (
+                                                                <ActivityIndicator size="small" color={colors.primaryForeground} />
+                                                            ) : (
+                                                                <Ionicons name="arrow-up-circle" size={13} color={colors.primaryForeground} />
+                                                            )}
+                                                            <Text style={styles.drawerBtnPushQueueText}>
+                                                                {pushingQueueSeriesId === item.id ? 'Queueing...' : 'Push to Queue'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    )}
+
                                                     <TouchableOpacity
                                                         style={styles.drawerBtn}
                                                         onPress={() => handleToggleStatus(item)}
@@ -961,6 +1037,23 @@ const styles = StyleSheet.create({
         fontWeight: typography.fontWeightBold,
         color: '#10B981',
     },
+    notInQueueBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 7,
+        paddingVertical: 2.5,
+        borderRadius: borderRadius.xs - 2,
+        backgroundColor: 'rgba(200, 178, 155, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(200, 178, 155, 0.28)',
+        alignSelf: 'flex-start',
+    },
+    notInQueueBtnText: {
+        fontSize: 10,
+        fontWeight: typography.fontWeightBold,
+        color: colors.sandstone,
+    },
     miniActiveGreenDot: {
         width: 5,
         height: 5,
@@ -995,6 +1088,12 @@ const styles = StyleSheet.create({
         color: '#10B981',
         letterSpacing: 0.4,
     },
+    epUpcomingStatusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
     epUpcomingStatusPill: {
         paddingHorizontal: 5,
         paddingVertical: 1.5,
@@ -1007,6 +1106,23 @@ const styles = StyleSheet.create({
         fontSize: 8,
         fontWeight: typography.fontWeightMedium,
         color: colors.linenWhisper,
+        letterSpacing: 0.3,
+    },
+    epPushBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        paddingHorizontal: 6,
+        paddingVertical: 1.5,
+        borderRadius: borderRadius.xs - 2,
+        backgroundColor: 'rgba(200, 178, 155, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(200, 178, 155, 0.25)',
+    },
+    epPushBtnText: {
+        fontSize: 9,
+        fontWeight: typography.fontWeightBold,
+        color: colors.sandstone,
         letterSpacing: 0.3,
     },
     roundRobinNotice: {
@@ -1075,6 +1191,20 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: colors.linenDim,
         fontWeight: typography.fontWeightMedium,
+    },
+    drawerBtnPushQueue: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: spacing.sm + 4,
+        paddingVertical: 6,
+        borderRadius: borderRadius.xs,
+        backgroundColor: colors.sandstone,
+    },
+    drawerBtnPushQueueText: {
+        fontSize: 11,
+        fontWeight: typography.fontWeightBold,
+        color: colors.primaryForeground,
     },
     drawerBtnPrimary: {
         flexDirection: 'row',

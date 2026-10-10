@@ -202,6 +202,121 @@ export class SeriesManager {
     }
 
     /**
+     * Schedules an episode of a specific series into the global video:ideas queue.
+     * Prevents duplicates if an episode for this series is already queued.
+     */
+    async scheduleEpisodeForSeries(seriesId: string, specificEpisodeId?: string): Promise<{
+        scheduled: boolean;
+        topic: string;
+        seriesTitle: string;
+        episodeId: string;
+    } | false> {
+        // Fetch current global queue to verify genuinely in-progress items
+        const globalQueue = await this.redis.getGlobalQueue();
+        const queuedEpisodeIds = new Set<string>();
+        const queuedTopics = new Set<string>();
+        let seriesAlreadyInQueue = false;
+
+        for (const raw of globalQueue) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (parsed.seriesContext?.seriesId === seriesId) {
+                    seriesAlreadyInQueue = true;
+                }
+                if (parsed.seriesContext?.episodeId) queuedEpisodeIds.add(parsed.seriesContext.episodeId);
+                if (parsed.topic) queuedTopics.add(parsed.topic.toLowerCase().trim());
+            } catch {
+                queuedTopics.add(raw.toLowerCase().trim());
+            }
+        }
+
+        if (seriesAlreadyInQueue) {
+            console.error(`[SeriesManager] Series ${seriesId} already has an episode active in the global queue.`);
+            return false;
+        }
+
+        const series = await this.redis.getSeries(seriesId);
+        if (!series) {
+            console.error(`[SeriesManager] Series ${seriesId} not found`);
+            return false;
+        }
+
+        // Auto-heal any ghost in_progress episode in this series
+        const ghostItem = series.learningQueue.find(item => item.status === 'in_progress');
+        if (ghostItem) {
+            const isGenuinelyQueued = queuedEpisodeIds.has(ghostItem.episodeId) ||
+                queuedTopics.has(ghostItem.topic.toLowerCase().trim());
+            if (!isGenuinelyQueued) {
+                console.error(`[SeriesManager] Auto-healing ghost in_progress episode "${ghostItem.topic}" in series "${series.title}"`);
+                await this.redis.mutateSeries(seriesId, async (s) => {
+                    const ep = s.learningQueue.find(i => i.episodeId === ghostItem.episodeId);
+                    if (ep && ep.status === 'in_progress') {
+                        ep.status = 'pending';
+                    }
+                });
+            }
+        }
+
+        let nextItemPayload: any = null;
+
+        await this.redis.mutateSeries(seriesId, async (s) => {
+            // Activate series if it was paused or completed
+            if (s.status !== 'active') {
+                s.status = 'active';
+            }
+
+            const hasPending = s.learningQueue.some(item => item.status === 'pending' || !item.status);
+            if (s.learningQueue.length === 0 || !hasPending) {
+                console.error(`Series ${s.id} queue has no pending items, generating...`);
+                const newEpisodes = await this.ai.generateNextEpisodes(s, 3);
+                s.learningQueue.push(...newEpisodes);
+            }
+
+            // Find target item: either specificEpisodeId or first pending
+            let targetItem = specificEpisodeId
+                ? s.learningQueue.find(item => item.episodeId === specificEpisodeId && (item.status === 'pending' || !item.status))
+                : null;
+
+            if (!targetItem) {
+                targetItem = s.learningQueue.find(item => item.status === 'pending' || !item.status);
+            }
+
+            if (!targetItem) {
+                return; // Nothing to schedule
+            }
+
+            targetItem.status = 'in_progress';
+
+            nextItemPayload = {
+                topic: targetItem.topic,
+                isSeries: true,
+                seriesContext: {
+                    seriesId: s.id,
+                    seriesTitle: s.title,
+                    learningGoal: s.learningGoal,
+                    episodeId: targetItem.episodeId,
+                    topic: targetItem.topic,
+                    learningObjective: targetItem.learningObjective
+                }
+            };
+        });
+
+        if (!nextItemPayload) {
+            return false;
+        }
+
+        // Push to global video:ideas queue
+        await this.redis.pushToGlobalQueue(nextItemPayload);
+        console.error(`Scheduled episode "${nextItemPayload.topic}" (ID: ${nextItemPayload.seriesContext.episodeId}) for series "${nextItemPayload.seriesContext.seriesTitle}"`);
+        return {
+            scheduled: true,
+            topic: nextItemPayload.topic,
+            seriesTitle: nextItemPayload.seriesContext?.seriesTitle,
+            episodeId: nextItemPayload.seriesContext?.episodeId,
+        };
+    }
+
+    /**
      * Called when an episode finishes uploading
      */
     async completeEpisode(seriesId: string, episodeId: string, topic: string, videoId: string): Promise<void> {

@@ -584,11 +584,17 @@ export type SeriesState = {
     lastUploadTimestamp: string;
     learningQueue: SeriesQueueItem[];
     history: any[];
+    hasQueuedEpisode?: boolean;
+    queuedEpisode?: {
+        episodeId?: string;
+        topic?: string;
+    } | null;
 };
 
 export type SeriesResponse = {
     ok: boolean;
     series?: SeriesState | SeriesState[];
+    result?: any;
     error?: string;
 };
 
@@ -618,6 +624,22 @@ export const seriesApi = {
             return data;
         } catch (error: any) {
             console.error('[API] Error creating series:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
+    pushEpisodeToQueue: async (id: string, episodeId?: string): Promise<SeriesResponse> => {
+        try {
+            console.log('[API] Pushing episode to queue for series:', id, episodeId);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'pushToQueue', id, episodeId }),
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error pushing episode to queue:', error.message || error);
             return { ok: false, error: error.message || String(error) };
         }
     },

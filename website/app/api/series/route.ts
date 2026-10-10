@@ -20,6 +20,32 @@ export async function GET() {
         
         let series = data.filter((d): d is string => d !== null).map(d => JSON.parse(d));
         
+        // Check global video:ideas queue to identify which series currently have an active episode queued
+        const rawIdeas = await redis.lrange('video:ideas', 0, -1);
+        const queuedSeriesMap = new Map<string, { episodeId?: string; topic?: string }>();
+        for (const raw of rawIdeas) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (parsed.seriesContext?.seriesId) {
+                    queuedSeriesMap.set(parsed.seriesContext.seriesId, {
+                        episodeId: parsed.seriesContext.episodeId,
+                        topic: parsed.seriesContext.topic || parsed.topic,
+                    });
+                }
+            } catch {}
+        }
+
+        // Enrich each series with queue presence
+        series = series.map((s: any) => {
+            const queuedInfo = queuedSeriesMap.get(s.id);
+            const hasQueuedEpisode = Boolean(queuedInfo);
+            return {
+                ...s,
+                hasQueuedEpisode,
+                queuedEpisode: queuedInfo || null,
+            };
+        });
+
         // Sort active first, then by priority, then by id
         series.sort((a, b) => {
             if (a.status === 'active' && b.status !== 'active') return -1;
@@ -40,7 +66,7 @@ export async function POST(request: Request) {
     let redis: Redis | null = null;
     try {
         const body = await request.json();
-        const { action, id, title, learningGoal, status } = body;
+        const { action, id, title, learningGoal, status, episodeId } = body;
         redis = getRedisClient();
 
         if (action === 'create') {
@@ -97,6 +123,23 @@ export async function POST(request: Request) {
             try {
                 const updated = await seriesManager.reactivateSeries(id, true);
                 return NextResponse.json({ ok: true, series: updated });
+            } finally {
+                await seriesManager.close();
+            }
+        }
+        else if (action === 'pushToQueue' || action === 'scheduleEpisode') {
+            if (!id) return NextResponse.json({ ok: false, error: 'Missing id' }, { status: 400 });
+
+            const seriesManager = new SeriesManager();
+            try {
+                const result = await seriesManager.scheduleEpisodeForSeries(id, episodeId);
+                if (!result) {
+                    return NextResponse.json({
+                        ok: false,
+                        error: 'Could not push episode to queue. An episode for this series may already be in the queue.',
+                    }, { status: 400 });
+                }
+                return NextResponse.json({ ok: true, result });
             } finally {
                 await seriesManager.close();
             }
