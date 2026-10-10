@@ -467,18 +467,56 @@ function PipelineSection() {
             title: 'Render Scenes',
             icon: <Film size={16} />,
             result: status.jobs.renderScenes,
-            content: status.sceneUrls && status.sceneUrls.length > 0
-                ? <MediaCarousel urls={status.sceneUrls} type="video" narrations={status.sceneNarrations} />
-                : <p className="text-xs text-gray-500 italic">No scene videos available.</p>,
+            content: status.jobs.renderScenes === 'running' ? (
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2.5 p-3 text-sm text-purple-700 bg-purple-50/70 border border-purple-200/60 rounded-lg">
+                        <RefreshCw size={15} className="animate-spin text-purple-600 shrink-0" />
+                        <div>
+                            <p className="font-medium">Scene rendering in progress...</p>
+                            <p className="text-xs text-purple-600 mt-0.5">
+                                {status.sceneUrls && status.sceneUrls.length > 0
+                                    ? `${status.sceneUrls.length} of ${status.sceneNarrations?.length || 7} scenes rendered`
+                                    : `Rendering visual scenes for ${status.sceneNarrations?.length || 7} scenes`}
+                            </p>
+                        </div>
+                    </div>
+                    {status.sceneUrls && status.sceneUrls.length > 0 && (
+                        <MediaCarousel urls={status.sceneUrls} type="video" narrations={status.sceneNarrations} />
+                    )}
+                </div>
+            ) : status.sceneUrls && status.sceneUrls.length > 0 ? (
+                <MediaCarousel urls={status.sceneUrls} type="video" narrations={status.sceneNarrations} />
+            ) : (
+                <p className="text-xs text-gray-500 italic">No scene videos available.</p>
+            ),
         },
         {
             key: 'generateVoiceover',
             title: 'Generate Voiceover',
             icon: <Mic size={16} />,
             result: status.jobs.generateVoiceover,
-            content: status.voiceoverUrls && status.voiceoverUrls.length > 0
-                ? <MediaCarousel urls={status.voiceoverUrls} type="audio" narrations={status.sceneNarrations} />
-                : <p className="text-xs text-gray-500 italic">No voiceover audio available.</p>,
+            content: status.jobs.generateVoiceover === 'running' ? (
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2.5 p-3 text-sm text-amber-700 bg-amber-50/70 border border-amber-200/60 rounded-lg">
+                        <RefreshCw size={15} className="animate-spin text-amber-600 shrink-0" />
+                        <div>
+                            <p className="font-medium">Voiceover synthesis in progress...</p>
+                            <p className="text-xs text-amber-600 mt-0.5">
+                                {status.voiceoverUrls && status.voiceoverUrls.length > 0
+                                    ? `${status.voiceoverUrls.length} of ${status.sceneNarrations?.length || 7} scene audio tracks ready`
+                                    : `Synthesizing neural voiceover for ${status.sceneNarrations?.length || 7} scenes`}
+                            </p>
+                        </div>
+                    </div>
+                    {status.voiceoverUrls && status.voiceoverUrls.length > 0 && (
+                        <MediaCarousel urls={status.voiceoverUrls} type="audio" narrations={status.sceneNarrations} />
+                    )}
+                </div>
+            ) : status.voiceoverUrls && status.voiceoverUrls.length > 0 ? (
+                <MediaCarousel urls={status.voiceoverUrls} type="audio" narrations={status.sceneNarrations} />
+            ) : (
+                <p className="text-xs text-gray-500 italic">No voiceover audio available.</p>
+            ),
         },
         {
             key: 'assembleLongForm',

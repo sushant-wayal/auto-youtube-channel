@@ -5,7 +5,7 @@
 
 import { generateVoiceOvers } from '../../workers/voice-over-generation/src/index';
 import { validateConfig } from '../../shared/config';
-import { setJobStatus } from './utils/status-updater';
+import { setJobStatus, clearList } from './utils/status-updater';
 
 interface ScriptData {
     script: {
@@ -55,6 +55,11 @@ async function generateNarration(videoId: string, scriptData: string) {
         }
 
         await setJobStatus('generateVoiceover', 'running');
+        try {
+            await clearList('voiceoverUrls');
+        } catch (e) {
+            console.error('Non-fatal error clearing voiceoverUrls:', e);
+        }
         const result = await generateNarration(videoId, scriptData);
         await setJobStatus('generateVoiceover', 'success');
 

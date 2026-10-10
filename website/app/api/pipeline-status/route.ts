@@ -220,8 +220,31 @@ export async function GET() {
 
         const metadata = await redis.hgetall('pipeline:status:metadata');
         const jobs = await redis.hgetall('pipeline:status:jobs');
-        const sceneUrls = await redis.lrange('pipeline:status:sceneUrls', 0, -1);
-        const voiceoverUrls = await redis.lrange('pipeline:status:voiceoverUrls', 0, -1);
+        const rawSceneUrls = await redis.lrange('pipeline:status:sceneUrls', 0, -1);
+        const rawVoiceoverUrls = await redis.lrange('pipeline:status:voiceoverUrls', 0, -1);
+
+        // Filter out stale media URLs from previous pipeline runs
+        let sceneUrls = rawSceneUrls || [];
+        if (metadata.videoId && sceneUrls.length > 0) {
+            const matchingScenes = sceneUrls.filter(u => u.includes(metadata.videoId));
+            if (matchingScenes.length > 0) {
+                sceneUrls = matchingScenes;
+            } else if (jobs.renderScenes === 'running' || jobs.renderScenes === 'pending') {
+                sceneUrls = [];
+                redis.del('pipeline:status:sceneUrls').catch(() => {});
+            }
+        }
+
+        let voiceoverUrls = rawVoiceoverUrls || [];
+        if (metadata.videoId && voiceoverUrls.length > 0) {
+            const matchingVo = voiceoverUrls.filter(u => u.includes(metadata.videoId));
+            if (matchingVo.length > 0) {
+                voiceoverUrls = matchingVo;
+            } else if (jobs.generateVoiceover === 'running' || jobs.generateVoiceover === 'pending') {
+                voiceoverUrls = [];
+                redis.del('pipeline:status:voiceoverUrls').catch(() => {});
+            }
+        }
         const ideasAdded = await redis.lrange('pipeline:status:ideasAdded', 0, -1);
         const queuedIdeasRaw = await redis.lrange('video:ideas', 0, -1);
         const queuedIdeas = queuedIdeasRaw.map(raw => {

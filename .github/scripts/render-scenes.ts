@@ -5,7 +5,7 @@
 
 import { renderScenes } from '../../workers/video-scene-renderer/src/index';
 import { validateConfig } from '../../shared/config';
-import { setJobStatus } from './utils/status-updater';
+import { setJobStatus, clearList } from './utils/status-updater';
 
 interface ScriptData {
     script: {
@@ -63,6 +63,11 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
         }
 
         await setJobStatus('renderScenes', 'running');
+        try {
+            await clearList('sceneUrls');
+        } catch (e) {
+            console.error('Non-fatal error clearing sceneUrls:', e);
+        }
         const result = await renderVideoScenes(videoId, scriptData);
         await setJobStatus('renderScenes', 'success');
 

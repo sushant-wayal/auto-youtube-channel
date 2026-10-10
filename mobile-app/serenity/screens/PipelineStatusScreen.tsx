@@ -313,7 +313,9 @@ export default function PipelineStatusScreen() {
         player.loop = true;
     });
 
-    const activeVoAudioUrl = (status?.voiceoverUrls && status.voiceoverUrls[selectedVoScene]) || '';
+    const activeVoAudioUrl = (status?.voiceoverUrls && status.voiceoverUrls.length > 0)
+        ? (status.voiceoverUrls[selectedVoScene] || status.voiceoverUrls[0] || '')
+        : '';
     const voAudioPlayer = useAudioPlayer(activeVoAudioUrl || null);
     const voAudioStatus = useAudioPlayerStatus(voAudioPlayer);
 
@@ -387,10 +389,18 @@ export default function PipelineStatusScreen() {
     const activeData = status;
     const narrations = activeData.sceneNarrations || [];
     const voUrls = activeData.voiceoverUrls || [];
-    const voScenesCount = Math.max(narrations.length, voUrls.length);
+    const isVoRunning = activeData.jobs?.generateVoiceover === 'running';
+    const isVoSuccess = activeData.jobs?.generateVoiceover === 'success';
+    const isVoFailed = activeData.jobs?.generateVoiceover === 'failure';
+    const voScenesCount = isVoRunning
+        ? voUrls.length
+        : isVoSuccess
+        ? (voUrls.length || narrations.length)
+        : voUrls.length;
+    const safeVoScene = voScenesCount > 0 ? Math.min(selectedVoScene, voScenesCount - 1) : 0;
     const currentNarration = narrations[selectedScriptScene] ?? narrations[0] ?? '';
-    const currentVoNarration = narrations[selectedVoScene] ?? narrations[0] ?? '';
-    const currentVoAudioUrl = voUrls[selectedVoScene];
+    const currentVoNarration = narrations[safeVoScene] ?? narrations[0] ?? '';
+    const currentVoAudioUrl = voUrls[safeVoScene] || '';
 
     const rawShortsList = [...(activeData.shorts || [])].sort((a, b) => (a.shortIndex ?? 0) - (b.shortIndex ?? 0));
     const shortHooks = activeData.shortHooks || [];
@@ -847,8 +857,14 @@ export default function PipelineStatusScreen() {
                                     <View style={styles.stepHeaderLeft}>
                                         <Text style={styles.stepTitleText}>04. Voiceover Synthesis</Text>
                                         <Text style={styles.stepSubtitle}>
-                                            {voScenesCount > 0
-                                                ? `${voScenesCount} scene audio tracks synthesized`
+                                            {isVoRunning
+                                                ? (voUrls.length > 0
+                                                    ? `Synthesizing • ${voUrls.length} of ${narrations.length || 7} scenes ready`
+                                                    : 'Neural Speech Audio Synthesis in progress...')
+                                                : isVoSuccess
+                                                ? `${voUrls.length || narrations.length} scene audio tracks synthesized`
+                                                : isVoFailed
+                                                ? 'Voiceover synthesis failed'
                                                 : 'Neural Speech Audio Synthesis'}
                                         </Text>
                                     </View>
@@ -863,18 +879,43 @@ export default function PipelineStatusScreen() {
                                 </TouchableOpacity>
 
                                 {expandedSteps[4] ? (
-                                    voScenesCount > 0 ? (
+                                    isVoRunning && voUrls.length === 0 ? (
+                                        <View style={styles.stepInnerBox}>
+                                            <View style={styles.innerBoxMetaRow}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                    <ActivityIndicator size="small" color={colors.running} />
+                                                    <Text style={[styles.sceneTitleHighlight, { color: colors.running }]}>Synthesis In Progress</Text>
+                                                </View>
+                                                <View style={styles.engineBadge}>
+                                                    <Text style={styles.engineBadgeText}>Neural TTS</Text>
+                                                </View>
+                                            </View>
+                                            <Text style={[styles.innerBoxParagraph, { marginTop: 8 }]}>
+                                                Generating neural speech audio for {narrations.length > 0 ? `${narrations.length} scenes` : 'episode scenes'}. Audio tracks and transcripts will become available for playback here as each scene completes.
+                                            </Text>
+                                        </View>
+                                    ) : voScenesCount > 0 ? (
                                         <>
+                                            {isVoRunning && (
+                                                <View style={{ marginBottom: 8, paddingHorizontal: 2 }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                        <ActivityIndicator size="small" color={colors.running} />
+                                                        <Text style={[styles.innerBoxMetaMono, { color: colors.running }]}>
+                                                            Synthesizing remaining scenes ({voUrls.length}/{narrations.length || 7} ready)...
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            )}
                                             {/* Scene Selector Strip */}
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabStrip}>
                                                 {Array.from({ length: voScenesCount }).map((_, idx) => (
                                                     <TouchableOpacity
                                                         key={idx}
-                                                        style={[styles.sceneTab, selectedVoScene === idx && styles.sceneTabActive]}
+                                                        style={[styles.sceneTab, safeVoScene === idx && styles.sceneTabActive]}
                                                         onPress={() => setSelectedVoScene(idx)}
                                                         activeOpacity={0.7}
                                                     >
-                                                        <Text style={[styles.sceneTabText, selectedVoScene === idx && styles.sceneTabTextActive]}>
+                                                        <Text style={[styles.sceneTabText, safeVoScene === idx && styles.sceneTabTextActive]}>
                                                             Scene {idx + 1}
                                                         </Text>
                                                     </TouchableOpacity>
@@ -884,7 +925,7 @@ export default function PipelineStatusScreen() {
                                             {/* Selected Scene Voiceover Details */}
                                             <View style={styles.stepInnerBox}>
                                                 <View style={styles.innerBoxMetaRow}>
-                                                    <Text style={styles.sceneTitleHighlight}>Scene 0{selectedVoScene + 1} • Voiceover Audio</Text>
+                                                    <Text style={styles.sceneTitleHighlight}>Scene 0{safeVoScene + 1} • Voiceover Audio</Text>
                                                     <View style={styles.engineBadge}>
                                                         <Text style={styles.engineBadgeText}>
                                                             {currentVoAudioDuration > 0 ? `${Math.round(currentVoAudioDuration)}s • ` : ''}F5 Neural
@@ -955,7 +996,7 @@ export default function PipelineStatusScreen() {
                                                     {currentVoNarration ? (
                                                         <TouchableOpacity
                                                             style={styles.cardActionBtnPrimary}
-                                                            onPress={() => copyToClipboard(currentVoNarration, `Scene 0${selectedVoScene + 1} Transcript`)}
+                                                            onPress={() => copyToClipboard(currentVoNarration, `Scene 0${safeVoScene + 1} Transcript`)}
                                                             activeOpacity={0.8}
                                                         >
                                                             <Ionicons name="copy-outline" size={13} color={colors.sandstone} />
@@ -966,7 +1007,7 @@ export default function PipelineStatusScreen() {
                                                     {currentVoAudioUrl ? (
                                                         <TouchableOpacity
                                                             style={styles.cardActionBtnSecondary}
-                                                            onPress={() => copyToClipboard(currentVoAudioUrl, `Scene 0${selectedVoScene + 1} Audio Link`)}
+                                                            onPress={() => copyToClipboard(currentVoAudioUrl, `Scene 0${safeVoScene + 1} Audio Link`)}
                                                             activeOpacity={0.8}
                                                         >
                                                             <Ionicons name="link-outline" size={13} color={colors.sandstone} />
@@ -976,9 +1017,18 @@ export default function PipelineStatusScreen() {
                                                 </View>
                                             </View>
                                         </>
+                                    ) : isVoFailed ? (
+                                        <View style={styles.stepInnerBox}>
+                                            <View style={styles.innerBoxMetaRow}>
+                                                <Text style={[styles.sceneTitleHighlight, { color: colors.failed }]}>Synthesis Failed</Text>
+                                            </View>
+                                            <Text style={[styles.innerBoxParagraph, { marginTop: 6, color: colors.failed }]}>
+                                                Voiceover synthesis encountered an error. Tap Re-run Failed Jobs above to retry.
+                                            </Text>
+                                        </View>
                                     ) : (
                                         <View style={styles.stepInnerBox}>
-                                            <Text style={styles.innerBoxParagraph}>Audio synthesis complete for episode.</Text>
+                                            <Text style={styles.innerBoxParagraph}>Voiceover synthesis pending. Waiting for script generation to complete.</Text>
                                         </View>
                                     )
                                 ) : null}

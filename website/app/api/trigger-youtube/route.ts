@@ -46,6 +46,9 @@ async function dispatchWorkflow(videoIdea?: string) {
                 ranAt: new Date().toISOString(),
                 videoTitle: videoIdea ? videoIdea.trim() : 'Automated Pipeline Run',
             });
+            await redis.del('pipeline:status:voiceoverUrls');
+            await redis.del('pipeline:status:sceneUrls');
+            await redis.del('pipeline:status:jobs');
             await redis.quit();
         } catch (e) {
             console.error('[trigger-youtube] Redis update error:', e);

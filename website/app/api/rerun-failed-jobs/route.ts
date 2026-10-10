@@ -116,6 +116,12 @@ export async function POST(req: NextRequest) {
             for (const [jobName, jobStatus] of Object.entries(existingJobs)) {
                 if (jobStatus === 'failure') {
                     await redis.hset('pipeline:status:jobs', jobName, 'running');
+                    if (jobName === 'generateVoiceover') {
+                        await redis.del('pipeline:status:voiceoverUrls');
+                    }
+                    if (jobName === 'renderScenes') {
+                        await redis.del('pipeline:status:sceneUrls');
+                    }
                 }
             }
         }
