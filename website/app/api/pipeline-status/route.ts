@@ -25,7 +25,8 @@ async function sendPushNotification(
     videoId: string,
     videoTitle: string,
     scheduledTime: string | null,
-    youtubeId?: string
+    youtubeId?: string,
+    errorSummary?: string | null
 ) {
     const isSuccess = overallStatus === 'success';
     const title = isSuccess
@@ -34,7 +35,9 @@ async function sendPushNotification(
 
     let body: string;
     if (!isSuccess) {
-        body = `"${videoTitle}" halted during generation. Tap to inspect telemetry.`;
+        body = errorSummary
+            ? `"${videoTitle}" halted: ${errorSummary}. Tap to inspect telemetry.`
+            : `"${videoTitle}" halted during generation. Tap to inspect telemetry.`;
     } else if (scheduledTime) {
         body = `"${videoTitle}" is queued for broadcast • Goes live at ${scheduledTime} IST`;
     } else {
@@ -113,19 +116,64 @@ export async function POST(req: NextRequest) {
             jobs?: Record<string, string>;
         } = body;
 
-        if (!overallStatus || !videoId) {
-            return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
+        if (!overallStatus) {
+            return NextResponse.json({ ok: false, error: 'Missing required overallStatus' }, { status: 400 });
         }
 
         redis = getRedisClient();
+
+        // Determine effective videoId and title, falling back gracefully if script generation failed
+        let effectiveVideoId = (videoId && videoId.trim()) || '';
+        if (!effectiveVideoId) {
+            const savedVideoId = await redis.hget('pipeline:status:metadata', 'videoId');
+            if (savedVideoId && savedVideoId !== 'generating...') {
+                effectiveVideoId = savedVideoId;
+            } else if (runId) {
+                effectiveVideoId = `run-${runId}`;
+            } else {
+                effectiveVideoId = `run-${Date.now()}`;
+            }
+        }
+
+        let effectiveVideoTitle = (videoTitle && videoTitle.trim()) || '';
+        if (!effectiveVideoTitle) {
+            const savedTitle = await redis.hget('pipeline:status:metadata', 'videoTitle');
+            if (savedTitle && savedTitle !== 'Daily Video Pipeline') {
+                effectiveVideoTitle = savedTitle;
+            } else if (runId) {
+                effectiveVideoTitle = `Pipeline Run #${runId}`;
+            } else {
+                effectiveVideoTitle = effectiveVideoId;
+            }
+        }
+
+        // Infer error summary if pipeline failed and errorSummary wasn't explicitly provided
+        let resolvedErrorSummary = body.errorSummary || null;
+        if (!resolvedErrorSummary && overallStatus === 'failure' && jobs) {
+            const failedJob = Object.entries(jobs).find(([_, st]) => st === 'failure');
+            if (failedJob) {
+                const jobLabels: Record<string, string> = {
+                    populateIdeas: 'Populate Ideas',
+                    generateScript: 'Script Generation',
+                    renderScenes: 'Scene Rendering',
+                    generateVoiceover: 'Voiceover Synthesis',
+                    assembleLongForm: 'Video Assembly',
+                    generateThumbnail: 'Thumbnail Generation',
+                    uploadYoutube: 'YouTube Upload',
+                    shortsProcessing: 'Shorts Processing',
+                    linkShorts: 'Link Shorts',
+                };
+                resolvedErrorSummary = `${jobLabels[failedJob[0]] || failedJob[0]} failed`;
+            }
+        }
 
         // Persist final overall status (handled by Redis status tracking)
         await redis.set('pipeline:status:overall', overallStatus, 'EX', 60 * 60 * 24 * 7);
 
         // Persist metadata including runId
         const metaFields: Record<string, string> = {
-            videoId,
-            videoTitle: videoTitle || videoId,
+            videoId: effectiveVideoId,
+            videoTitle: effectiveVideoTitle,
             ranAt: new Date().toISOString(),
         };
         if (youtubeId) metaFields.youtubeId = youtubeId;
@@ -134,8 +182,7 @@ export async function POST(req: NextRequest) {
         if (description) metaFields.description = description;
         if (runId) metaFields.runId = String(runId);
         if (scriptData) metaFields.scriptData = typeof scriptData === 'string' ? scriptData : JSON.stringify(scriptData);
-
-        if (body.errorSummary) metaFields.errorSummary = body.errorSummary;
+        if (resolvedErrorSummary) metaFields.errorSummary = resolvedErrorSummary;
 
         for (const [k, v] of Object.entries(metaFields)) {
             await redis.hset('pipeline:status:metadata', k, v);
@@ -155,8 +202,8 @@ export async function POST(req: NextRequest) {
         // Archive to historical runs list for Jarvis and analytics (keep latest 50 runs)
         try {
             const historyEntry = {
-                videoId,
-                videoTitle: videoTitle || videoId,
+                videoId: effectiveVideoId,
+                videoTitle: effectiveVideoTitle,
                 overallStatus,
                 youtubeId: youtubeId || null,
                 videoUrl: videoUrl || null,
@@ -164,7 +211,7 @@ export async function POST(req: NextRequest) {
                 ranAt: metaFields.ranAt,
                 runId: runId ? String(runId) : null,
                 jobs: jobs || {},
-                errorSummary: body.errorSummary || null,
+                errorSummary: resolvedErrorSummary,
             };
             await redis.lpush('pipeline:history', JSON.stringify(historyEntry));
             await redis.ltrim('pipeline:history', 0, 49);
@@ -177,7 +224,7 @@ export async function POST(req: NextRequest) {
         if (pushToken) {
             try {
                 const scheduledTime = await redis.get(LONG_FORM_TIME_KEY); // e.g. "20:00"
-                await sendPushNotification(pushToken, overallStatus, videoId, videoTitle ?? videoId, scheduledTime, youtubeId);
+                await sendPushNotification(pushToken, overallStatus, effectiveVideoId, effectiveVideoTitle, scheduledTime, youtubeId, resolvedErrorSummary);
             } catch (pushErr: any) {
                 console.error('[pipeline-status] Push notification error:', pushErr.message);
             }

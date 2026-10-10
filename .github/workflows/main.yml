@@ -549,6 +549,16 @@ jobs:
           THUMBNAIL_URL=$(echo "$THUMBNAIL_URL_HEX" | xxd -r -p 2>/dev/null || true)
           THUMBNAIL_URL=${THUMBNAIL_URL:-}
 
+          # Ensure VIDEO_ID and VIDEO_TITLE have reliable fallbacks even if script generation failed
+          VIDEO_ID=${VIDEO_ID:-}
+          VIDEO_TITLE=${VIDEO_TITLE:-}
+          if [[ -z "$VIDEO_ID" ]]; then
+            VIDEO_ID="run-${GITHUB_RUN_ID}"
+          fi
+          if [[ -z "$VIDEO_TITLE" ]]; then
+            VIDEO_TITLE="Pipeline Run #${GITHUB_RUN_ID}"
+          fi
+
           # Extract fields from script_data (env var — safe from quoting/apostrophe issues)
           DESCRIPTION=$(echo "$SCRIPT_DATA" | jq -r '.script.description // ""' 2>/dev/null || true)
           DESCRIPTION=${DESCRIPTION:-}
@@ -565,6 +575,7 @@ jobs:
 
           # Determine overall status — fail if any critical job failed
           CRITICAL_RESULTS=(
+            "${{ needs['populate-ideas'].result }}"
             "${{ needs['generate-script'].result }}"
             "${{ needs['render-scenes'].result }}"
             "${{ needs['generate-voiceover'].result }}"
@@ -579,6 +590,23 @@ jobs:
             fi
           done
 
+          ERROR_SUMMARY=""
+          if [[ "${{ needs['generate-script'].result }}" == "failure" ]]; then
+            ERROR_SUMMARY="Script Generation failed"
+          elif [[ "${{ needs['populate-ideas'].result }}" == "failure" ]]; then
+            ERROR_SUMMARY="Populate Ideas failed"
+          elif [[ "${{ needs['render-scenes'].result }}" == "failure" ]]; then
+            ERROR_SUMMARY="Scene Rendering failed"
+          elif [[ "${{ needs['generate-voiceover'].result }}" == "failure" ]]; then
+            ERROR_SUMMARY="Voiceover Generation failed"
+          elif [[ "${{ needs['assemble-video'].result }}" == "failure" ]]; then
+            ERROR_SUMMARY="Video Assembly failed"
+          elif [[ "${{ needs['generate-thumbnail'].result }}" == "failure" ]]; then
+            ERROR_SUMMARY="Thumbnail Generation failed"
+          elif [[ "${{ needs['upload-youtube'].result }}" == "failure" ]]; then
+            ERROR_SUMMARY="YouTube Upload failed"
+          fi
+
           # Build JSON payload using jq for proper escaping
           PAYLOAD=$(jq -n \
             --arg runId "$GITHUB_RUN_ID" \
@@ -589,6 +617,7 @@ jobs:
             --arg videoUrl "$VIDEO_URL" \
             --arg thumbnailUrl "$THUMBNAIL_URL" \
             --arg description "$DESCRIPTION" \
+            --arg errorSummary "$ERROR_SUMMARY" \
             --argjson sceneUrls "$SCENE_URLS_JSON" \
             --argjson voiceoverUrls "$VOICEOVER_URLS_JSON" \
             --argjson sceneNarrations "$SCENE_NARRATIONS" \
@@ -614,6 +643,7 @@ jobs:
               videoUrl: $videoUrl,
               thumbnailUrl: $thumbnailUrl,
               description: $description,
+              errorSummary: (if $errorSummary != "" then $errorSummary else null end),
               sceneUrls: $sceneUrls,
               voiceoverUrls: $voiceoverUrls,
               sceneNarrations: $sceneNarrations,
