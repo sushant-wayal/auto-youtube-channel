@@ -14,6 +14,7 @@ import {
     Modal,
     Platform,
     ActivityIndicator,
+    Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -79,6 +80,54 @@ const getStatusIconColor = (jobState?: JobResult) => {
     return colors.linenMuted;
 };
 
+const SpinningStatusIcon: React.FC<{
+    size?: number;
+    color?: string;
+    name?: keyof typeof Ionicons.glyphMap;
+}> = ({ size = 16, color = colors.running, name = 'sync' }) => {
+    const spinValue = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        const spinAnimation = Animated.loop(
+            Animated.timing(spinValue, {
+                toValue: 1,
+                duration: 1200,
+                easing: Easing.linear,
+                useNativeDriver: true,
+            })
+        );
+        spinAnimation.start();
+
+        return () => {
+            spinAnimation.stop();
+        };
+    }, [spinValue]);
+
+    const spin = spinValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0deg', '360deg'],
+    });
+
+    return (
+        <Animated.View style={{ transform: [{ rotate: spin }], alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={name} size={size} color={color} />
+        </Animated.View>
+    );
+};
+
+const renderStatusNodeIcon = (jobState?: JobResult, size = 16) => {
+    if (jobState === 'running') {
+        return <SpinningStatusIcon size={size} color={colors.running} name="sync" />;
+    }
+    return (
+        <Ionicons
+            name={getStatusIcon(jobState)}
+            size={size}
+            color={getStatusIconColor(jobState)}
+        />
+    );
+};
+
 const renderJobBadge = (jobState?: JobResult) => {
     if (jobState === 'success') {
         return (
@@ -89,7 +138,8 @@ const renderJobBadge = (jobState?: JobResult) => {
     }
     if (jobState === 'running') {
         return (
-            <View style={[styles.stepBadgeSuccess, { backgroundColor: 'rgba(251, 191, 36, 0.15)', borderColor: 'rgba(251, 191, 36, 0.3)' }]}>
+            <View style={[styles.stepBadgeSuccess, { backgroundColor: 'rgba(251, 191, 36, 0.15)', borderColor: 'rgba(251, 191, 36, 0.3)', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                <SpinningStatusIcon size={9} color={colors.running} name="sync" />
                 <Text style={[styles.stepBadgeSuccessText, { color: colors.running }]}>Running</Text>
             </View>
         );
@@ -511,7 +561,11 @@ export default function PipelineStatusScreen() {
 
                     <View style={styles.heroStatusRow}>
                         <View style={styles.statusPill}>
-                            <View style={styles.statusPillDot} />
+                            {activeData.overallStatus === 'running' ? (
+                                <SpinningStatusIcon size={12} color={colors.running} name="sync" />
+                            ) : (
+                                <View style={styles.statusPillDot} />
+                            )}
                             <Text style={styles.statusPillText}>
                                 {activeData.overallStatus === 'success' ? 'Pipeline Succeeded' : activeData.overallStatus === 'running' ? 'Pipeline In Progress' : 'Pipeline Failed'}
                             </Text>
@@ -530,7 +584,11 @@ export default function PipelineStatusScreen() {
                                     activeOpacity={0.8}
                                     disabled={rerunning}
                                 >
-                                    <Ionicons name="refresh" size={15} color={colors.sandstone} />
+                                    {rerunning ? (
+                                        <SpinningStatusIcon size={15} color={colors.sandstone} name="refresh" />
+                                    ) : (
+                                        <Ionicons name="refresh" size={15} color={colors.sandstone} />
+                                    )}
                                     <Text style={styles.heroSecondaryBtnText}>
                                         {rerunning ? 'Re-running...' : 'Re-run Failed Jobs'}
                                     </Text>
@@ -620,7 +678,7 @@ export default function PipelineStatusScreen() {
                         {/* ─── STEP 1: Populate Ideas ─── */}
                         <View style={styles.stepItem}>
                             <View style={[styles.nodePin, { borderColor: getStatusBorderColor(activeData.jobs?.populateIdeas) }]}>
-                                <Ionicons name={getStatusIcon(activeData.jobs?.populateIdeas)} size={16} color={getStatusIconColor(activeData.jobs?.populateIdeas)} />
+                                {renderStatusNodeIcon(activeData.jobs?.populateIdeas)}
                             </View>
                             <View style={styles.stepCard}>
                                 <TouchableOpacity
@@ -695,7 +753,7 @@ export default function PipelineStatusScreen() {
                         {/* ─── STEP 2: Generate Script ─── */}
                         <View style={styles.stepItem}>
                             <View style={[styles.nodePin, { borderColor: getStatusBorderColor(activeData.jobs?.generateScript) }]}>
-                                <Ionicons name={getStatusIcon(activeData.jobs?.generateScript)} size={16} color={getStatusIconColor(activeData.jobs?.generateScript)} />
+                                {renderStatusNodeIcon(activeData.jobs?.generateScript)}
                             </View>
                             <View style={styles.stepCard}>
                                 <TouchableOpacity
@@ -774,7 +832,7 @@ export default function PipelineStatusScreen() {
                         {/* ─── STEP 3: Render Scenes ─── */}
                         <View style={styles.stepItem}>
                             <View style={[styles.nodePin, { borderColor: getStatusBorderColor(activeData.jobs?.renderScenes) }]}>
-                                <Ionicons name={getStatusIcon(activeData.jobs?.renderScenes)} size={16} color={getStatusIconColor(activeData.jobs?.renderScenes)} />
+                                {renderStatusNodeIcon(activeData.jobs?.renderScenes)}
                             </View>
                             <View style={styles.stepCard}>
                                 <TouchableOpacity
@@ -846,7 +904,7 @@ export default function PipelineStatusScreen() {
                         {/* ─── STEP 4: Voiceover Synthesis ─── */}
                         <View style={styles.stepItem}>
                             <View style={[styles.nodePin, { borderColor: getStatusBorderColor(activeData.jobs?.generateVoiceover) }]}>
-                                <Ionicons name={getStatusIcon(activeData.jobs?.generateVoiceover)} size={16} color={getStatusIconColor(activeData.jobs?.generateVoiceover)} />
+                                {renderStatusNodeIcon(activeData.jobs?.generateVoiceover)}
                             </View>
                             <View style={styles.stepCard}>
                                 <TouchableOpacity
@@ -1038,7 +1096,7 @@ export default function PipelineStatusScreen() {
                         {/* ─── STEP 5: Assembled Video ─── */}
                         <View style={styles.stepItem}>
                             <View style={[styles.nodePin, { borderColor: getStatusBorderColor(activeData.jobs?.assembleLongForm) }]}>
-                                <Ionicons name={getStatusIcon(activeData.jobs?.assembleLongForm)} size={16} color={getStatusIconColor(activeData.jobs?.assembleLongForm)} />
+                                {renderStatusNodeIcon(activeData.jobs?.assembleLongForm)}
                             </View>
                             <View style={styles.stepCard}>
                                 <TouchableOpacity
@@ -1107,7 +1165,7 @@ export default function PipelineStatusScreen() {
                         {/* ─── STEP 6: Thumbnail ─── */}
                         <View style={styles.stepItem}>
                             <View style={[styles.nodePin, { borderColor: getStatusBorderColor(activeData.jobs?.generateThumbnail) }]}>
-                                <Ionicons name={getStatusIcon(activeData.jobs?.generateThumbnail)} size={16} color={getStatusIconColor(activeData.jobs?.generateThumbnail)} />
+                                {renderStatusNodeIcon(activeData.jobs?.generateThumbnail)}
                             </View>
                             <View style={styles.stepCard}>
                                 <TouchableOpacity
@@ -1392,7 +1450,7 @@ export default function PipelineStatusScreen() {
                         {/* ─── STEP 7: Upload to YouTube ─── */}
                         <View style={styles.stepItem}>
                             <View style={[styles.nodePin, { borderColor: getStatusBorderColor(activeData.jobs?.uploadYoutube) }]}>
-                                <Ionicons name={getStatusIcon(activeData.jobs?.uploadYoutube)} size={16} color={getStatusIconColor(activeData.jobs?.uploadYoutube)} />
+                                {renderStatusNodeIcon(activeData.jobs?.uploadYoutube)}
                             </View>
                             <View style={styles.stepCard}>
                                 <TouchableOpacity
@@ -1471,7 +1529,7 @@ export default function PipelineStatusScreen() {
                         {/* ─── STEP 8: Shorts Packaging ─── */}
                         <View style={styles.stepItem}>
                             <View style={[styles.nodePin, { borderColor: getStatusBorderColor(activeData.jobs?.shortsProcessing) }]}>
-                                <Ionicons name={getStatusIcon(activeData.jobs?.shortsProcessing)} size={16} color={getStatusIconColor(activeData.jobs?.shortsProcessing)} />
+                                {renderStatusNodeIcon(activeData.jobs?.shortsProcessing)}
                             </View>
                             <View style={styles.stepCard}>
                                 <TouchableOpacity
