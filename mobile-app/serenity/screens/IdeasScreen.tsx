@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -11,7 +11,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     Animated,
-    ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ideasApi, seriesApi, SeriesState } from '../services/api';
@@ -178,7 +177,6 @@ export default function IdeasScreen() {
 
     // Concept Options Modal State
     const [selectedActionIndex, setSelectedActionIndex] = useState<number | null>(null);
-    const [pushingSeriesId, setPushingSeriesId] = useState<string | null>(null);
 
     // Alert & Toast State
     const [alertConfig, setAlertConfig] = useState<CustomAlertConfig>({
@@ -423,39 +421,10 @@ export default function IdeasScreen() {
         }
     };
 
-    const handlePushSeriesToQueue = async (seriesId: string) => {
-        try {
-            setPushingSeriesId(seriesId);
-            showToast('Scheduling series episode...');
-            const res = await seriesApi.pushEpisodeToQueue(seriesId);
-            if (res.ok) {
-                showToast('Series episode queued successfully!');
-                await loadData(true);
-            } else {
-                showToast(res.error || 'Failed to queue episode');
-            }
-        } catch (err: any) {
-            showToast(err.message || 'Error queueing episode');
-        } finally {
-            setPushingSeriesId(null);
-        }
-    };
-
     // Parse all ideas
     const parsedIdeas = ideas.map((raw, idx) => parseIdea(raw, idx, seriesList));
     const seriesCount = parsedIdeas.filter(i => i.isSeries).length;
     const standaloneCount = parsedIdeas.filter(i => !i.isSeries).length;
-
-    // Series whose episode is not currently in the ideas queue
-    const unqueuedSeries = useMemo(() => {
-        return seriesList.filter(s => {
-            if (s.status !== 'active') return false;
-            if (typeof s.hasQueuedEpisode === 'boolean') {
-                return !s.hasQueuedEpisode;
-            }
-            return !parsedIdeas.some(i => i.isSeries && (i.series === s.title || i.title.includes(s.title)));
-        });
-    }, [seriesList, parsedIdeas]);
 
     const filteredIdeas = parsedIdeas.filter(item => {
         if (activeFilter === 'series') return item.isSeries;
@@ -539,45 +508,6 @@ export default function IdeasScreen() {
                             <Ionicons name="add" size={16} color={colors.obsidian[950]} />
                             <Text style={styles.emptyCtaText}>Add First Concept</Text>
                         </TouchableOpacity>
-
-                        {unqueuedSeries.length > 0 && (
-                            <View style={styles.unqueuedSeriesCard}>
-                                <View style={styles.unqueuedSeriesHeader}>
-                                    <Ionicons name="film-outline" size={13} color={colors.sandstone} />
-                                    <Text style={styles.unqueuedSeriesTitle}>SERIES AWAITING EPISODES ({unqueuedSeries.length})</Text>
-                                </View>
-                                <Text style={styles.unqueuedSeriesSub}>
-                                    Active series tracks with no episode currently in the production queue:
-                                </Text>
-                                <View style={styles.unqueuedSeriesList}>
-                                    {unqueuedSeries.map(s => (
-                                        <View key={s.id} style={styles.unqueuedSeriesRow}>
-                                            <View style={styles.unqueuedSeriesInfo}>
-                                                <Text style={styles.unqueuedSeriesName} numberOfLines={1}>{s.title}</Text>
-                                                <Text style={styles.unqueuedSeriesMeta}>
-                                                    {s.learningQueue?.length || 0} planned in roadmap
-                                                </Text>
-                                            </View>
-                                            <TouchableOpacity
-                                                style={styles.unqueuedPushBtn}
-                                                onPress={() => handlePushSeriesToQueue(s.id)}
-                                                disabled={pushingSeriesId === s.id}
-                                                activeOpacity={0.8}
-                                            >
-                                                {pushingSeriesId === s.id ? (
-                                                    <ActivityIndicator size="small" color={colors.obsidian[950] || '#000'} />
-                                                ) : (
-                                                    <Ionicons name="arrow-up-circle-outline" size={13} color={colors.obsidian[950] || '#000'} />
-                                                )}
-                                                <Text style={styles.unqueuedPushBtnText}>
-                                                    {pushingSeriesId === s.id ? 'Queueing...' : 'Push to Queue'}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
-                                </View>
-                            </View>
-                        )}
                     </View>
                 ) : (
                     <>
@@ -665,46 +595,6 @@ export default function IdeasScreen() {
                                 </Text>
                             </TouchableOpacity>
                         </View>
-
-                        {/* ─── Unqueued Series Quick Action ─── */}
-                        {unqueuedSeries.length > 0 && (activeFilter === 'series' || activeFilter === 'all') && (
-                            <View style={styles.unqueuedSeriesCard}>
-                                <View style={styles.unqueuedSeriesHeader}>
-                                    <Ionicons name="film-outline" size={13} color={colors.sandstone} />
-                                    <Text style={styles.unqueuedSeriesTitle}>SERIES NOT IN QUEUE ({unqueuedSeries.length})</Text>
-                                </View>
-                                <Text style={styles.unqueuedSeriesSub}>
-                                    These active series tracks have no episode waiting in the production queue:
-                                </Text>
-                                <View style={styles.unqueuedSeriesList}>
-                                    {unqueuedSeries.map(s => (
-                                        <View key={s.id} style={styles.unqueuedSeriesRow}>
-                                            <View style={styles.unqueuedSeriesInfo}>
-                                                <Text style={styles.unqueuedSeriesName} numberOfLines={1}>{s.title}</Text>
-                                                <Text style={styles.unqueuedSeriesMeta}>
-                                                    {s.learningQueue?.length || 0} planned in roadmap
-                                                </Text>
-                                            </View>
-                                            <TouchableOpacity
-                                                style={styles.unqueuedPushBtn}
-                                                onPress={() => handlePushSeriesToQueue(s.id)}
-                                                disabled={pushingSeriesId === s.id}
-                                                activeOpacity={0.8}
-                                            >
-                                                {pushingSeriesId === s.id ? (
-                                                    <ActivityIndicator size="small" color={colors.obsidian[950] || '#000'} />
-                                                ) : (
-                                                    <Ionicons name="arrow-up-circle-outline" size={13} color={colors.obsidian[950] || '#000'} />
-                                                )}
-                                                <Text style={styles.unqueuedPushBtnText}>
-                                                    {pushingSeriesId === s.id ? 'Queueing...' : 'Push to Queue'}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
-                                </View>
-                            </View>
-                        )}
 
                         {/* ─── Subsequent Queue Cards (#02, #03...) ─── */}
                         <View style={styles.queueSection}>
@@ -2040,75 +1930,5 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: colors.bone.muted,
         marginTop: 1,
-    },
-    unqueuedSeriesCard: {
-        backgroundColor: colors.obsidian[900] || '#18181B',
-        borderRadius: borderRadius.md,
-        borderWidth: 1,
-        borderColor: 'rgba(200, 178, 155, 0.25)',
-        padding: spacing.md,
-        marginVertical: spacing.sm,
-        gap: spacing.xs,
-    },
-    unqueuedSeriesHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    unqueuedSeriesTitle: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: colors.sandstone,
-        letterSpacing: 0.8,
-    },
-    unqueuedSeriesSub: {
-        fontSize: 11,
-        color: colors.bone.muted,
-        lineHeight: 15,
-    },
-    unqueuedSeriesList: {
-        marginTop: spacing.xs,
-        gap: spacing.xs + 2,
-    },
-    unqueuedSeriesRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: colors.obsidian[950] || '#09090B',
-        paddingVertical: spacing.sm,
-        paddingHorizontal: spacing.sm + 4,
-        borderRadius: borderRadius.xs,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-        gap: spacing.sm,
-    },
-    unqueuedSeriesInfo: {
-        flex: 1,
-        minWidth: 0,
-    },
-    unqueuedSeriesName: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: colors.bone.DEFAULT,
-    },
-    unqueuedSeriesMeta: {
-        fontSize: 10,
-        color: colors.bone.muted,
-        marginTop: 1,
-    },
-    unqueuedPushBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: spacing.sm + 4,
-        paddingVertical: 6,
-        borderRadius: borderRadius.xs,
-        backgroundColor: colors.sandstone,
-        flexShrink: 0,
-    },
-    unqueuedPushBtnText: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: colors.obsidian[950] || '#000000',
     },
 });
