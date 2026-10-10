@@ -10,7 +10,9 @@
     "daily": "npx tsx .github/scripts/generate-script.ts",
     "publish:local-assets": "tsx assemble-local-assets-and-publish.ts",
     "reply:comments": "npx tsx .github/scripts/auto-comment-reply.ts",
-    "link:shorts": "npx tsx scripts/link-related-videos-locally.ts"
+    "link:shorts": "npx tsx scripts/link-related-videos-locally.ts",
+    "cleanup:cloudinary": "npx tsx scripts/cleanup-cloudinary.ts --execute --keep-hours=48",
+    "cleanup:cloudinary:dry": "npx tsx scripts/cleanup-cloudinary.ts --dry-run --keep-hours=48"
   },
   "devDependencies": {
     "@types/react": "~19.1.10"

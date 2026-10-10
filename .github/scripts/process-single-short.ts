@@ -22,6 +22,7 @@ import { assembleVideo } from '../../workers/video-assembler/src/index';
 import { uploadToYouTube, formatYouTubeTitle } from '../../workers/youtube-upload/src/index';
 import { validateConfig } from '../../shared/config';
 import { getShortsPublishTimeByRank } from '../../shared/services/shorts-publish-time-service';
+import CloudinaryService from '../../shared/services/cloudinary-service';
 
 /**
  * Convert an IST time string (HH:MM) to a UTC ISO-8601 publish timestamp.
@@ -199,6 +200,15 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         console.error(`✅ Short ${shortIndex} result stored in Redis`);
     } catch (redisErr) {
         console.error(`⚠️  Could not store short result in Redis (non-fatal):`, redisErr);
+    }
+
+    // Clean up intermediate scene clips and voiceovers from Cloudinary for this short
+    try {
+        const cloudinaryService = CloudinaryService.getInstance();
+        await cloudinaryService.deleteFilesByUrls([...clips, ...voiceovers]);
+        console.error(`🧹 Cleaned up intermediate Cloudinary clips for short ${shortIndex + 1}`);
+    } catch (cleanupErr) {
+        console.error(`⚠️ Non-fatal Cloudinary cleanup error for short ${shortIndex + 1}:`, cleanupErr);
     }
 
     return result;

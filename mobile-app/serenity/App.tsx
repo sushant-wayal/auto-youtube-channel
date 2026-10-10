@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer, useNavigationContainerRef, TabActions } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef, TabActions, CommonActions } from '@react-navigation/native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { StatusBar } from 'expo-status-bar';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
@@ -101,29 +101,61 @@ export default function App() {
     const inAppAnim = React.useRef(new Animated.Value(-140)).current;
 
     const pendingRouteRef = React.useRef<{ name: string; index: number; timestamp: number } | null>(null);
+    const targetTabRef = React.useRef<number | null>(null);
+    const lastHandledNotifIdRef = React.useRef<string>('');
     const lastHandledTimeRef = React.useRef<number>(0);
     const suppressStateSyncUntilRef = React.useRef<number>(0);
+
+    const dismissInAppBanner = React.useCallback(() => {
+        Animated.timing(inAppAnim, {
+            toValue: -140,
+            duration: 220,
+            useNativeDriver: true,
+        }).start(() => {
+            setInAppNotification(null);
+        });
+    }, [inAppAnim]);
+
+    const normalizeTargetRoute = React.useCallback((rawTarget?: any): { routeName: string; tabIndex: number } => {
+        const raw = String(rawTarget || '').trim().toLowerCase();
+        if (raw.includes('idea')) return { routeName: 'Ideas', tabIndex: 0 };
+        if (raw.includes('series')) return { routeName: 'Series', tabIndex: 1 };
+        if (raw.includes('schedule') || raw.includes('time')) return { routeName: 'Schedule', tabIndex: 2 };
+        if (raw.includes('comment') || raw.includes('audience')) return { routeName: 'Comments', tabIndex: 4 };
+        return { routeName: 'Pipeline', tabIndex: 3 };
+    }, []);
 
     const jumpToTab = React.useCallback((routeName: string, tabIndex: number) => {
         console.log(`[Push] jumpToTab requested for ${routeName} (index ${tabIndex})`);
         
-        // Immediately set the UI bottom bar tab state
+        // 1. Always dismiss settings modal so the pipeline screen is immediately visible
+        setShowSettings(false);
+
+        // 2. Immediately update the UI bottom bar tab state
         setActiveTab(tabIndex);
+        targetTabRef.current = tabIndex;
         
-        // Suppress onStateChange from resetting to 0 during tab initialization
-        suppressStateSyncUntilRef.current = Date.now() + 1500;
+        // 3. Suppress intermediate onStateChange resets while pager transitions
+        suppressStateSyncUntilRef.current = Date.now() + 2000;
 
         const performJump = () => {
+            setShowSettings(false);
+            setActiveTab(tabIndex);
             if (navigationRef.isReady()) {
-                setActiveTab(tabIndex);
+                try {
+                    navigationRef.navigate(routeName as never);
+                } catch (e) {
+                    console.error('[Push] navigationRef.navigate error:', e);
+                }
+                try {
+                    navigationRef.dispatch(CommonActions.navigate({ name: routeName }));
+                } catch (e) {
+                    console.error('[Push] CommonActions.navigate error:', e);
+                }
                 try {
                     navigationRef.dispatch(TabActions.jumpTo(routeName));
-                } catch {
-                    try {
-                        navigationRef.navigate(routeName as never);
-                    } catch (e) {
-                        console.error('[Push] Navigation jump error:', e);
-                    }
+                } catch (e) {
+                    console.error('[Push] TabActions.jumpTo error:', e);
                 }
             }
         };
@@ -131,61 +163,84 @@ export default function App() {
         // Execute immediately
         performJump();
 
-        // Staggered retries to ensure Android ViewPager2 / TopTabs registers the jump after layout passes
-        const t1 = setTimeout(performJump, 80);
-        const t2 = setTimeout(performJump, 250);
-        const t3 = setTimeout(performJump, 600);
+        // Staggered retries to guarantee jump registers across React Native layout and pager cycles
+        const t1 = setTimeout(performJump, 50);
+        const t2 = setTimeout(performJump, 150);
+        const t3 = setTimeout(performJump, 350);
+        const t4 = setTimeout(performJump, 700);
+        const t5 = setTimeout(performJump, 1200);
 
         return () => {
             clearTimeout(t1);
             clearTimeout(t2);
             clearTimeout(t3);
+            clearTimeout(t4);
+            clearTimeout(t5);
         };
     }, [navigationRef]);
 
     const navigateToScreen = React.useCallback((routeName: string, tabIndex: number) => {
+        setShowSettings(false);
         if (navigationRef.isReady()) {
             jumpToTab(routeName, tabIndex);
         } else {
             console.log(`[Push] NavigationContainer not ready, storing pending route: ${routeName}`);
             pendingRouteRef.current = { name: routeName, index: tabIndex, timestamp: Date.now() };
+            targetTabRef.current = tabIndex;
             setActiveTab(tabIndex);
-            suppressStateSyncUntilRef.current = Date.now() + 1800;
+            suppressStateSyncUntilRef.current = Date.now() + 2500;
         }
     }, [navigationRef, jumpToTab]);
 
     const handleNotificationResponse = React.useCallback((response: any) => {
         if (!response) return;
 
-        // Deduplicate rapid repeat invocations within 1.5 seconds
+        const notifId = response?.notification?.request?.identifier || '';
         const now = Date.now();
-        if (now - lastHandledTimeRef.current < 1500) {
+
+        // Deduplicate identical notification response within 4 seconds
+        if (notifId && notifId === lastHandledNotifIdRef.current && (now - lastHandledTimeRef.current < 4000)) {
+            console.log(`[Push] Notification ${notifId} already handled recently, skipping duplicate`);
             return;
         }
+        // Debounce rapid double-taps (<300ms)
+        if (now - lastHandledTimeRef.current < 300) {
+            return;
+        }
+
+        lastHandledNotifIdRef.current = notifId;
         lastHandledTimeRef.current = now;
 
         console.log('[Push] Notification response received:', JSON.stringify(response.notification?.request?.content?.title));
 
-        let rawData: any = response.notification?.request?.content?.data;
+        // Immediately close any open modal and in-app banner
+        dismissInAppBanner();
+        setShowSettings(false);
+
+        let rawData: any = response?.notification?.request?.content?.data
+            || (response?.notification?.request?.trigger as any)?.remoteMessage?.data
+            || (response?.notification as any)?.data
+            || {};
+
         if (typeof rawData === 'string') {
+            try { rawData = JSON.parse(rawData); } catch {}
+        }
+        if (rawData?.body && typeof rawData.body === 'string') {
             try {
-                rawData = JSON.parse(rawData);
+                const parsed = JSON.parse(rawData.body);
+                rawData = { ...rawData, ...parsed };
             } catch {}
         }
+        if (rawData?.data && typeof rawData.data === 'object') {
+            rawData = { ...rawData, ...rawData.data };
+        }
 
-        const targetScreen: string = String(rawData?.screen || rawData?.targetScreen || rawData?.route || 'Pipeline');
-        const screenTabMap: Record<string, number> = {
-            Ideas: 0,
-            Series: 1,
-            Schedule: 2,
-            Pipeline: 3,
-            Comments: 4,
-        };
-        const tabIndex = screenTabMap[targetScreen] ?? 3;
+        const targetScreenKey = rawData?.screen || rawData?.targetScreen || rawData?.route || 'Pipeline';
+        const { routeName, tabIndex } = normalizeTargetRoute(targetScreenKey);
 
-        console.log(`[Push] Routing notification click to: ${targetScreen} (tab ${tabIndex})`);
-        navigateToScreen(targetScreen, tabIndex);
-    }, [navigateToScreen]);
+        console.log(`[Push] Routing notification click directly to: ${routeName} (tab ${tabIndex})`);
+        navigateToScreen(routeName, tabIndex);
+    }, [navigateToScreen, dismissInAppBanner, normalizeTargetRoute]);
 
     const handleNavigationReady = React.useCallback(() => {
         console.log('[Push] NavigationContainer is ready');
@@ -318,19 +373,25 @@ export default function App() {
         const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
             console.log('[Push] Foreground notification received');
             const content = notification?.request?.content;
-            let rawData: any = content?.data;
+            let rawData: any = content?.data
+                || (notification?.request?.trigger as any)?.remoteMessage?.data
+                || {};
+
             if (typeof rawData === 'string') {
                 try { rawData = JSON.parse(rawData); } catch {}
             }
-            const target: string = String(rawData?.screen || rawData?.targetScreen || rawData?.route || 'Pipeline');
-            const screenTabMap: Record<string, number> = {
-                Ideas: 0,
-                Series: 1,
-                Schedule: 2,
-                Pipeline: 3,
-                Comments: 4,
-            };
-            const tabIdx = screenTabMap[target] ?? 3;
+            if (rawData?.body && typeof rawData.body === 'string') {
+                try {
+                    const parsed = JSON.parse(rawData.body);
+                    rawData = { ...rawData, ...parsed };
+                } catch {}
+            }
+            if (rawData?.data && typeof rawData.data === 'object') {
+                rawData = { ...rawData, ...rawData.data };
+            }
+
+            const targetScreenKey = rawData?.screen || rawData?.targetScreen || rawData?.route || 'Pipeline';
+            const { routeName, tabIndex: tabIdx } = normalizeTargetRoute(targetScreenKey);
 
             const isFailure = rawData?.status === 'failure' ||
                 content?.title?.toLowerCase().includes('alert') ||
@@ -351,7 +412,7 @@ export default function App() {
             setInAppNotification({
                 title: content?.title || (isFailure ? '🚨 Pipeline Alert' : '✅ Video Ready'),
                 body: content?.body || 'New pipeline update available.',
-                targetScreen: target,
+                targetScreen: routeName,
                 tabIndex: tabIdx,
                 status,
             });
@@ -370,17 +431,7 @@ export default function App() {
             appStateSub.remove();
             receivedSub.remove();
         };
-    }, [handleNotificationResponse, inAppAnim]);
-
-    const dismissInAppBanner = React.useCallback(() => {
-        Animated.timing(inAppAnim, {
-            toValue: -140,
-            duration: 220,
-            useNativeDriver: true,
-        }).start(() => {
-            setInAppNotification(null);
-        });
-    }, [inAppAnim]);
+    }, [handleNotificationResponse, inAppAnim, normalizeTargetRoute]);
 
     React.useEffect(() => {
         if (inAppNotification) {
@@ -393,7 +444,10 @@ export default function App() {
         if (!inAppNotification) return;
         const { targetScreen, tabIndex } = inAppNotification;
         dismissInAppBanner();
-        jumpToTab(targetScreen, tabIndex);
+        setShowSettings(false);
+        const { routeName, tabIndex: targetTab } = normalizeTargetRoute(targetScreen || tabIndex);
+        console.log(`[Push] In-app banner tapped -> routing directly to: ${routeName} (tab ${targetTab})`);
+        jumpToTab(routeName, targetTab);
     };
 
     const handleTabPress = (index: number, routeName: string) => {
@@ -523,11 +577,14 @@ export default function App() {
                         onStateChange={(state) => {
                             const index = state?.index;
                             if (index !== undefined) {
-                                // Prevent initial top-tab layout from resetting activeTab back to 0 during active jump
-                                if (Date.now() < suppressStateSyncUntilRef.current && index === 0 && activeTab !== 0) {
-                                    console.log('[Push] Suppressing onStateChange reset to index 0 during active jump');
-                                    return;
+                                // If a jump to a target tab is currently in progress, do not let intermediate pager indexes overwrite activeTab
+                                if (Date.now() < suppressStateSyncUntilRef.current) {
+                                    if (targetTabRef.current !== null && index !== targetTabRef.current) {
+                                        console.log(`[Push] Suppressing intermediate onStateChange to index ${index} during jump to ${targetTabRef.current}`);
+                                        return;
+                                    }
                                 }
+                                targetTabRef.current = null;
                                 setActiveTab(index);
                             }
                         }}

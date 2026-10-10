@@ -190,12 +190,49 @@ class CloudinaryService {
     }
 
     /**
-     * Clean up intermediate files for a job
+     * Extract Cloudinary public ID from a URL
+     */
+    static extractPublicId(url: string): string | null {
+        try {
+            const uploadIndex = url.indexOf('/upload/');
+            if (uploadIndex === -1) return null;
+            let pathAfterUpload = url.slice(uploadIndex + '/upload/'.length);
+            pathAfterUpload = pathAfterUpload.replace(/^(?:[a-zA-Z0-9_,-]+\/)*v\d+\//, '');
+            const dotIndex = pathAfterUpload.lastIndexOf('.');
+            if (dotIndex !== -1) {
+                pathAfterUpload = pathAfterUpload.slice(0, dotIndex);
+            }
+            return pathAfterUpload;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Delete files by their full Cloudinary URLs
+     */
+    async deleteFilesByUrls(urls: string[], resourceType: 'video' | 'image' = 'video'): Promise<void> {
+        const publicIds = urls
+            .map(u => CloudinaryService.extractPublicId(u))
+            .filter((id): id is string => Boolean(id));
+
+        if (publicIds.length === 0) return;
+
+        for (let i = 0; i < publicIds.length; i += 100) {
+            const chunk = publicIds.slice(i, i + 100);
+            await this.deleteFiles(chunk, resourceType);
+        }
+    }
+
+    /**
+     * Clean up intermediate and scene files for a job
      */
     async cleanupJobFiles(jobId: string): Promise<void> {
         try {
-            // Delete all files in the job folder
-            await cloudinary.api.delete_resources_by_prefix(`video-gen/${jobId}/intermediate`, {
+            await cloudinary.api.delete_resources_by_prefix(`video-gen/${jobId}`, {
+                resource_type: 'video',
+            });
+            await cloudinary.api.delete_resources_by_prefix(`video-gen/scenes/${jobId}`, {
                 resource_type: 'video',
             });
             console.log(`🧹 Cleaned up intermediate files for job: ${jobId}`);

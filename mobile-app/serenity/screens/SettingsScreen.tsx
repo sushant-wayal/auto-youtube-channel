@@ -12,7 +12,7 @@ import {
     Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { settingsApi, commentsApi, CustomArchetype } from '../services/api';
+import { settingsApi, commentsApi, pipelineApi, CustomArchetype } from '../services/api';
 import { colors, spacing, borderRadius, typography } from '../theme';
 
 type CommentMode = 'live' | 'dry_run' | 'paused';
@@ -73,6 +73,26 @@ export default function SettingsScreen() {
     // Toast state
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const toastOpacity = useRef(new Animated.Value(0)).current;
+
+    // Notification Preview & Test Trigger states
+    const [testingNotification, setTestingNotification] = useState<'success' | 'failure' | null>(null);
+    const [previewMode, setPreviewMode] = useState<'tray' | 'banner'>('tray');
+
+    const handleTriggerTestNotification = async (type: 'success' | 'failure') => {
+        setTestingNotification(type);
+        try {
+            const res = await pipelineApi.triggerTestNotification(type);
+            if (res.ok) {
+                showToast(`🚀 ${type === 'success' ? 'Success' : 'Alert'} notification pushed to your device!`);
+            } else {
+                showToast(res.error || 'Failed to trigger test notification');
+            }
+        } catch {
+            showToast('Error contacting notification service');
+        } finally {
+            setTestingNotification(null);
+        }
+    };
 
     const showToast = (msg: string) => {
         setToastMessage(msg);
@@ -690,6 +710,193 @@ export default function SettingsScreen() {
                             </TouchableOpacity>
                         </View>
                     </View>
+
+                    {/* Setting 5: Pipeline Push Notifications & Visual Previews */}
+                    <View style={styles.card}>
+                        <View style={styles.cardHeader}>
+                            <Ionicons name="notifications-outline" size={16} color={colors.sandstone} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.cardLabel}>Push Notification Design & Previews</Text>
+                                <Text style={styles.cardDescription}>
+                                    Compare Success vs Failure alerts. Tap either button to trigger a live test push to your phone.
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Format Switcher */}
+                        <View style={styles.previewModeRow}>
+                            <TouchableOpacity
+                                style={[styles.previewModeBtn, previewMode === 'tray' && styles.previewModeBtnActive]}
+                                onPress={() => setPreviewMode('tray')}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name="phone-portrait-outline"
+                                    size={13}
+                                    color={previewMode === 'tray' ? colors.obsidian[950] : colors.bone.muted}
+                                />
+                                <Text
+                                    style={[
+                                        styles.previewModeText,
+                                        previewMode === 'tray' && styles.previewModeTextActive,
+                                    ]}
+                                >
+                                    System Tray / Lock Screen
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.previewModeBtn, previewMode === 'banner' && styles.previewModeBtnActive]}
+                                onPress={() => setPreviewMode('banner')}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons
+                                    name="notifications-circle-outline"
+                                    size={13}
+                                    color={previewMode === 'banner' ? colors.obsidian[950] : colors.bone.muted}
+                                />
+                                <Text
+                                    style={[
+                                        styles.previewModeText,
+                                        previewMode === 'banner' && styles.previewModeTextActive,
+                                    ]}
+                                >
+                                    In-App Floating Banner
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Cards Comparison Container */}
+                        <View style={styles.previewCardsContainer}>
+                            {/* SUCCESS CARD */}
+                            <View style={styles.notificationMockupSuccess}>
+                                <View style={styles.mockupBadgeSuccess}>
+                                    <Ionicons name="checkmark-circle" size={12} color="#22c55e" />
+                                    <Text style={styles.mockupBadgeSuccessText}>SUCCESS DESIGN</Text>
+                                </View>
+
+                                {previewMode === 'tray' ? (
+                                    <View style={styles.systemTrayCard}>
+                                        <View style={styles.systemTrayHeader}>
+                                            <View style={styles.appIconCircleSuccess}>
+                                                <Ionicons name="videocam" size={10} color="#22c55e" />
+                                            </View>
+                                            <Text style={styles.systemAppName}>SERENITY • PIPELINE</Text>
+                                            <Text style={styles.systemTime}>now</Text>
+                                        </View>
+                                        <Text style={styles.systemTitleSuccess}>✅ SUCCESS • Video Ready & Scheduled</Text>
+                                        <Text style={styles.systemSubtitle}>Broadcast Queued • YouTube Premiere</Text>
+                                        <Text style={styles.systemBody}>
+                                            🎬 "Why Is HTTP Stateless?" is ready • Goes live at 18:30 IST on YouTube
+                                        </Text>
+                                        <View style={styles.systemFooterRow}>
+                                            <Text style={styles.systemFooterTagSuccess}>Channel: pipeline-success</Text>
+                                            <Text style={styles.systemFooterSpec}>🟢 Green LED • Gentle Haptic</Text>
+                                        </View>
+                                    </View>
+                                ) : (
+                                    <View style={styles.inAppBannerCardSuccess}>
+                                        <View style={styles.bannerIconBoxSuccess}>
+                                            <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <View style={styles.bannerHeaderRow}>
+                                                <Text style={styles.bannerBadgeSuccess}>✦ BROADCAST READY</Text>
+                                                <Text style={styles.bannerTimeText}>Just now</Text>
+                                            </View>
+                                            <Text style={styles.bannerTitleText} numberOfLines={1}>
+                                                ✅ SUCCESS • Video Ready & Scheduled
+                                            </Text>
+                                            <Text style={styles.bannerBodyText} numberOfLines={2}>
+                                                🎬 "Why Is HTTP Stateless?" is ready • Goes live at 18:30 IST on YouTube
+                                            </Text>
+                                            <Text style={styles.bannerActionSuccess}>VIEW PREVIEW →</Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                <TouchableOpacity
+                                    style={[styles.testPushBtn, styles.testPushBtnSuccess]}
+                                    onPress={() => handleTriggerTestNotification('success')}
+                                    disabled={testingNotification !== null}
+                                    activeOpacity={0.8}
+                                >
+                                    {testingNotification === 'success' ? (
+                                        <ActivityIndicator size="small" color="#22c55e" />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="paper-plane-outline" size={13} color="#22c55e" />
+                                            <Text style={styles.testPushBtnTextSuccess}>Test Success Push on Device</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* ALERT / FAILURE CARD */}
+                            <View style={styles.notificationMockupAlert}>
+                                <View style={styles.mockupBadgeAlert}>
+                                    <Ionicons name="warning" size={12} color="#ef4444" />
+                                    <Text style={styles.mockupBadgeAlertText}>ALERT / FAILURE DESIGN</Text>
+                                </View>
+
+                                {previewMode === 'tray' ? (
+                                    <View style={styles.systemTrayCard}>
+                                        <View style={styles.systemTrayHeader}>
+                                            <View style={styles.appIconCircleAlert}>
+                                                <Ionicons name="warning" size={10} color="#ef4444" />
+                                            </View>
+                                            <Text style={styles.systemAppName}>SERENITY • PIPELINE</Text>
+                                            <Text style={styles.systemTime}>now</Text>
+                                        </View>
+                                        <Text style={styles.systemTitleAlert}>🚨 PIPELINE ALERT • Generation Halted</Text>
+                                        <Text style={styles.systemSubtitleAlert}>Action Required • Inspect Telemetry</Text>
+                                        <Text style={styles.systemBody}>
+                                            ⚠️ Generation halted: Voiceover synthesis failed for Scene 3. Video: "Why Is HTTP Stateless?". Tap to inspect.
+                                        </Text>
+                                        <View style={styles.systemFooterRow}>
+                                            <Text style={styles.systemFooterTagAlert}>Channel: pipeline-alerts</Text>
+                                            <Text style={styles.systemFooterSpec}>🔴 Red LED • Urgent Vibration</Text>
+                                        </View>
+                                    </View>
+                                ) : (
+                                    <View style={styles.inAppBannerCardAlert}>
+                                        <View style={styles.bannerIconBoxAlert}>
+                                            <Ionicons name="warning" size={18} color="#ef4444" />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <View style={styles.bannerHeaderRow}>
+                                                <Text style={styles.bannerBadgeAlert}>▲ CRITICAL ALERT</Text>
+                                                <Text style={styles.bannerTimeText}>Just now</Text>
+                                            </View>
+                                            <Text style={styles.bannerTitleText} numberOfLines={1}>
+                                                🚨 PIPELINE ALERT • Generation Halted
+                                            </Text>
+                                            <Text style={styles.bannerBodyText} numberOfLines={2}>
+                                                ⚠️ Generation halted: Voiceover synthesis failed for Scene 3. Video: "Why Is HTTP Stateless?". Tap to inspect.
+                                            </Text>
+                                            <Text style={styles.bannerActionAlert}>INSPECT ERROR →</Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                <TouchableOpacity
+                                    style={[styles.testPushBtn, styles.testPushBtnAlert]}
+                                    onPress={() => handleTriggerTestNotification('failure')}
+                                    disabled={testingNotification !== null}
+                                    activeOpacity={0.8}
+                                >
+                                    {testingNotification === 'failure' ? (
+                                        <ActivityIndicator size="small" color="#ef4444" />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="alert-circle-outline" size={13} color="#ef4444" />
+                                            <Text style={styles.testPushBtnTextAlert}>Test Alert Push on Device</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
                 </View>
 
                 {/* Bottom Footer Anchor */}
@@ -1264,5 +1471,292 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '700',
         color: colors.bone.DEFAULT,
+    },
+    // Notification Preview & Test Styles
+    previewModeRow: {
+        flexDirection: 'row',
+        gap: 6,
+        marginTop: 10,
+        marginBottom: 8,
+    },
+    previewModeBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 5,
+        paddingVertical: 7,
+        paddingHorizontal: 8,
+        borderRadius: borderRadius.xs,
+        backgroundColor: colors.obsidian[950],
+        borderWidth: 1,
+        borderColor: colors.obsidian[800],
+    },
+    previewModeBtnActive: {
+        backgroundColor: colors.sandstone,
+        borderColor: colors.sandstone,
+    },
+    previewModeText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: colors.bone.muted,
+    },
+    previewModeTextActive: {
+        color: colors.obsidian[950],
+        fontWeight: '700',
+    },
+    previewCardsContainer: {
+        gap: 12,
+        marginTop: 4,
+    },
+    notificationMockupSuccess: {
+        backgroundColor: 'rgba(34, 197, 94, 0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(34, 197, 94, 0.25)',
+        borderRadius: borderRadius.sm,
+        padding: 10,
+        gap: 8,
+    },
+    notificationMockupAlert: {
+        backgroundColor: 'rgba(239, 68, 68, 0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.25)',
+        borderRadius: borderRadius.sm,
+        padding: 10,
+        gap: 8,
+    },
+    mockupBadgeSuccess: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: 4,
+        backgroundColor: 'rgba(34, 197, 94, 0.12)',
+        alignSelf: 'flex-start',
+    },
+    mockupBadgeSuccessText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#22c55e',
+        letterSpacing: 0.5,
+    },
+    mockupBadgeAlert: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: 4,
+        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+        alignSelf: 'flex-start',
+    },
+    mockupBadgeAlertText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#ef4444',
+        letterSpacing: 0.5,
+    },
+    systemTrayCard: {
+        backgroundColor: '#18181b',
+        borderRadius: 10,
+        padding: 10,
+        borderWidth: 1,
+        borderColor: '#27272a',
+    },
+    systemTrayHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
+    },
+    appIconCircleSuccess: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: 'rgba(34, 197, 94, 0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    appIconCircleAlert: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    systemAppName: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: colors.bone.muted,
+        letterSpacing: 0.5,
+        flex: 1,
+    },
+    systemTime: {
+        fontSize: 10,
+        color: colors.bone.muted,
+    },
+    systemTitleSuccess: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
+        marginBottom: 2,
+    },
+    systemTitleAlert: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
+        marginBottom: 2,
+    },
+    systemSubtitle: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#22c55e',
+        marginBottom: 3,
+    },
+    systemSubtitleAlert: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#ef4444',
+        marginBottom: 3,
+    },
+    systemBody: {
+        fontSize: 11,
+        color: colors.bone.muted,
+        lineHeight: 15,
+    },
+    systemFooterRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 8,
+        paddingTop: 6,
+        borderTopWidth: 1,
+        borderTopColor: '#27272a',
+    },
+    systemFooterTagSuccess: {
+        fontSize: 9.5,
+        fontWeight: '700',
+        color: '#22c55e',
+    },
+    systemFooterTagAlert: {
+        fontSize: 9.5,
+        fontWeight: '700',
+        color: '#ef4444',
+    },
+    systemFooterSpec: {
+        fontSize: 9.5,
+        color: colors.bone.muted,
+    },
+    inAppBannerCardSuccess: {
+        flexDirection: 'row',
+        gap: 10,
+        backgroundColor: 'rgba(34, 197, 94, 0.08)',
+        borderWidth: 1,
+        borderColor: '#22c55e',
+        borderRadius: 10,
+        padding: 10,
+    },
+    inAppBannerCardAlert: {
+        flexDirection: 'row',
+        gap: 10,
+        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+        borderWidth: 1,
+        borderColor: '#ef4444',
+        borderRadius: 10,
+        padding: 10,
+    },
+    bannerIconBoxSuccess: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        backgroundColor: 'rgba(34, 197, 94, 0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 2,
+    },
+    bannerIconBoxAlert: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 2,
+    },
+    bannerHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 2,
+    },
+    bannerBadgeSuccess: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#22c55e',
+        letterSpacing: 0.5,
+    },
+    bannerBadgeAlert: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#ef4444',
+        letterSpacing: 0.5,
+    },
+    bannerTimeText: {
+        fontSize: 9.5,
+        color: colors.bone.muted,
+    },
+    bannerTitleText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
+        marginBottom: 2,
+    },
+    bannerBodyText: {
+        fontSize: 11,
+        color: colors.bone.muted,
+        lineHeight: 14,
+    },
+    bannerActionSuccess: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#22c55e',
+        marginTop: 4,
+        letterSpacing: 0.5,
+    },
+    bannerActionAlert: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#ef4444',
+        marginTop: 4,
+        letterSpacing: 0.5,
+    },
+    testPushBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 8,
+        borderRadius: borderRadius.xs,
+        borderWidth: 1,
+    },
+    testPushBtnSuccess: {
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderColor: 'rgba(34, 197, 94, 0.35)',
+    },
+    testPushBtnTextSuccess: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#22c55e',
+    },
+    testPushBtnAlert: {
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderColor: 'rgba(239, 68, 68, 0.35)',
+    },
+    testPushBtnTextAlert: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#ef4444',
     },
 });

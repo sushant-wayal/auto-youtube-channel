@@ -438,6 +438,22 @@ export const pipelineApi = {
         }
     },
 
+    // Trigger a live test notification (success or failure)
+    triggerTestNotification: async (type: 'success' | 'failure'): Promise<{ ok: boolean; error?: string }> => {
+        try {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/test-notification`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type }),
+            });
+            const data = await response.json();
+            return data;
+        } catch (error: any) {
+            console.error('[API] Error triggering test notification:', error.message || error);
+            return { ok: false, error: error.message || String(error) };
+        }
+    },
+
     // Get latest pipeline run status
     getPipelineStatus: async (): Promise<PipelineStatusResponse> => {
         try {

@@ -191,12 +191,54 @@ class CloudinaryService {
     }
 
     /**
-     * Clean up intermediate files for a job
+     * Extract Cloudinary public ID from a URL
+     */
+    static extractPublicId(url: string): string | null {
+        try {
+            const uploadIndex = url.indexOf('/upload/');
+            if (uploadIndex === -1) return null;
+            let pathAfterUpload = url.slice(uploadIndex + '/upload/'.length);
+            // Strip version (e.g. v1766232798/) or transformations
+            pathAfterUpload = pathAfterUpload.replace(/^(?:[a-zA-Z0-9_,-]+\/)*v\d+\//, '');
+            // Strip extension (e.g. .mp4, .jpg, .webm, etc.)
+            const dotIndex = pathAfterUpload.lastIndexOf('.');
+            if (dotIndex !== -1) {
+                pathAfterUpload = pathAfterUpload.slice(0, dotIndex);
+            }
+            return pathAfterUpload;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Delete files by their full Cloudinary URLs
+     */
+    async deleteFilesByUrls(urls: string[], resourceType: 'video' | 'image' = 'video'): Promise<void> {
+        const publicIds = urls
+            .map(u => CloudinaryService.extractPublicId(u))
+            .filter((id): id is string => Boolean(id));
+
+        if (publicIds.length === 0) return;
+
+        // Process in chunks of 100
+        for (let i = 0; i < publicIds.length; i += 100) {
+            const chunk = publicIds.slice(i, i + 100);
+            await this.deleteFiles(chunk, resourceType);
+        }
+    }
+
+    /**
+     * Clean up intermediate and scene files for a job
      */
     async cleanupJobFiles(jobId: string): Promise<void> {
         try {
-            // Delete all files in the job folder
-            await cloudinary.api.delete_resources_by_prefix(`video-gen/${jobId}/intermediate`, {
+            // Delete video/audio assets in the job folder
+            await cloudinary.api.delete_resources_by_prefix(`video-gen/${jobId}`, {
+                resource_type: 'video',
+            });
+            // Delete any scene clips prefixed with jobId
+            await cloudinary.api.delete_resources_by_prefix(`video-gen/scenes/${jobId}`, {
                 resource_type: 'video',
             });
             console.error(`🧹 Cleaned up intermediate files for job: ${jobId}`);

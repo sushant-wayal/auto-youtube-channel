@@ -728,3 +728,14 @@ jobs:
           if [[ "$HTTP_STATUS" != "200" ]]; then
             echo "⚠️  Webhook call failed (non-fatal)"
           fi
+
+      - name: Cleanup old Cloudinary assets
+        if: always()
+        env:
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: |
+          npx tsx scripts/cleanup-cloudinary.ts --execute --keep-hours=48 --active-id="${{ needs.generate-script.outputs.video_id }}" || echo "⚠️ Cloudinary cleanup skipped/failed (non-fatal)"
+
