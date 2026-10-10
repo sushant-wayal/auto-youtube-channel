@@ -464,6 +464,8 @@ export default function PipelineStatusScreen() {
             youtubeId: '',
             caption: shortCaptions[idx] || '',
         }));
+    const succeededShortsCount = shortsList.filter(s => s.status !== 'failure' && (s.youtubeId || s.videoUrl)).length;
+    const failedShortsCount = shortsList.filter(s => s.status === 'failure').length;
     const activeShort = shortsList[selectedShortIndex] || shortsList[0];
     const actualShortIndex = activeShort?.shortIndex ?? selectedShortIndex;
     const activeHook = (shortHooks && shortHooks[actualShortIndex]) || (activeShort ? `Short #${actualShortIndex + 1}` : '');
@@ -1540,7 +1542,13 @@ export default function PipelineStatusScreen() {
                                     <View style={styles.stepHeaderLeft}>
                                         <Text style={styles.stepTitleText}>08. Shorts Packaging</Text>
                                         <Text style={styles.stepSubtitle}>
-                                            {shortsList.length > 0 ? `${shortsList.length} Shorts Scheduled` : 'Shorts processing'}
+                                            {shortsList.length > 0
+                                                ? failedShortsCount > 0
+                                                    ? `${succeededShortsCount} of ${shortsList.length} Shorts Scheduled (${failedShortsCount} Failed)`
+                                                    : `${succeededShortsCount} of ${shortsList.length} Shorts Scheduled`
+                                                : activeData.jobs?.shortsProcessing === 'running'
+                                                    ? 'Generating derivative shorts...'
+                                                    : 'Shorts processing'}
                                         </Text>
                                     </View>
                                     <View style={styles.stepHeaderRight}>
@@ -1561,13 +1569,26 @@ export default function PipelineStatusScreen() {
                                                 {shortsList.map((s, idx) => (
                                                     <TouchableOpacity
                                                         key={idx}
-                                                        style={[styles.sceneTab, selectedShortIndex === idx && styles.sceneTabActive]}
+                                                        style={[
+                                                            styles.sceneTab,
+                                                            selectedShortIndex === idx && styles.sceneTabActive,
+                                                            s.status === 'failure' && { borderColor: 'rgba(248, 113, 113, 0.4)' },
+                                                        ]}
                                                         onPress={() => setSelectedShortIndex(idx)}
                                                         activeOpacity={0.7}
                                                     >
-                                                        <Text style={[styles.sceneTabText, selectedShortIndex === idx && styles.sceneTabTextActive]}>
-                                                            Short {s.shortIndex !== undefined ? s.shortIndex + 1 : idx + 1}
-                                                        </Text>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                                            {s.status === 'failure' ? (
+                                                                <Ionicons name="close-circle" size={12} color={colors.failed} />
+                                                            ) : s.status === 'running' ? (
+                                                                <SpinningStatusIcon size={10} color={colors.running} name="sync" />
+                                                            ) : (s.youtubeId || s.videoUrl) ? (
+                                                                <Ionicons name="checkmark-circle" size={12} color={colors.success} />
+                                                            ) : null}
+                                                            <Text style={[styles.sceneTabText, selectedShortIndex === idx && styles.sceneTabTextActive, s.status === 'failure' && { color: colors.failed }]}>
+                                                                Short {s.shortIndex !== undefined ? s.shortIndex + 1 : idx + 1}
+                                                            </Text>
+                                                        </View>
                                                     </TouchableOpacity>
                                                 ))}
                                             </ScrollView>
@@ -1576,8 +1597,8 @@ export default function PipelineStatusScreen() {
                                             <View style={styles.stepInnerBox}>
                                                 <View style={styles.innerBoxMetaRow}>
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                                                        <View style={styles.shortNumBadge}>
-                                                            <Text style={styles.shortNumBadgeText}>
+                                                        <View style={[styles.shortNumBadge, activeShort?.status === 'failure' && { backgroundColor: 'rgba(248, 113, 113, 0.2)' }]}>
+                                                            <Text style={[styles.shortNumBadgeText, activeShort?.status === 'failure' && { color: colors.failed }]}>
                                                                 {activeShort?.shortIndex !== undefined ? activeShort.shortIndex + 1 : selectedShortIndex + 1}
                                                             </Text>
                                                         </View>
@@ -1585,10 +1606,26 @@ export default function PipelineStatusScreen() {
                                                             {activeHook || `Short #${(activeShort?.shortIndex ?? selectedShortIndex) + 1}`}
                                                         </Text>
                                                     </View>
-                                                    {activeShort?.rank ? (
+                                                    {activeShort?.status === 'failure' ? (
+                                                        <View style={[styles.stepBadgeSuccess, { backgroundColor: 'rgba(248, 113, 113, 0.15)', borderColor: 'rgba(248, 113, 113, 0.3)' }]}>
+                                                            <Text style={[styles.stepBadgeSuccessText, { color: colors.failed }]}>Failed</Text>
+                                                        </View>
+                                                    ) : activeShort?.rank ? (
                                                         <Text style={styles.retentionBadgeText}>Rank #{activeShort.rank}</Text>
                                                     ) : null}
                                                 </View>
+
+                                                {activeShort?.status === 'failure' ? (
+                                                    <View style={{ backgroundColor: 'rgba(248, 113, 113, 0.1)', padding: 10, borderRadius: borderRadius.sm, borderWidth: 1, borderColor: 'rgba(248, 113, 113, 0.25)', gap: 4 }}>
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                            <Ionicons name="alert-circle" size={15} color={colors.failed} />
+                                                            <Text style={{ color: colors.failed, fontWeight: '700', fontSize: 11 }}>Short Generation Failed</Text>
+                                                        </View>
+                                                        <Text style={{ color: colors.linenDim, fontSize: 11, lineHeight: 16 }}>
+                                                            {activeShort.error || 'This short failed during processing. Other derivative shorts completed successfully.'}
+                                                        </Text>
+                                                    </View>
+                                                ) : null}
 
                                                 {/* Caption Preview Box */}
                                                 {activeCaption ? (

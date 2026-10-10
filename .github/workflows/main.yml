@@ -381,6 +381,23 @@ jobs:
           echo "short_indices=$SHORT_INDICES" >> $GITHUB_OUTPUT
           echo "📱 Shorts to process: $SHORT_INDICES"
 
+      - name: Initialize shortsProcessing status in Redis
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          SHORT_INDICES: ${{ steps.matrix.outputs.short_indices }}
+        run: |
+          if [ -n "$REDIS_URL" ] && [ "$SHORT_INDICES" != "[]" ]; then
+            npm install --no-save ioredis
+            node -e "
+              const Redis = require('ioredis');
+              const redis = new Redis(process.env.REDIS_URL);
+              redis.hset('pipeline:status:jobs', 'shortsProcessing', 'running')
+                .then(() => redis.expire('pipeline:status:jobs', 604800))
+                .then(() => redis.quit())
+                .catch(err => console.error(err));
+            " || true
+          fi
+
   # Process each short in parallel — one runner per short
   # Depends only on generate-script + shorts-matrix-setup so shorts start
   # immediately after script generation, independently of the long-form pipeline.
@@ -445,6 +462,42 @@ jobs:
           SCRIPT_DATA: ${{ needs.generate-script.outputs.script_data }}
         run: |
           npx tsx .github/scripts/process-single-short.ts "${{ needs.generate-script.outputs.video_id }}"
+
+  # Update shorts job status immediately once parallel shorts complete
+  shorts-status-update:
+    name: Update Shorts Status
+    needs: [generate-script, shorts-matrix-setup, process-short]
+    if: always() && needs.generate-script.result == 'success' && needs.shorts-matrix-setup.outputs.short_indices != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Update shortsProcessing status in Redis
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          SHORTS_RESULT: ${{ needs.process-short.result }}
+        run: |
+          if [ -n "$REDIS_URL" ]; then
+            npm install --no-save ioredis
+            node -e "
+              const Redis = require('ioredis');
+              const redis = new Redis(process.env.REDIS_URL);
+              const status = process.env.SHORTS_RESULT === 'success' ? 'success' : 'failure';
+              redis.hset('pipeline:status:jobs', 'shortsProcessing', status)
+                .then(() => redis.expire('pipeline:status:jobs', 604800))
+                .then(() => {
+                  console.log('✅ Set shortsProcessing in Redis to:', status);
+                  return redis.quit();
+                })
+                .catch(err => {
+                  console.error('⚠️ Could not set shorts status:', err);
+                  process.exit(0);
+                });
+            "
+          fi
 
   # Step 8: Link Shorts to Long-form Video
   # Runs after both the long-form video (upload-youtube) and shorts (process-short) finish

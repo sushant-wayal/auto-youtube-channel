@@ -167,6 +167,18 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
 
     console.error(`✅ Short ${shortIndex + 1} done: https://youtube.com/watch?v=${youtubeId} (Rank ${shortsRank + 1} – ${shortsTime} IST)`);
 
+    // Mark shortsProcessing job status as running
+    if (process.env.REDIS_URL) {
+        try {
+            const redis = new Redis(process.env.REDIS_URL);
+            await redis.hset('pipeline:status:jobs', 'shortsProcessing', 'running');
+            await redis.expire('pipeline:status:jobs', 60 * 60 * 24 * 7);
+            await redis.quit();
+        } catch (e) {
+            console.error('⚠️ Could not set shortsProcessing to running:', e);
+        }
+    }
+
     const result = {
         shortIndex,
         shortId,
@@ -175,6 +187,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         scheduledPublishTime,
         rank: shortsRank + 1,
         caption: short.instagramCaption || short.caption || '',
+        status: 'success',
     };
 
     // Persist result to Redis so the pipeline-status API can return it
@@ -210,8 +223,32 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
         const result = await processSingleShort(videoId, shortIndex, scriptData);
         console.log(JSON.stringify(result, null, 2));
         process.exit(0);
-    } catch (error) {
+    } catch (error: any) {
         console.error('❌ Short processing failed:', error);
+        if (process.env.REDIS_URL) {
+            try {
+                const videoId = process.argv[2];
+                const shortIndexStr = process.env.SHORT_INDEX;
+                const shortIndex = shortIndexStr !== undefined ? parseInt(shortIndexStr, 10) : -1;
+                const redis = new Redis(process.env.REDIS_URL);
+                if (videoId && shortIndex >= 0) {
+                    const failureResult = {
+                        shortIndex,
+                        shortId: `${videoId}-short-${shortIndex}`,
+                        status: 'failure',
+                        error: error?.message || 'Short processing failed',
+                    };
+                    await redis.rpush(`pipeline:shorts:${videoId}`, JSON.stringify(failureResult));
+                    await redis.expire(`pipeline:shorts:${videoId}`, 60 * 60 * 24 * 7);
+                }
+                await redis.hset('pipeline:status:jobs', 'shortsProcessing', 'failure');
+                await redis.expire('pipeline:status:jobs', 60 * 60 * 24 * 7);
+                await redis.quit();
+                console.error(`⚠️ Recorded failure for short ${shortIndex} to Redis`);
+            } catch (redisErr) {
+                console.error('⚠️ Could not store short failure to Redis:', redisErr);
+            }
+        }
         process.exit(1);
     }
 })();

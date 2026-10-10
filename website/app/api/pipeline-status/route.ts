@@ -342,16 +342,85 @@ export async function GET() {
             }
         }
 
-        const enhancedShorts = shorts.map((s: any, idx: number) => {
-            const shortIdx = s.shortIndex ?? idx;
-            const caption = s.caption || shortCaptions[shortIdx] || parsedScriptData?.shorts?.[shortIdx]?.instagramCaption || parsedScriptData?.script?.shorts?.[shortIdx]?.instagramCaption || '';
+        const expectedShortsCount = shortHooks.length || (parsedScriptData?.script?.shorts || parsedScriptData?.shorts)?.length || 0;
+
+        let computedShortsProcessing = jobs.shortsProcessing ?? null;
+        if (!computedShortsProcessing || computedShortsProcessing === 'pending') {
+            if (expectedShortsCount > 0 && metadata.scriptData) {
+                if (shorts.length === 0) {
+                    if (jobs.generateScript === 'success') {
+                        computedShortsProcessing = 'running';
+                    }
+                } else if (shorts.length >= expectedShortsCount) {
+                    const hasFailed = shorts.some(s => s.status === 'failure' || (!s.youtubeId && !s.videoUrl));
+                    computedShortsProcessing = hasFailed ? 'failure' : 'success';
+                } else {
+                    const hasExplicitFailure = shorts.some(s => s.status === 'failure');
+                    if (hasExplicitFailure) {
+                        computedShortsProcessing = 'failure';
+                    } else {
+                        const ranAtTime = metadata.ranAt ? new Date(metadata.ranAt).getTime() : 0;
+                        const ageMinutes = ranAtTime > 0 ? (Date.now() - ranAtTime) / (60 * 1000) : 0;
+                        if (ageMinutes > 10 || overall === 'success' || jobs.uploadYoutube === 'success' || jobs.assembleLongForm === 'success') {
+                            computedShortsProcessing = 'failure';
+                        } else {
+                            computedShortsProcessing = 'running';
+                        }
+                    }
+                }
+
+                if (computedShortsProcessing && computedShortsProcessing !== jobs.shortsProcessing) {
+                    redis.hset('pipeline:status:jobs', 'shortsProcessing', computedShortsProcessing).catch(() => {});
+                }
+            }
+        }
+
+        const totalShortsSlots = Math.max(expectedShortsCount, shorts.length);
+        const enhancedShorts = Array.from({ length: totalShortsSlots }, (_, idx) => {
+            const existing = shorts.find((s: any) => (s.shortIndex ?? -1) === idx) || shorts[idx];
+            const caption = existing?.caption || shortCaptions[idx] || parsedScriptData?.shorts?.[idx]?.instagramCaption || parsedScriptData?.script?.shorts?.[idx]?.instagramCaption || '';
+            const hook = shortHooks[idx] || parsedScriptData?.shorts?.[idx]?.hook || parsedScriptData?.script?.shorts?.[idx]?.hook || '';
+
+            if (existing && (existing.youtubeId || existing.videoUrl)) {
+                return {
+                    ...existing,
+                    shortIndex: existing.shortIndex ?? idx,
+                    status: existing.status || 'success',
+                    caption,
+                    hook,
+                };
+            }
+
+            if (existing && existing.status === 'failure') {
+                return {
+                    ...existing,
+                    shortIndex: idx,
+                    status: 'failure',
+                    error: existing.error || 'Short processing failed',
+                    caption,
+                    hook,
+                };
+            }
+
+            // Missing short slot (e.g. 1 short failed without writing to Redis)
+            const isFinished = computedShortsProcessing === 'failure' || computedShortsProcessing === 'success';
             return {
-                ...s,
+                shortIndex: idx,
+                shortId: `${metadata.videoId || 'video'}-short-${idx}`,
+                youtubeId: '',
+                videoUrl: '',
+                status: isFinished ? 'failure' : (computedShortsProcessing === 'running' ? 'running' : 'pending'),
+                error: isFinished ? 'Short generation failed during processing' : undefined,
                 caption,
+                hook,
             };
         });
 
-        const isAnyJobRunning = Object.values(jobs).some(j => j === 'running');
+        const effectiveJobs = {
+            ...jobs,
+            shortsProcessing: computedShortsProcessing ?? jobs.shortsProcessing,
+        };
+        const isAnyJobRunning = Object.values(effectiveJobs).some(j => j === 'running');
         let computedOverall = overall;
         if (isAnyJobRunning) {
             computedOverall = 'running';
@@ -417,7 +486,7 @@ export async function GET() {
                 assembleLongForm: jobs.assembleLongForm ?? null,
                 generateThumbnail: jobs.generateThumbnail ?? null,
                 uploadYoutube: jobs.uploadYoutube ?? null,
-                shortsProcessing: jobs.shortsProcessing ?? null,
+                shortsProcessing: computedShortsProcessing ?? jobs.shortsProcessing ?? null,
             },
         };
 

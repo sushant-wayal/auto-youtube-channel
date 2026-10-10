@@ -10,6 +10,8 @@ export type ShortResult = {
     scheduledPublishTime?: string;
     rank?: number;
     caption?: string;
+    status?: 'success' | 'failure' | 'running';
+    error?: string;
 };
 
 export type PipelineStatus = {
