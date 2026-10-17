@@ -396,27 +396,30 @@ renderer for that scene; the rest of the video can still use AI scene generation
 The 22-second ticket cooldown serializes scene jobs. It does not by itself limit the
 individual Gemini calls inside a scene, or retries. Every request through the website's
 `GeminiService.generateText` now reserves a Redis slot before each network attempt,
-including model fallbacks and retries. Slots are separated by 21 seconds per configured Google Cloud project, keeping
-each project below 3 requests per rolling minute. When the two scene project IDs are
-not both configured, the requests share one conservative bucket.
+including model fallbacks and retries. Slots are separated by 21 seconds per configured
+limiter bucket, keeping calls in each bucket below 3 requests per rolling minute. When
+the two scene project IDs are not both configured, their requests share one bucket.
 
 Scene planning and HTML use separate credentials and model settings:
 
 | Environment variable | Purpose | Default |
 | --- | --- | --- |
-| `GEMINI_DIRECTION_API_KEY` | Pilot project's key for storyboard/direction (also accepts `SCENE_PILOT_GEMINI_API_KEY`) | Required for storyboard mode |
+| `GEMINI_DIRECTION_API_KEY` | Optional separate key for storyboard/direction (also accepts `SCENE_PILOT_GEMINI_API_KEY`) | Required for storyboard mode |
 | `GEMINI_DIRECTION_MODEL` | Storyboard model | `gemini-3.6-flash` |
-| `GEMINI_DIRECTION_PROJECT_ID` | Actual Google Cloud project ID for the direction key | Shared bucket unless both stage project IDs are set |
+| `GEMINI_DIRECTION_PROJECT_ID` | Redis limiter bucket for direction calls; use its Google Cloud project ID when known | Shared bucket unless both stage IDs are set |
 | `GEMINI_HTML_API_KEY` | Optional key for HTML; otherwise uses `GEMINI_API_KEY` | Existing website key |
 | `GEMINI_HTML_MODEL` | HTML-generation model | `GEMINI_MODEL` or `gemini-3.8-flash` |
-| `GEMINI_HTML_PROJECT_ID` | Actual Google Cloud project ID for the HTML key | Shared bucket unless both stage project IDs are set |
-| `GEMINI_PROJECT_ID` | Project ID for other website Gemini calls, including script generation | Shared conservative bucket |
+| `GEMINI_HTML_PROJECT_ID` | Redis limiter bucket for HTML calls; use its Google Cloud project ID when known | Shared bucket unless both stage IDs are set |
+| `GEMINI_PROJECT_ID` | Redis limiter bucket for general website Gemini calls, including script generation | HTML bucket when both stage IDs are set; otherwise `shared-default` |
 
-Set the direction key in the website host's secret environment as well as local development.
-Set both project IDs to their actual Google Cloud project IDs to get independent 3-RPM
-queues. If either ID is omitted, the scene requests share a bucket, which is slower but
-safe even if the keys turn out to belong to the same project. Google applies quotas per
-project, so two keys from the same project must use the same bucket.
+The `*_PROJECT_ID` values select Redis limiter buckets; they do not select or authenticate
+a Google Cloud project. Use actual Google project IDs when known. If direction and HTML
+keys belong to the same Google project, give both stages the same stable bucket value.
+Different values create independent queues and should only be used for different Google
+projects. Set `GEMINI_PROJECT_ID` to that same value when general website calls use the
+same project; otherwise those calls use the HTML bucket by default when both stage IDs
+are configured. Google applies quotas per project, so keys from one project must share
+one bucket.
 
 ---
 
