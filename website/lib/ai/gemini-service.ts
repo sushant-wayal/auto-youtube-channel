@@ -1,5 +1,7 @@
 import GeminiClient from "./gemini-client";
+import { waitForGeminiProjectSlot } from "./gemini-rate-limiter";
 import type { GoogleGenAI, GenerateContentResponse, Chat } from "@google/genai";
+import { GoogleGenAI as GoogleGenAIClient } from "@google/genai";
 
 export interface GeminiConfig {
     model?: string;
@@ -7,6 +9,11 @@ export interface GeminiConfig {
     maxOutputTokens?: number;
     topP?: number;
     topK?: number;
+}
+
+export interface GeminiServiceOptions {
+    apiKey?: string;
+    projectId?: string;
 }
 
 const DEFAULT_CANDIDATE_MODELS = [
@@ -18,12 +25,27 @@ const DEFAULT_CANDIDATE_MODELS = [
 ].filter((m): m is string => Boolean(m));
 
 class GeminiService {
-    private client: GeminiClient;
     private genAI: GoogleGenAI;
+    private rateLimitProjectId: string;
 
-    constructor() {
-        this.client = GeminiClient.getInstance();
-        this.genAI = this.client.getGenAI();
+    constructor(options: GeminiServiceOptions = {}) {
+        if (options.apiKey) {
+            this.genAI = new GoogleGenAIClient({
+                apiKey: options.apiKey,
+                apiVersion: "v1alpha",
+            });
+        } else {
+            this.genAI = GeminiClient.getInstance().getGenAI();
+        }
+
+        const hasBothSceneProjectIds = Boolean(
+            process.env.GEMINI_DIRECTION_PROJECT_ID && process.env.GEMINI_HTML_PROJECT_ID,
+        );
+        const defaultProjectId = hasBothSceneProjectIds
+            ? process.env.GEMINI_HTML_PROJECT_ID
+            : process.env.GEMINI_PROJECT_ID;
+
+        this.rateLimitProjectId = options.projectId || defaultProjectId || "shared-default";
     }
 
     /**
@@ -50,6 +72,9 @@ class GeminiService {
         while (attempt < MAX_RETRIES) {
             attempt++;
             const modelName = candidateModels[modelIndex % candidateModels.length];
+
+            // Gate every actual attempt, including retries and model fallbacks.
+            await waitForGeminiProjectSlot(this.rateLimitProjectId);
 
             try {
                 console.log(

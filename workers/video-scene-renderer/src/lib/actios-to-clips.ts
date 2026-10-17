@@ -88,14 +88,38 @@ export class ClipsRenderService {
           : (i % 2 === 0 ? "light" : "dark");
 
         const sceneDuration = scene.baseDuration + (scene.holdDuration ?? 0);
-        const duration = this.renderMethod === "ai" ? Math.min(sceneDuration, 120) : sceneDuration;
-        const { html, animationStopTime } = this.renderMethod === "ai"
-          ? await this.generateAiSceneHtml(scene, duration)
-          : { ...this.htmlRenderer.render({
+        let duration = this.renderMethod === "ai" ? Math.min(sceneDuration, 120) : sceneDuration;
+        let html: string;
+        let animationStopTime: number;
+        let plannedSoundEvents: SoundEvent[] | undefined;
+
+        if (this.renderMethod === "ai") {
+          try {
+            const generated = await this.generateAiSceneHtml(scene, duration);
+            html = generated.html;
+            animationStopTime = generated.animationStopTime;
+            plannedSoundEvents = generated.soundEvents;
+          } catch (error) {
+            console.error(`[SceneRender] AI storyboard and direct HTML failed for scene ${scene.id}; falling back to the code renderer.`, error);
+            const rendered = this.htmlRenderer.render({
               duration: scene.baseDuration,
               actions: scene.actions,
               sceneTheme: resolvedTheme,
-            }, height, width) };
+            }, height, width);
+            html = rendered.html;
+            animationStopTime = rendered.animationStopTime;
+            duration = sceneDuration;
+            plannedSoundEvents = undefined;
+          }
+        } else {
+          const rendered = this.htmlRenderer.render({
+              duration: scene.baseDuration,
+              actions: scene.actions,
+              sceneTheme: resolvedTheme,
+          }, height, width);
+          html = rendered.html;
+          animationStopTime = rendered.animationStopTime;
+        }
 
         const outPath = path.join(
           outputDir,
@@ -108,7 +132,8 @@ export class ClipsRenderService {
           height: height,
           fps: fps,
           duration,
-          output: outPath
+          output: outPath,
+          soundEvents: plannedSoundEvents,
         });
 
         const soundEvents = renderRes?.soundEvents || [];
@@ -163,12 +188,13 @@ export class ClipsRenderService {
   private async generateAiSceneHtml(
     scene: SceneIR,
     duration: number
-  ): Promise<{ html: string; animationStopTime: number }> {
+  ): Promise<{ html: string; animationStopTime: number; soundEvents?: SoundEvent[] }> {
     const response = await fetch(`${this.websiteDomain}/api/generate-scene-html`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sceneId: scene.id,
+        sceneTitle: scene.sceneTitle,
         narration: scene.narration || "",
         duration,
         isShort: this.isShort,
@@ -181,9 +207,19 @@ export class ClipsRenderService {
       throw new Error(`AI scene HTML generation failed (${response.status}): ${errorBody || response.statusText}`);
     }
 
-    const data = await response.json() as { html?: string; soundEvents?: SoundEvent[]; ticket?: number; error?: string };
+    const data = await response.json() as {
+      html?: string;
+      soundEvents?: SoundEvent[];
+      ticket?: number;
+      error?: string;
+      generationMode?: "storyboard" | "direct-html-fallback";
+    };
     if (!data.html) {
       throw new Error(data.error || "AI scene HTML generation returned no HTML");
+    }
+
+    if (data.generationMode === "direct-html-fallback") {
+      console.warn(`[SceneRender] Scene ${scene.id} used Gemini's direct HTML fallback after storyboard generation failed.`);
     }
 
     const ticket = data.ticket;
@@ -217,6 +253,7 @@ export class ClipsRenderService {
 
     return {
       html: data.html,
+      soundEvents: data.soundEvents,
       // AI scenes often render a long looping/timeline visual. Let assembly
       // choose the final length from narration audio instead of visual length.
       animationStopTime: -1,

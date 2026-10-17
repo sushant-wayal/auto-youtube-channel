@@ -11,6 +11,7 @@ interface ScriptData {
     script: {
         scenes: Array<{
             id: string;
+            sceneTitle?: string;
             narration: string;
             baseDuration: number;
             holdDuration: number;

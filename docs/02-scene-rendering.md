@@ -376,13 +376,47 @@ Redis keys:
 Flow for each scene:
   1. Worker acquires a ticket (waits if another scene is processing)
   2. POST /api/generate-scene-html with scene narration
-  3. Website calls Gemini → returns animated HTML
-  4. Worker starts 22-second background cooldown timer
-  5. When cooldown ends: INCR turn + DEL processing (next scene can proceed)
-  6. Worker renders the received HTML with Puppeteer → FFmpeg
+  3. Website calls Gemini for a timed visual storyboard, then for HTML that follows that storyboard
+  4. If storyboard planning or storyboard-directed HTML fails, website tries direct narration-to-HTML generation
+  5. If direct HTML generation fails, the worker renders that scene with the existing code renderer and skips the AI HTML render
+  6. Worker starts 22-second background cooldown timer after a successful Gemini response
+  7. When cooldown ends: INCR turn + DEL processing (next scene can proceed)
+  8. Worker renders the selected HTML with Puppeteer → FFmpeg
+
+The storyboard carries a recurring visual subject, narration anchors, dramatic purpose,
+composition, depth/lighting, camera movement, transitions, restrained on-screen wording,
+and a sparse SFX plan. Sound cue times represent the desired impact peak; the renderer
+passes the validated cues to the assembler, which compensates for each sample's attack.
+If storyboard planning fails or returns an unusable plan, the service tries direct HTML
+generation from the narration. If storyboard-directed HTML generation fails, it also
+tries direct HTML. If that second Gemini path fails, the worker uses the existing code
+renderer for that scene; the rest of the video can still use AI scene generation.
 ```
 
-The 22-second cooldown prevents rate-limit errors from Gemini's per-minute request quota.
+The 22-second ticket cooldown serializes scene jobs. It does not by itself limit the
+individual Gemini calls inside a scene, or retries. Every request through the website's
+`GeminiService.generateText` now reserves a Redis slot before each network attempt,
+including model fallbacks and retries. Slots are separated by 21 seconds per configured Google Cloud project, keeping
+each project below 3 requests per rolling minute. When the two scene project IDs are
+not both configured, the requests share one conservative bucket.
+
+Scene planning and HTML use separate credentials and model settings:
+
+| Environment variable | Purpose | Default |
+| --- | --- | --- |
+| `GEMINI_DIRECTION_API_KEY` | Pilot project's key for storyboard/direction (also accepts `SCENE_PILOT_GEMINI_API_KEY`) | Required for storyboard mode |
+| `GEMINI_DIRECTION_MODEL` | Storyboard model | `gemini-3.6-flash` |
+| `GEMINI_DIRECTION_PROJECT_ID` | Actual Google Cloud project ID for the direction key | Shared bucket unless both stage project IDs are set |
+| `GEMINI_HTML_API_KEY` | Optional key for HTML; otherwise uses `GEMINI_API_KEY` | Existing website key |
+| `GEMINI_HTML_MODEL` | HTML-generation model | `GEMINI_MODEL` or `gemini-3.8-flash` |
+| `GEMINI_HTML_PROJECT_ID` | Actual Google Cloud project ID for the HTML key | Shared bucket unless both stage project IDs are set |
+| `GEMINI_PROJECT_ID` | Project ID for other website Gemini calls, including script generation | Shared conservative bucket |
+
+Set the direction key in the website host's secret environment as well as local development.
+Set both project IDs to their actual Google Cloud project IDs to get independent 3-RPM
+queues. If either ID is omitted, the scene requests share a bucket, which is slower but
+safe even if the keys turn out to belong to the same project. Google applies quotas per
+project, so two keys from the same project must use the same bucket.
 
 ---
 

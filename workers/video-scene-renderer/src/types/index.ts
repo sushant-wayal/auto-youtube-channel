@@ -51,6 +51,7 @@ export interface CloudinaryUploadResult {
 
 export interface SceneIR {
     id: string;
+    sceneTitle?: string;
     sceneTheme?: "light" | "dark" | "auto";
     baseDuration: number;
     holdDuration: number;

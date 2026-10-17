@@ -57,8 +57,8 @@ The scene renderer will generate final HTML from each scene narration separately
 For every long-form scene:
 - Still write high-quality narration.
 - Keep sceneTitle/baseDuration/holdDuration/id exactly as requested.
-- Set "actions" to an empty array: [].
-- Do NOT spend tokens creating visual actions.
+- Include 5–8 concise, scene-specific actions using only text, rect, line, or icon. These are a resilience fallback for the legacy code renderer if both AI HTML routes fail; they are not the primary visual plan.
+- Keep the fallback actions simple and legible: introduce the key subject, show one basic relationship or state change, and land on the scene's takeaway. Do not spend tokens on detailed code-renderer choreography.
 - Ignore all action-count requirements below; they apply only when SCENE_RENDER_METHOD=code.
 
 For YouTube Shorts when SCENE_RENDER_METHOD=ai:
@@ -71,7 +71,7 @@ For YouTube Shorts when SCENE_RENDER_METHOD=ai:
   - "baseDuration": 10.0 to 15.0 (the total duration for the entire short)
   - "holdDuration": 0.5
   - "narration": The full narration explaining the concept (do not make the narration empty)
-  - "actions": []
+  - "actions": 5–8 concise, scene-specific actions using only text, rect, line, or icon for the same legacy-renderer contingency described above.
 - Ignore all hook scene requirements and content scene rules below; they apply only when SCENE_RENDER_METHOD=code.
 `
       : "";

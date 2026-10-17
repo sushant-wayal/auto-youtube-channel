@@ -4,6 +4,9 @@ import SceneHtmlGenerationService from "@/lib/scene-html/scene-html-generation";
 
 const redis = new Redis(process.env.REDIS_URL!);
 
+// Scene tickets serialize scenes; GeminiService also reserves a project-wide slot for every API attempt.
+export const maxDuration = 300;
+
 export async function POST(request: NextRequest) {
   let ticket: number | undefined;
   try {
@@ -82,20 +85,21 @@ export async function POST(request: NextRequest) {
 
     // 4. Call Gemini
     const service = new SceneHtmlGenerationService();
-    console.log(`[Queue] Ticket ${ticket} invoking Gemini html generation...`);
-    let html: string;
+    console.log(`[Queue] Ticket ${ticket} invoking Gemini storyboard-first scene generation...`);
+    let generatedScene;
     try {
-      html = await service.generateSceneHtml({
+      generatedScene = await service.generateScene({
         narration,
         isShort: body.isShort === true,
         sceneId: typeof body.sceneId === "string" ? body.sceneId : undefined,
+        sceneTitle: typeof body.sceneTitle === "string" ? body.sceneTitle : undefined,
         duration: typeof body.duration === "number" ? body.duration : undefined,
       });
     } finally {
       keepLeaseAlive = false;
       clearInterval(leaseInterval);
     }
-    console.log(`[Queue] Ticket ${ticket} Gemini html generation completed.`);
+    console.log(`[Queue] Ticket ${ticket} Gemini scene generation completed via ${generatedScene.generationMode}.`);
 
     const finalTtl = await redis.ttl("html_queue:processing");
     if (finalTtl > 0 && finalTtl < 30) {
@@ -104,7 +108,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Return HTML and ticket immediately (let worker handle cooldown/advancement)
-    return NextResponse.json({ html, ticket });
+    return NextResponse.json({
+      html: generatedScene.html,
+      soundEvents: generatedScene.soundEvents,
+      storyboard: generatedScene.storyboard,
+      generationMode: generatedScene.generationMode,
+      ticket,
+    });
   } catch (error) {
     console.error("Scene HTML generation error:", error);
 

@@ -127,15 +127,32 @@ export async function buildSfxLayer(
   outputPath: string,
 ): Promise<boolean> {
 
-  // Filter to events whose SFX file actually exists
-  const valid = events.filter(e => {
+  // Validate cached/API data as well as checking that the mapped sample exists.
+  const candidates = (Array.isArray(events) ? events : []).filter(e => {
+    if (!e || !Number.isFinite(e.t) || e.t < 0 || e.t >= duration || !Object.prototype.hasOwnProperty.call(SFX_FILE_MAP, e.type)) {
+      console.error(`  ⚠️  Invalid SFX event skipped (t=${e?.t}, type=${e?.type})`);
+      return false;
+    }
     const p = sfxPath(e.type);
     if (!fileExists(p)) {
       console.error(`  ⚠️  SFX file missing for type "${e.type}", skipping event at t=${e.t}s`);
       return false;
     }
     return true;
-  });
+  }).sort((a, b) => a.t - b.t);
+
+  const valid: SoundEvent[] = [];
+  for (const event of candidates) {
+    const previous = valid[valid.length - 1];
+    if (previous && event.t - previous.t < 0.2) {
+      const eventIntensity = Number.isFinite(event.intensity) ? event.intensity! : 0.7;
+      const previousIntensity = Number.isFinite(previous.intensity) ? previous.intensity! : 0.7;
+      if (eventIntensity > previousIntensity) valid[valid.length - 1] = event;
+      continue;
+    }
+    if (valid.length === 8) break;
+    valid.push(event);
+  }
 
   if (valid.length === 0) {
     return false;
@@ -168,24 +185,29 @@ export async function buildSfxLayer(
   // Build filter_complex
   const delayFilters: string[] = [];
   const mixInputs: string[] = ['[0]'];
+  const targetSamples = Math.ceil(duration * 48_000);
 
   valid.forEach((e, idx) => {
     const inputIdx = idx + 1; // 0 is the silence source
     const peakOffsetMs = SFX_PEAK_OFFSETS_MS[e.type] ?? 0;
     const targetMs = Math.round(Math.max(0, e.t) * 1000);
     const delayMs = Math.max(0, targetMs - peakOffsetMs);
-    const vol = ((e.intensity ?? 0.7) * SFX_BASE_VOLUME).toFixed(4);
+    const intensity = Number.isFinite(e.intensity) ? Math.min(1, Math.max(0, e.intensity!)) : 0.7;
+    // amix in the bundled FFmpeg normalizes by its number of inputs. Keep a
+    // silence input plus all padded event inputs, then compensate that fixed
+    // divisor so each cue keeps its intended level.
+    const vol = (intensity * SFX_BASE_VOLUME * (valid.length + 1)).toFixed(4);
     const label = `[e${idx}]`;
 
     let chain = `[${inputIdx}]`;
 
     // If duration is specified, loop the sound sample and trim it to duration
-    if (typeof e.duration === 'number' && e.duration > 0) {
-      const durSec = e.duration.toFixed(3);
+    if ((e.type === 'typewriter' || e.type === 'data') && typeof e.duration === 'number' && Number.isFinite(e.duration) && e.duration > 0) {
+      const durSec = Math.min(1.2, e.duration).toFixed(3);
       chain += `aloop=loop=-1:size=2e+09,atrim=0:${durSec},`;
     }
 
-    chain += `volume=${vol},adelay=${delayMs}|${delayMs}${label}`;
+    chain += `volume=${vol},aresample=48000,adelay=${delayMs}|${delayMs},apad=whole_len=${targetSamples}${label}`;
     delayFilters.push(chain);
     mixInputs.push(label);
   });
@@ -193,7 +215,7 @@ export async function buildSfxLayer(
   const numInputs = mixInputs.length; // silence + N events
   const filterComplex =
     delayFilters.join(';') +
-    `;${mixInputs.join('')}amix=inputs=${numInputs}:duration=first:dropout_transition=0[out]`;
+    `;${mixInputs.join('')}amix=inputs=${numInputs}:duration=first:dropout_transition=0,alimiter=limit=0.95:level=disabled[out]`;
 
   await runFFmpeg({
     inputs,
@@ -229,19 +251,22 @@ export async function mixSfxIntoNarration(
   duration: number,
   outputPath: string,
 ): Promise<void> {
+  const targetDuration = duration.toFixed(4);
+  const targetSamples = Math.ceil(duration * 48_000);
   /*
    * FFmpeg:
    *   [0:a] narration at 100%
    *   [1:a] sfx layer (already at 25% from buildSfxLayer)
-   *   amix both, trim to duration
+   *   Pad/trim both inputs to the scene length, compensate amix's default
+   *   two-input normalization, then limit peaks without ducking the voice.
    */
   await runFFmpeg({
     inputs: [narrationPath, sfxLayerPath],
     output: outputPath,
     args: [
-      '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0[out]',
+      '-filter_complex', `[0:a]aresample=48000,apad=whole_len=${targetSamples},atrim=0:${targetDuration},volume=2[narration];[1:a]aresample=48000,atrim=0:${targetDuration},volume=2[sfx];[narration][sfx]amix=inputs=2:duration=first:dropout_transition=0,alimiter=limit=0.98:level=disabled[out]`,
       '-map', '[out]',
-      '-t', duration.toFixed(4),
+      '-t', targetDuration,
       '-c:a', 'pcm_s16le',
       '-ar', '48000',
       '-ac', '2',
