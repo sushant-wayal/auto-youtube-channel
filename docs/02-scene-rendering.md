@@ -363,43 +363,15 @@ CRF 16 = high quality (lower is better). `threads 1` = CI memory constraint.
 
 ---
 
-## AI Scene Mode (Rate-Limit Queue)
+## AI Scene Mode (Project Rate Limiter)
 
-When `SCENE_RENDER_METHOD=ai`, the system uses a Redis-based queue to serialize Gemini calls:
+When SCENE_RENDER_METHOD=ai, the renderer POSTs each scene to /api/generate-scene-html. The website creates a timed visual storyboard, then asks Gemini to render HTML that follows it. If storyboard generation fails, it tries direct narration-to-HTML; if that also fails, the worker renders the scene with its code renderer.
 
-```
-Redis keys:
-  html_queue:turn         — ticket counter (INCR atomically)
-  html_queue:processing   — lease key (deleted after 22s cooldown)
-  html_queue:last_enquiry — timestamp of last request
+Each Gemini API attempt reserves a Redis slot in gemini:request-slot:v1:<bucket>. The shared limiter spaces request starts by 21 seconds per configured bucket, including model fallbacks and retries. Scene requests are not held in a second ticket queue, avoiding serverless requests timing out behind parallel render jobs.
 
-Flow for each scene:
-  1. Worker acquires a ticket (waits if another scene is processing)
-  2. POST /api/generate-scene-html with scene narration
-  3. Website calls Gemini for a timed visual storyboard, then for HTML that follows that storyboard
-  4. If storyboard planning or storyboard-directed HTML fails, website tries direct narration-to-HTML generation
-  5. If direct HTML generation fails, the worker renders that scene with the existing code renderer and skips the AI HTML render
-  6. Worker starts 22-second background cooldown timer after a successful Gemini response
-  7. When cooldown ends: INCR turn + DEL processing (next scene can proceed)
-  8. Worker renders the selected HTML with Puppeteer → FFmpeg
+Gemini scene calls use one bounded network attempt with a 60-second HTTP timeout. A transient failure moves promptly to the next generation path. AI-mode script parsing preserves the action list as a visual fallback and removes silent Shorts hook scenes when narrated content exists. If legacy script data still has no actions, the code renderer creates a readable title-and-narration card instead of emitting a mostly empty background.
 
-The storyboard carries a recurring visual subject, narration anchors, dramatic purpose,
-composition, depth/lighting, camera movement, transitions, restrained on-screen wording,
-and a sparse SFX plan. Sound cue times represent the desired impact peak; the renderer
-passes the validated cues to the assembler, which compensates for each sample's attack.
-If storyboard planning fails or returns an unusable plan, the service tries direct HTML
-generation from the narration. If storyboard-directed HTML generation fails, it also
-tries direct HTML. If that second Gemini path fails, the worker uses the existing code
-renderer for that scene; the rest of the video can still use AI scene generation.
-```
-
-The 22-second ticket cooldown serializes scene jobs. It does not by itself limit the
-individual Gemini calls inside a scene, or retries. Every request through the website's
-`GeminiService.generateText` now reserves a Redis slot before each network attempt,
-including model fallbacks and retries. Slots are separated by 21 seconds per configured
-limiter bucket, keeping calls in each bucket below 3 requests per rolling minute. When
-the two scene project IDs are not both configured, their requests share one bucket.
-
+The storyboard carries a recurring visual subject, narration anchors, dramatic purpose, composition, depth/lighting, camera movement, transitions, restrained on-screen wording, and a sparse SFX plan. Sound cue times represent the desired impact peak; the renderer passes validated cues to the assembler, which compensates for each sample's attack.
 Scene planning and HTML use separate credentials and model settings:
 
 | Environment variable | Purpose | Default |

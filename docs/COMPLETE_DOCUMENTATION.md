@@ -308,7 +308,7 @@ Converts **scene data (IR — Intermediate Representation)** into MP4 video clip
 #### Mode 2: `ai`
 - Calls the website's `/api/generate-scene-html` endpoint, which uses Gemini to generate bespoke HTML for the scene's narration
 - The same Puppeteer → FFmpeg pipeline renders the AI-generated HTML
-- Uses Redis for a **rate-limit queue** (22-second cooldown between scenes to avoid Gemini quota exhaustion)
+- Reserves each Gemini API attempt in the shared Redis project limiter (21-second minimum spacing)
 
 ### Scene HTML Renderer (`SceneHtmlRenderer`)
 
@@ -366,25 +366,11 @@ HTML string
 | Long-form | 1920 | 1080 | 30 |
 | Short | 1080 | 1920 | 30 |
 
-### Rate-Limit Queue (AI mode only)
+### Gemini Scene Request Limiting (AI mode only)
 
-To serialize HTML generation requests and enforce a strict **22-second cooldown** between Gemini calls (avoiding RPM limits), the system uses a shared Redis-backed ticketing queue:
+The scene API uses the shared GeminiService Redis limiter instead of holding each Vercel request in a global scene ticket queue. Before every Gemini network attempt, the service reserves a slot at gemini:request-slot:v1:<bucket>. Redis spaces request starts by 21 seconds per configured bucket, keeping the bucket below 3 requests per rolling minute even when long-form and Shorts render concurrently.
 
-1. **Ticket Assignment**: Each request hits `POST /api/generate-scene-html` and increments the Redis key `html_queue:last_enquiry` to receive a unique integer `ticket` ID.
-2. **Turn Polling Loop**: The server handler polls the key `html_queue:turn` every 2 seconds. When `turn === ticket`, the request proceeds.
-3. **Deadlock Recovery (Lua Script)**: If a predecessor fails or times out, the lease key `html_queue:processing` will expire. The waiting runner detects this and runs a Lua script to atomically increment `html_queue:turn` if no active processing lock exists:
-   ```typescript
-   // Atomic queue turn advancement in Redis via eval:
-   const recovered = await redis.eval(luaScript, 0, String(ticket - 1));
-   ```
-4. **Processing Lease**: The active ticket locks the queue via `redis.set("html_queue:processing", ticket, "EX", 90)` (90-second crash-safe lease) and prompts Gemini.
-5. **Worker Parallel Handoff**: Once the worker receives `{ html, ticket }`, it immediately returns the layout response. The worker starts a **background promise** to handle the 22-second delay:
-   - The worker thread does *not* wait; it immediately loads Puppeteer, captures PNG frames, encodes the MP4 clip, and uploads it to Cloudinary.
-   - Meanwhile, in the background, the timer sleeps for 22 seconds and then atomically increments `html_queue:turn` and deletes `html_queue:processing` via a Redis `multi` transaction.
-   - At the very end of all rendering loops, the worker awaits `Promise.all(this.pendingCleanups)` to block exit until all background queue keys are advanced.
-
----
-
+Scene-generation calls use one bounded attempt and a 60-second HTTP timeout. If storyboard generation fails, direct narration-to-HTML is tried; if that fails, preserved script actions drive the code renderer. Missing actions produce a readable title-and-narration card, preventing blank scene clips.
 ## 6. Worker: `voice-over-generation`
 
 **Directory:** [`workers/voice-over-generation/`](file:///c:/Users/susha/OneDrive/Desktop/auto-youtube-channel/workers/voice-over-generation)
@@ -774,18 +760,17 @@ F5_PYTHON_BIN=python3
 ### Step 1: Script Generation (`generate-script`)
 
 ```
-1. Initialize Redis rate-limit keys: html_queue:turn=1, html_queue:last_enquiry=0
-2. LPOP from video:ideas Redis queue
+1. LPOP from video:ideas Redis queue
    (fallback: random from hardcoded VIDEO_IDEAS pool, or custom workflow input)
-3. POST /api/generate-script { videoIdea }
-4. Website calls Gemini to generate:
+2. POST /api/generate-script { videoIdea }
+3. Website calls Gemini to generate:
    {
      title, description, tags,
      narration,  // full script
      scenes: [{ id, narration, baseDuration, holdDuration, actions[] }],
      shorts: [{ id, hook, scenes[] }]
    }
-5. Output: { videoId: "video-{timestamp}", script: VideoScript }
+4. Output: { videoId: "video-{timestamp}", script: VideoScript }
    → written to GITHUB_OUTPUT as JSON
 ```
 
@@ -794,7 +779,7 @@ F5_PYTHON_BIN=python3
 For each scene in `script.scenes`:
 ```
 code mode: SceneHtmlRenderer.render({ duration, actions }) → { html, animationStopTime }
- ai mode:  POST /api/generate-scene-html → { html, ticket } → wait for ticket cooldown
+ ai mode:  POST /api/generate-scene-html → { html, soundEvents, generationMode }
 
 → HtmlToVideoService.render({ html, width, height, fps, duration })
 → Upload scene MP4 to Cloudinary
@@ -931,10 +916,7 @@ delay = min(BASE_DELAY_MS * 2^(attempt-1), MAX_DELAY_MS) + random(0, 1000ms)
 5 retries, 2s base, 30s max. Retryable: HTTP 500/503/429, "overloaded", "unavailable", "internal", "fetch failed", network errors.
 
 ### AI Scene HTML Rate Limiting
-When `SCENE_RENDER_METHOD=ai`, the website's `/api/generate-scene-html` uses Redis-based serialized ticketing:
-- Only one scene's HTML is generated at a time
-- Each ticket requires a 22-second cooldown before the next one can start
-- This prevents hitting Gemini's per-minute request quota during batch scene rendering
+Every Gemini network attempt reserves a Redis slot at `gemini:request-slot:v1:<bucket>`, with 21-second spacing for each project bucket. Scene calls use one attempt and a 60-second timeout; requests are not held in a global scene ticket queue.
 
 ### IST-Based Publishing
 All publish times stored in IST (UTC+5:30) in Redis for human readability. The CI script converts to UTC at schedule time using millisecond arithmetic. Target audience is primarily India.
@@ -949,7 +931,6 @@ All publish times stored in IST (UTC+5:30) in Redis for human readability. The C
 | Typo: `actios-to-clips.ts` | `video-scene-renderer/src/lib/` | Should be "actions-to-clips" — cosmetic only |
 | Typo: `scene-rendring` | `video-scene-renderer/src/lib/scene-rendring/` | Should be "scene-rendering" — cosmetic only |
 | Website main page commented out | `website/app/page.tsx` | ~920 lines of old pipeline UI fully commented out; dashboard at `/dashboard` is the live UI |
-| `html_queue` Redis keys initialized in script-generation job | `.github/scripts/generate-script.ts:63-64` | Side effect coupling: script generation job resets AI rate-limit queue. Works but mixes concerns |
 | F5-TTS no caching | CI workflow | The model downloads fresh each run (~several GB); no GitHub Actions cache used. Major contributor to the 360-minute voiceover timeout |
 | `gemini-3-flash-preview` model name | `idea-selector/src/lib/gemini-idea-generator.ts` | May be a typo; verify this is a real, accessible Gemini model name in your project |
 | `process-shorts.ts` exists but is unused | `.github/scripts/process-shorts.ts` | Sequential shorts runner kept for reference; `process-single-short.ts` + matrix strategy is what the workflow uses |

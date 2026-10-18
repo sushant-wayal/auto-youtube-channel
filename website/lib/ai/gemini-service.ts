@@ -9,6 +9,10 @@ export interface GeminiConfig {
     maxOutputTokens?: number;
     topP?: number;
     topK?: number;
+    /** Maximum network attempts for this generation (defaults to 5). */
+    maxAttempts?: number;
+    /** Per-request HTTP timeout in milliseconds. */
+    timeoutMs?: number;
 }
 
 export interface GeminiServiceOptions {
@@ -56,7 +60,7 @@ class GeminiService {
         prompt: string,
         config?: GeminiConfig
     ): Promise<string> {
-        const MAX_RETRIES = 5;
+        const maxAttempts = Math.max(1, Math.min(5, Math.floor(config?.maxAttempts ?? 5)));
         const BASE_DELAY_MS = 1_500;
         const MAX_DELAY_MS = 20_000;
 
@@ -69,7 +73,7 @@ class GeminiService {
         let attempt = 0;
         let modelIndex = 0;
 
-        while (attempt < MAX_RETRIES) {
+        while (attempt < maxAttempts) {
             attempt++;
             const modelName = candidateModels[modelIndex % candidateModels.length];
 
@@ -78,7 +82,7 @@ class GeminiService {
 
             try {
                 console.log(
-                    `🧠 Gemini text generation [${modelName}] (attempt ${attempt}/${MAX_RETRIES})`
+                    `🧠 Gemini text generation [${modelName}] (attempt ${attempt}/${maxAttempts})`
                 );
 
                 const result = await this.genAI.models.generateContent({
@@ -89,6 +93,7 @@ class GeminiService {
                         maxOutputTokens: config?.maxOutputTokens,
                         topP: config?.topP,
                         topK: config?.topK,
+                        httpOptions: config?.timeoutMs ? { timeout: config.timeoutMs } : undefined,
                     },
                 });
 
@@ -134,7 +139,7 @@ class GeminiService {
                     errStr.includes("unavailable") ||
                     errStr.includes("high demand");
 
-                if (!isRetryable || attempt >= MAX_RETRIES) {
+                if (!isRetryable || attempt >= maxAttempts) {
                     console.error(`❌ Gemini text generation failed permanently on model ${modelName}:`, error);
                     throw new Error(
                         `Failed to generate text with Gemini: ${error.message || error}`

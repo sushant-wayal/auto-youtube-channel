@@ -128,8 +128,7 @@ generate-script:
 **Script:** `.github/scripts/generate-script.ts`
 
 **Flow:**
-1. Initialize Redis rate-limit keys: `html_queue:turn = 1`, `html_queue:last_enquiry = 0`
-2. Idea source priority:
+1. Idea source priority:
    - If `video_idea` input provided → use it
    - Else → `LPOP` from Redis `video:ideas`
    - Else → random from hardcoded fallback pool

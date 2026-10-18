@@ -507,9 +507,7 @@ interface Token {
 | `pipeline:status` | String | JSON `PipelineStatus` | Permanent |
 | `pipeline:shorts:{videoId}` | List | JSON `ShortResult[]` | 7 days |
 | `expo:push-tokens` | Set | `string[]` Expo tokens | Permanent |
-| `html_queue:turn` | String | Integer string | Permanent |
-| `html_queue:processing` | String | `"true"` | Cleared after 22s cooldown |
-| `html_queue:last_enquiry` | String | Millisecond timestamp | Permanent |
+| `gemini:request-slot:v1:<bucket>` | String | Next allowed request-start time (ms) | TTL-managed shared Gemini limiter |
 
 ---
 

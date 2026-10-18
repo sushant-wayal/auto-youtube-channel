@@ -626,7 +626,7 @@ If the format is violated, the output will be rejected.
 
       const narration = parsed.scenes.map((scene: any) => scene.narration).join(" [PAUSE=8s] ");
 
-      const script = {
+      const script: VideoScript = {
         title: formatYouTubeTitle(parsed.title || videoIdea, 100),
         description: parsed.description || "",
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
@@ -656,7 +656,27 @@ If the format is violated, the output will be rejected.
           : [], // Max 5 shorts
       };
 
-      return renderMethod === "ai" ? this.stripVisualActions(script) : script;
+      if (renderMethod === "ai") {
+        // Keep the lightweight action plan even in AI mode. It is the visual
+        // safety net used when storyboard/direct-HTML generation is unavailable.
+        // AI-mode shorts should begin with narrated content, not a silent legacy
+        // hook scene that would otherwise render as a blank clip on fallback.
+        return {
+          ...script,
+          shorts: script.shorts.map(short => {
+            const narratedScenes = short.scenes.filter(scene => scene.narration?.trim());
+            const hasNarratedContent = narratedScenes.some(scene => scene.id !== "hook");
+            return {
+              ...short,
+              scenes: hasNarratedContent
+                ? narratedScenes.filter(scene => scene.id !== "hook")
+                : short.scenes,
+            };
+          }),
+        };
+      }
+
+      return script;
     } catch (error) {
       console.error("❌ Error parsing script response:", error);
       console.error("📝 Response length:", response.length);
@@ -665,17 +685,6 @@ If the format is violated, the output will be rejected.
 
       throw new Error(`Failed to parse generated script: ${error instanceof Error ? error.message : 'Invalid format'}`);
     }
-  }
-
-  private stripVisualActions(script: VideoScript): VideoScript {
-    return {
-      ...script,
-      scenes: script.scenes.map(scene => ({ ...scene, actions: [] })),
-      shorts: script.shorts.map(short => ({
-        ...short,
-        scenes: short.scenes.map(scene => ({ ...scene, actions: [] })),
-      })),
-    };
   }
 
   /**

@@ -113,15 +113,14 @@ Content-Type: application/json
 
 **Endpoint:** `POST /api/generate-scene-html`
 
-Only used when `SCENE_RENDER_METHOD=ai`. Generates Gemini-powered animated HTML for a single scene. Uses Redis-based rate limiting (22-second cooldown per request).
+Only used when `SCENE_RENDER_METHOD=ai`. Generates Gemini-powered animated HTML for a single scene. Each Gemini API attempt reserves a slot in the shared Redis project limiter (21-second minimum spacing).
 
 ```http
 POST /api/generate-scene-html
 Content-Type: application/json
 
 {
-  "narration": "Caching seems simple, but there's one detail most developers miss.",
-  "ticket": 1
+  "narration": "Caching seems simple, but there's one detail most developers miss."
 }
 ```
 
@@ -129,11 +128,12 @@ Content-Type: application/json
 ```json
 {
   "html": "<!DOCTYPE html><html>...</html>",
-  "nextTicket": 2
+  "soundEvents": [],
+  "generationMode": "storyboard"
 }
 ```
 
-**Rate-limit mechanism:** Redis keys `html_queue:turn`, `html_queue:processing`, `html_queue:last_enquiry` enforce a 22-second cooldown between Gemini calls to prevent quota exhaustion.
+**Rate-limit mechanism:** `GeminiService` reserves a Redis slot before each Gemini network attempt. Scene generation uses one attempt with a 60-second request timeout, then moves to direct-HTML or code-renderer fallback if needed. The API does not hold requests in a global scene queue.
 
 ---
 
@@ -394,9 +394,7 @@ NextAuth authentication routes. The `/dashboard` route is protected by `middlewa
 | `pipeline:status` | String | JSON `PipelineStatus` | Latest pipeline run status |
 | `pipeline:shorts:{videoId}` | List | JSON `ShortResult[]` (TTL 7d) | Short results per run |
 | `expo:push-tokens` | Set | `string[]` | Expo push notification tokens |
-| `html_queue:turn` | String | Integer | AI scene rate-limit queue counter |
-| `html_queue:processing` | String | `"true"` | AI scene processing lease |
-| `html_queue:last_enquiry` | String | Unix timestamp ms | Last AI scene request time |
+| `gemini:request-slot:v1:<bucket>` | String | Next allowed request-start time (ms) | Shared Gemini request limiter; TTL-managed |
 
 ---
 

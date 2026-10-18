@@ -4,7 +4,7 @@ import Redis from "ioredis";
 
 import { SceneHtmlRenderer } from "./scene-rendring/action-flow-to-html";
 import { HtmlToVideoService } from "./scene-rendring/htmlToVideoService";
-import { SceneIR } from "../types";
+import { ActionIR, SceneIR } from "../types";
 import CloudinaryService from '../../../../shared/services/cloudinary-service';
 import type { SoundEvent } from '../../../../workers/video-assembler/src/lib/assests/sfx-mixer';
 
@@ -17,7 +17,6 @@ export class ClipsRenderService {
   private renderMethod: "code" | "ai";
   private isShort: boolean;
   private websiteDomain: string;
-  private pendingCleanups: Promise<void>[] = [];
 
   constructor(
     scenes: SceneIR[],
@@ -103,7 +102,7 @@ export class ClipsRenderService {
             console.error(`[SceneRender] AI storyboard and direct HTML failed for scene ${scene.id}; falling back to the code renderer.`, error);
             const rendered = this.htmlRenderer.render({
               duration: scene.baseDuration,
-              actions: scene.actions,
+              actions: this.getSceneActions(scene, width, height, resolvedTheme),
               sceneTheme: resolvedTheme,
             }, height, width);
             html = rendered.html;
@@ -114,7 +113,7 @@ export class ClipsRenderService {
         } else {
           const rendered = this.htmlRenderer.render({
               duration: scene.baseDuration,
-              actions: scene.actions,
+              actions: this.getSceneActions(scene, width, height, resolvedTheme),
               sceneTheme: resolvedTheme,
           }, height, width);
           html = rendered.html;
@@ -176,12 +175,6 @@ export class ClipsRenderService {
       await redis.quit();
     }
 
-    // Await all pending rate-limit cooldowns (65 seconds sleep + queue releases)
-    if (this.pendingCleanups.length > 0) {
-      console.error(`[Queue] Waiting for ${this.pendingCleanups.length} pending rate-limit cooldown(s) to complete...`);
-      await Promise.all(this.pendingCleanups);
-    }
-
     return { urls, timings, animationStopTimes, perSceneSoundEvents };
   }
 
@@ -210,7 +203,6 @@ export class ClipsRenderService {
     const data = await response.json() as {
       html?: string;
       soundEvents?: SoundEvent[];
-      ticket?: number;
       error?: string;
       generationMode?: "storyboard" | "direct-html-fallback";
     };
@@ -222,35 +214,6 @@ export class ClipsRenderService {
       console.warn(`[SceneRender] Scene ${scene.id} used Gemini's direct HTML fallback after storyboard generation failed.`);
     }
 
-    const ticket = data.ticket;
-    if (ticket !== undefined) {
-      console.error(`[Queue] Received HTML and ticket ${ticket} for scene ${scene.id}.`);
-      
-      const cleanupPromise = (async () => {
-        try {
-          console.error(`[Queue] Cooldown: sleeping for 22 seconds for ticket ${ticket}...`);
-          await new Promise((resolve) => setTimeout(resolve, 22000));
-          
-          console.error(`[Queue] Cooldown complete. Advancing queue for ticket ${ticket}...`);
-          const redis = new Redis(process.env.REDIS_URL!);
-          
-          // Atomically increment turn and delete processing key using a pipeline
-          const pipeline = redis.multi();
-          pipeline.incr("html_queue:turn");
-          pipeline.del("html_queue:processing");
-          await pipeline.exec();
-          
-          await redis.quit();
-          console.error(`[Queue] Queue advanced and processing lease deleted for ticket ${ticket}.`);
-        } catch (err) {
-          console.error(`[Queue] Error during cleanup for ticket ${ticket}:`, err);
-        }
-      })();
-      this.pendingCleanups.push(cleanupPromise);
-    } else {
-      console.error(`[Queue] No ticket returned from API route. Rate limiting might be bypassed.`);
-    }
-
     return {
       html: data.html,
       soundEvents: data.soundEvents,
@@ -258,5 +221,112 @@ export class ClipsRenderService {
       // choose the final length from narration audio instead of visual length.
       animationStopTime: -1,
     };
+  }
+
+  private getSceneActions(
+    scene: SceneIR,
+    width: number,
+    height: number,
+    theme: "light" | "dark",
+  ): ActionIR[] {
+    if (Array.isArray(scene.actions) && scene.actions.length > 0) return scene.actions;
+
+    // Never render a content scene as only the subtle background grid. This is
+    // an emergency fallback for malformed/older script data, not the normal art
+    // direction; narration and title still produce a readable visual card.
+    console.warn(`[SceneRender] Scene ${scene.id} has no fallback actions; generating a title-and-narration card.`);
+
+    const dark = theme === "dark";
+    const sourceTitle = scene.sceneTitle?.trim()
+      || scene.narration?.trim().split(/[.!?]/, 1)[0]
+      || "Key idea";
+    const title = sourceTitle.replace(/\s+/g, " ").trim();
+    const firstSentence = scene.narration?.trim().split(/(?<=[.!?])\s+/, 1)[0] || "";
+    const description = firstSentence && firstSentence.toLowerCase() !== title.toLowerCase()
+      ? firstSentence
+      : scene.narration?.trim() || "A clear visual summary of this scene.";
+    const maxChars = height > width ? 20 : 32;
+    const wrap = (text: string, limit: number, maxLines: number): string[] => {
+      const words = text.split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      let line = "";
+      for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (candidate.length > limit && line) {
+          lines.push(line);
+          line = word;
+          if (lines.length === maxLines) break;
+        } else {
+          line = candidate;
+        }
+      }
+      if (line && lines.length < maxLines) lines.push(line);
+      return lines.length ? lines : ["Key idea"];
+    };
+
+    const titleLines = wrap(title, maxChars, 2);
+    const descriptionLines = wrap(description, maxChars + 8, 2);
+    const titleSize = Math.round(Math.min(84, Math.max(48, Math.min(width, height) * 0.075)));
+    const bodySize = Math.round(Math.min(40, Math.max(26, Math.min(width, height) * 0.035)));
+    const cardY = height * 0.27;
+    const titleStartY = height * (titleLines.length === 1 ? 0.41 : 0.37);
+    const titleGap = titleSize * 1.18;
+    const descriptionStartY = Math.max(height * 0.56, titleStartY + titleLines.length * titleGap + bodySize * 0.65);
+    const textColor = dark ? "#F1F5F9" : "#18181B";
+    const mutedColor = dark ? "#CBD5E1" : "#52525B";
+    const actions: ActionIR[] = [
+      {
+        t: 0,
+        op: "rect",
+        x: width * 0.09,
+        y: cardY,
+        w: width * 0.82,
+        h: height * 0.48,
+        r: 28,
+        fill: dark ? "#1E293B" : "#FFFFFF",
+        stroke: dark ? "#475569" : "#E4E4E7",
+        strokeWidth: 2,
+      },
+    ];
+
+    titleLines.forEach((value, index) => actions.push({
+      t: 0.2 + index * 0.12,
+      op: "text",
+      x: width / 2,
+      y: titleStartY + index * titleGap,
+      value,
+      fontSize: titleSize,
+      fontWeight: 700,
+      fill: textColor,
+      align: "center",
+      baseline: "middle",
+      typewriter: false,
+    }));
+
+    actions.push({
+      t: 0.5,
+      op: "line",
+      x1: width * 0.34,
+      y1: descriptionStartY - bodySize * 0.85,
+      x2: width * 0.66,
+      y2: descriptionStartY - bodySize * 0.85,
+      stroke: dark ? "#818CF8" : "#6366F1",
+      strokeWidth: 4,
+    });
+
+    descriptionLines.forEach((value, index) => actions.push({
+      t: 0.65 + index * 0.12,
+      op: "text",
+      x: width / 2,
+      y: descriptionStartY + index * bodySize * 1.25,
+      value,
+      fontSize: bodySize,
+      fill: mutedColor,
+      align: "center",
+      baseline: "middle",
+      typewriter: false,
+    }));
+
+    return actions;
   }
 }

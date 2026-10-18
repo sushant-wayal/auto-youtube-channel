@@ -418,6 +418,8 @@ export class SceneHtmlGenerationService {
         temperature: 0.4,
         topP: 0.9,
         maxOutputTokens: 7000,
+        maxAttempts: 1,
+        timeoutMs: 60_000,
       });
       const parsedStoryboard = parseJsonObject(rawStoryboard);
       if (!parsedStoryboard || !hasUsableStoryboard(parsedStoryboard, duration)) {
@@ -429,6 +431,8 @@ export class SceneHtmlGenerationService {
         model: process.env.GEMINI_HTML_MODEL || process.env.GEMINI_MODEL || "gemini-3.8-flash",
         temperature: 0.7,
         topP: 0.92,
+        maxAttempts: 1,
+        timeoutMs: 60_000,
       });
       assertGeneratedHtml(rawHtml);
 
@@ -448,6 +452,8 @@ export class SceneHtmlGenerationService {
         model: process.env.GEMINI_HTML_MODEL || process.env.GEMINI_MODEL || "gemini-3.8-flash",
         temperature: 0.7,
         topP: 0.92,
+        maxAttempts: 1,
+        timeoutMs: 60_000,
       });
       assertGeneratedHtml(rawHtml);
       return {

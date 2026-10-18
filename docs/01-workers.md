@@ -174,7 +174,7 @@ Controlled by `SCENE_RENDER_METHOD` env var (`code` | `ai`):
 1. POST to `/api/generate-scene-html` (website) with scene narration
 2. Gemini generates animated HTML for the scene
 3. Same Puppeteer → FFmpeg pipeline renders the AI HTML
-4. Uses Redis rate-limit queue (22s cooldown per scene) to avoid Gemini quota exhaustion
+4. Reserves each Gemini API attempt through the shared Redis project limiter (21s minimum spacing)
 
 ### Rendering Pipeline
 
@@ -215,7 +215,7 @@ SceneIR → HTML+JS (Canvas 2D) → Puppeteer (headless) → PNG frames → FFmp
 
 | File | Description |
 |------|-------------|
-| `src/lib/actios-to-clips.ts` | `ClipsRenderService` — orchestrates rendering, uploads, rate-limit queue |
+| `src/lib/actios-to-clips.ts` | `ClipsRenderService` — orchestrates AI/code rendering, uploads, and code fallback |
 | `src/lib/scene-rendring/action-flow-to-html.ts` | `SceneHtmlRenderer` — ActionIR → animated HTML (1567 lines) |
 | `src/lib/scene-rendring/htmlToVideoService.ts` | `HtmlToVideoService` — Puppeteer frame capture + FFmpeg |
 

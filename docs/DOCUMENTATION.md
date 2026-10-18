@@ -345,9 +345,7 @@ F5_PYTHON_BIN=python3
 | `shorts:publish-times` | String (JSON) | Array of 5 HH:MM IST times, rank 1–5 |
 | `longform:publish-time` | String | HH:MM IST time for long-form videos |
 | `pipeline:shorts:{videoId}` | List | Short results per run (TTL 7 days) |
-| `html_queue:turn` | String | AI scene rate-limit queue counter |
-| `html_queue:processing` | String | AI scene processing lease |
-| `html_queue:last_enquiry` | String | Timestamp of last AI scene request |
+| `gemini:request-slot:v1:<bucket>` | String | Next allowed request-start time (ms), TTL-managed shared Gemini limiter |
 
 ### Cloudinary Folders
 
