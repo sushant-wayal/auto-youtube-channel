@@ -365,11 +365,11 @@ CRF 16 = high quality (lower is better). `threads 1` = CI memory constraint.
 
 ## AI Scene Mode (Project Rate Limiter)
 
-When SCENE_RENDER_METHOD=ai, the renderer POSTs each scene to /api/generate-scene-html. The website creates a timed visual storyboard, then asks Gemini to render HTML that follows it. If storyboard generation fails, it tries direct narration-to-HTML; if that also fails, the worker renders the scene with its code renderer.
+When SCENE_RENDER_METHOD=ai, the renderer acquires a FIFO Redis scene ticket in the long-running worker, then POSTs the scene to /api/generate-scene-html. The website creates a timed visual storyboard, then asks Gemini to render HTML that follows it. If storyboard generation fails, it tries direct narration-to-HTML; if both AI paths fail, rendering stops with an error. AI mode never substitutes code-rendered scenes.
 
-Each Gemini API attempt reserves a Redis slot in gemini:request-slot:v1:<bucket>. The shared limiter spaces request starts by 21 seconds per configured bucket, including model fallbacks and retries. Scene requests are not held in a second ticket queue, avoiding serverless requests timing out behind parallel render jobs.
+The worker-side ticket queue serializes scene-generation requests across long-form and Shorts jobs before they enter Vercel. This keeps queued work outside the serverless request timeout. Each actual Gemini API attempt separately reserves a Redis slot in gemini:request-slot:v1:<bucket>; the shared limiter spaces request starts by 21 seconds per configured bucket.
 
-Gemini scene calls use one bounded network attempt with a 60-second HTTP timeout. A transient failure moves promptly to the next generation path. AI-mode script parsing preserves the action list as a visual fallback and removes silent Shorts hook scenes when narrated content exists. If legacy script data still has no actions, the code renderer creates a readable title-and-narration card instead of emitting a mostly empty background.
+Each storyboard-first scene uses at most one direction call and one HTML call. If the storyboard path fails, it makes at most one direct HTML call; there is no five-model retry fanout. Gemini calls use a 60-second HTTP timeout. If both AI paths fail, the scene fails and no code-rendered or blank substitute is cached. Render-cache keys are versioned and include the render mode so clips created by earlier fallback behavior cannot be reused as AI output.
 
 The storyboard carries a recurring visual subject, narration anchors, dramatic purpose, composition, depth/lighting, camera movement, transitions, restrained on-screen wording, and a sparse SFX plan. Sound cue times represent the desired impact peak; the renderer passes validated cues to the assembler, which compensates for each sample's attack.
 Scene planning and HTML use separate credentials and model settings:

@@ -4,6 +4,7 @@ import Redis from "ioredis";
 
 import { SceneHtmlRenderer } from "./scene-rendring/action-flow-to-html";
 import { HtmlToVideoService } from "./scene-rendring/htmlToVideoService";
+import { acquireSceneHtmlTicket } from "./scene-html-ticket-queue";
 import { ActionIR, SceneIR } from "../types";
 import CloudinaryService from '../../../../shared/services/cloudinary-service';
 import type { SoundEvent } from '../../../../workers/video-assembler/src/lib/assests/sfx-mixer';
@@ -56,7 +57,9 @@ export class ClipsRenderService {
     try {
       for (let i = 0; i < this.scenes.length; i++) {
         const scene = this.scenes[i];
-        const cacheKey = `render_cache:${this.jobId}:${scene.id}`;
+        // Version the cache and include the render mode. Older AI runs could
+        // cache code-rendered fallback clips under the same key as AI output.
+        const cacheKey = `render_cache:v2:${this.renderMethod}:${this.jobId}:${scene.id}`;
 
         const cached = await redis.hgetall(cacheKey);
         if (cached && cached.url && cached.timing && cached.animationStopTime) {
@@ -93,23 +96,10 @@ export class ClipsRenderService {
         let plannedSoundEvents: SoundEvent[] | undefined;
 
         if (this.renderMethod === "ai") {
-          try {
-            const generated = await this.generateAiSceneHtml(scene, duration);
-            html = generated.html;
-            animationStopTime = generated.animationStopTime;
-            plannedSoundEvents = generated.soundEvents;
-          } catch (error) {
-            console.error(`[SceneRender] AI storyboard and direct HTML failed for scene ${scene.id}; falling back to the code renderer.`, error);
-            const rendered = this.htmlRenderer.render({
-              duration: scene.baseDuration,
-              actions: this.getSceneActions(scene, width, height, resolvedTheme),
-              sceneTheme: resolvedTheme,
-            }, height, width);
-            html = rendered.html;
-            animationStopTime = rendered.animationStopTime;
-            duration = sceneDuration;
-            plannedSoundEvents = undefined;
-          }
+          const generated = await this.generateAiSceneHtml(scene, duration);
+          html = generated.html;
+          animationStopTime = generated.animationStopTime;
+          plannedSoundEvents = generated.soundEvents;
         } else {
           const rendered = this.htmlRenderer.render({
               duration: scene.baseDuration,
@@ -168,7 +158,7 @@ export class ClipsRenderService {
       // Cleanup redis keys since all scenes rendered successfully
       const pipeline = redis.multi();
       for (const scene of this.scenes) {
-        pipeline.del(`render_cache:${this.jobId}:${scene.id}`);
+        pipeline.del(`render_cache:v2:${this.renderMethod}:${this.jobId}:${scene.id}`);
       }
       await pipeline.exec();
     } finally {
@@ -182,18 +172,28 @@ export class ClipsRenderService {
     scene: SceneIR,
     duration: number
   ): Promise<{ html: string; animationStopTime: number; soundEvents?: SoundEvent[] }> {
-    const response = await fetch(`${this.websiteDomain}/api/generate-scene-html`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sceneId: scene.id,
-        sceneTitle: scene.sceneTitle,
-        narration: scene.narration || "",
-        duration,
-        isShort: this.isShort,
-        allowEmptyNarration: true,
-      }),
-    });
+    // Keep the FIFO wait in the long-running renderer worker, not inside a
+    // five-minute Vercel request. The website's project limiter still reserves
+    // a slot for each actual Gemini call (direction, HTML, or direct fallback).
+    const releaseTicket = await acquireSceneHtmlTicket(`${this.jobId}/${scene.id}`);
+    let response: Response;
+    try {
+      response = await fetch(`${this.websiteDomain}/api/generate-scene-html`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sceneId: scene.id,
+          sceneTitle: scene.sceneTitle,
+          narration: scene.narration || "",
+          duration,
+          isShort: this.isShort,
+          allowEmptyNarration: true,
+        }),
+        signal: AbortSignal.timeout(270_000),
+      });
+    } finally {
+      await releaseTicket();
+    }
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "");

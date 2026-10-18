@@ -461,7 +461,7 @@ export class SceneHtmlGenerationService {
         generationMode: "direct-html-fallback",
       };
     } catch (directHtmlError) {
-      console.error(`[SceneHTML] Direct HTML generation also failed for ${sceneLabel}; renderer will use the code fallback.`, directHtmlError);
+      console.error(`[SceneHTML] Direct HTML generation also failed for ${sceneLabel}; AI scene rendering must stop.`, directHtmlError);
       throw new Error(`Storyboard and direct HTML generation failed for ${sceneLabel}`);
     }
   }

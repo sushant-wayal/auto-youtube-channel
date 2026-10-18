@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import SceneHtmlGenerationService from "@/lib/scene-html/scene-html-generation";
 
-// Each Gemini network attempt is rate-limited by the shared Redis project-slot
-// limiter in GeminiService. Avoid holding serverless requests in a second,
-// scene-wide queue; parallel Shorts would otherwise time out while waiting.
+// Scene ticket waiting is handled by the long-running renderer worker.
+// Each Gemini network attempt is still limited by the shared Redis project slot.
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
