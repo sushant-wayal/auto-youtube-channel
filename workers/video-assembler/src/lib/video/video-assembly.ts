@@ -270,14 +270,11 @@ export class VideoAssemblyService {
                     "-ar", "48000",
                     "-ac", "2",
                     "-b:a", "192k",
-                    "-shortest"
                 ],
             });
         } else {
             await fsPromises.copyFile(combinedPath, combinedWithMusic);
         }
-
-
 
         /* -------------------------
             4. Intro / Outro
@@ -290,7 +287,7 @@ export class VideoAssemblyService {
         let finalVideo = combinedWithMusic;
 
         if (!input.isShort && (input.branding?.intro || input.branding?.outro)) {
-            console.error(`  🎞️  Adding intro/outro branding...`);
+            console.error(`  🎞️  Adding intro/outro branding with seamless re-encode...`);
             const clips = await this.addIntroOutroWithOriginalAudio(
                 combinedWithMusic,
                 input.branding?.intro,
@@ -299,7 +296,7 @@ export class VideoAssemblyService {
             );
 
             const withBranding = path.join(outputDir, "with_branding.mp4");
-            await this.concatClips(clips, withBranding);
+            await this.concatClips(clips, withBranding, true);
             finalVideo = withBranding;
         }
 
@@ -654,7 +651,9 @@ export class VideoAssemblyService {
             `[main][bgm_outro]concat=n=2:v=0:a=1[out]`
             : narrationFilter +
             `[1:a]aloop=loop=-1:size=2e+09,atrim=0:${videoDuration},volume=${musicNarrationVolume}[music];` +
-            `${narrationInput}[music]amix=inputs=2:duration=first[out]`;
+            `anullsrc=r=48000:cl=stereo,atrim=0:${videoDuration}[silence];` +
+            `${narrationInput}[silence]concat=n=2:v=0:a=1,atrim=0:${videoDuration}[narration_padded];` +
+            `[narration_padded][music]amix=inputs=2:duration=first:dropout_transition=0[out]`;
 
         await runFFmpeg({
             inputs: [narrationPath, musicPath],
@@ -673,7 +672,7 @@ export class VideoAssemblyService {
         return outputPath;
     }
 
-    async concatClips(clips: string[], outputPath: string): Promise<void> {
+    async concatClips(clips: string[], outputPath: string, forceReencode: boolean = false): Promise<void> {
         if (clips.length === 0) {
             throw new Error('No clips to concatenate');
         }
@@ -690,6 +689,29 @@ export class VideoAssemblyService {
         await fsPromises.writeFile(concatListPath, concatList);
 
         try {
+            if (forceReencode) {
+                console.error('🎬 Concatenating with unified H.264/AAC re-encode for seamless transitions and monotonic timestamps...');
+                await runFFmpeg({
+                    inputs: [],
+                    output: outputPath,
+                    args: [
+                        '-threads', '1',
+                        '-f', 'concat',
+                        '-safe', '0',
+                        '-i', concatListPath,
+                        '-c:v', 'libx264',
+                        '-preset', 'fast',
+                        '-crf', '22',
+                        '-c:a', 'aac',
+                        '-b:a', '192k',
+                        '-ar', '48000',
+                        '-ac', '2',
+                        '-movflags', '+faststart',
+                    ],
+                });
+                return;
+            }
+
             await runFFmpeg({
                 inputs: [],
                 output: outputPath,
@@ -713,11 +735,12 @@ export class VideoAssemblyService {
                     '-safe', '0',
                     '-i', concatListPath,
                     '-c:v', 'libx264',
-                    '-x264-params', 'threads=1',
-                    '-preset', 'medium',
-                    '-crf', '18',
+                    '-preset', 'fast',
+                    '-crf', '22',
                     '-c:a', 'aac',
                     '-b:a', '192k',
+                    '-ar', '48000',
+                    '-ac', '2',
                     '-movflags', '+faststart',
                 ],
             });
