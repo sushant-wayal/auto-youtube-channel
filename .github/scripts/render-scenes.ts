@@ -5,7 +5,7 @@
 
 import { renderScenes } from '../../workers/video-scene-renderer/src/index';
 import { validateConfig } from '../../shared/config';
-import { setJobStatus, clearList } from './utils/status-updater';
+import { setJobStatus, setMetadata, clearList } from './utils/status-updater';
 
 interface ScriptData {
     script: {
@@ -70,6 +70,20 @@ async function renderVideoScenes(videoId: string, scriptData: string) {
             console.error('Non-fatal error clearing sceneUrls:', e);
         }
         const result = await renderVideoScenes(videoId, scriptData);
+
+        // Preserve assembly inputs in Redis so a later local/repair assembly can
+        // reuse the exact scene timing and SFX plan without rendering scenes again.
+        try {
+            await setMetadata({
+                renderVideoId: videoId,
+                renderTimings: JSON.stringify(result.timings),
+                animationStopTimes: JSON.stringify(result.animationStopTimes),
+                perSceneSoundEvents: JSON.stringify(result.perSceneSoundEvents ?? []),
+            });
+        } catch (metadataError) {
+            console.error('Non-fatal: could not persist render timing/SFX metadata:', metadataError);
+        }
+
         await setJobStatus('renderScenes', 'success');
 
         // Output for GitHub Actions (hex encoded to avoid secret detection patterns)

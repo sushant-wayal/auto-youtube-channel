@@ -333,6 +333,47 @@ export class VideoAssemblyService {
     /**
      * Normalize clips with specific timing for each clip
      */
+    /**
+     * Re-encode only when the Cloudinary account's per-video limit is exceeded.
+     * The audio stream is copied unchanged; CRF is raised gradually until the
+     * video fits with a small margin below the account cap.
+     */
+    async compressVideoToLimit(
+        inputPath: string,
+        maxSizeBytes: number
+    ): Promise<{ outputPath: string; bytes: number; crf: number }> {
+        const targetBytes = Math.floor(maxSizeBytes * 0.98);
+        const outputPath = path.join(
+            path.dirname(inputPath),
+            `${path.basename(inputPath, path.extname(inputPath))}_cloudinary.mp4`
+        );
+
+        for (const crf of [22, 24, 26, 28]) {
+            console.error(`📦 Compressing oversized final video with H.264 CRF ${crf} to fit the Cloudinary account limit...`);
+            await runFFmpeg({
+                inputs: [inputPath],
+                output: outputPath,
+                args: [
+                    '-map', '0:v:0',
+                    '-map', '0:a:0?',
+                    '-c:v', 'libx264',
+                    '-preset', 'fast',
+                    '-crf', String(crf),
+                    '-c:a', 'copy',
+                    '-movflags', '+faststart',
+                ],
+            });
+
+            const bytes = (await fsPromises.stat(outputPath)).size;
+            console.error(`📦 CRF ${crf} output size: ${(bytes / (1024 * 1024)).toFixed(1)} MiB`);
+            if (bytes <= targetBytes) return { outputPath, bytes, crf };
+        }
+
+        throw new Error(
+            `Final video is still above the Cloudinary account limit after CRF 28; maximum is ${(maxSizeBytes / (1024 * 1024)).toFixed(1)} MiB.`
+        );
+    }
+
     async normalizeAndConcatClipsWithTiming(
         jobId: string,
         clips: string[],

@@ -16,6 +16,24 @@ export interface CloudinaryUploadResult {
     bytes: number;
 }
 
+export class CloudinaryVideoSizeLimitError extends Error {
+    constructor(
+        public readonly fileSizeBytes: number,
+        public readonly maxSizeBytes: number
+    ) {
+        super(
+            `Video is ${(fileSizeBytes / (1024 * 1024)).toFixed(1)} MiB, above this Cloudinary account's ` +
+            `video upload limit of ${(maxSizeBytes / (1024 * 1024)).toFixed(1)} MiB.`
+        );
+        this.name = 'CloudinaryVideoSizeLimitError';
+    }
+}
+
+// Keep a margin below Cloudinary's 100 MB single-request limit because the
+// effective limit can vary by account. Large uploads are split into 20 MB parts.
+const CHUNKED_UPLOAD_THRESHOLD_BYTES = 50 * 1024 * 1024;
+const VIDEO_UPLOAD_CHUNK_SIZE_BYTES = 20 * 1000 * 1000;
+
 class CloudinaryService {
     private static instance: CloudinaryService;
 
@@ -46,12 +64,32 @@ class CloudinaryService {
         console.error(`☁️ Uploading video to Cloudinary: ${filePath}`);
 
         try {
-            const result: UploadApiResponse = await cloudinary.uploader.upload(filePath, {
+            const uploadOptions = {
                 resource_type: 'video',
                 folder: `video-gen/${folder}`,
                 public_id: publicId,
                 overwrite: true,
-            });
+            } as const;
+            const fileSizeBytes = (await fs.promises.stat(filePath)).size;
+
+            let result: UploadApiResponse;
+            if (fileSizeBytes >= CHUNKED_UPLOAD_THRESHOLD_BYTES) {
+                const accountMaxBytes = await this.getAccountVideoSizeLimit();
+                if (accountMaxBytes && fileSizeBytes > accountMaxBytes) {
+                    throw new CloudinaryVideoSizeLimitError(fileSizeBytes, accountMaxBytes);
+                }
+                console.error(`📦 Video is ${(fileSizeBytes / (1024 * 1024)).toFixed(1)} MB; uploading in chunks.`);
+                result = await this.uploadVideoInChunks(filePath, uploadOptions);
+            } else {
+                try {
+                    result = await cloudinary.uploader.upload(filePath, uploadOptions);
+                } catch (error) {
+                    if (!this.isPayloadTooLarge(error)) throw error;
+
+                    console.error('⚠️ Cloudinary returned HTTP 413; retrying this video with chunked upload.');
+                    result = await this.uploadVideoInChunks(filePath, uploadOptions);
+                }
+            }
 
             console.error(`✅ Video uploaded: ${result.secure_url}`);
 
@@ -63,9 +101,80 @@ class CloudinaryService {
                 bytes: result.bytes,
             };
         } catch (error) {
-            console.error('❌ Cloudinary video upload failed:', error);
-            throw new Error(`Failed to upload video: ${error}`);
+            const details = this.formatUploadError(error);
+            console.error(`❌ Cloudinary video upload failed: ${details}`);
+            if (error instanceof CloudinaryVideoSizeLimitError) throw error;
+            if (this.isPayloadTooLarge(error)) {
+                const size = (await fs.promises.stat(filePath).catch(() => ({ size: 0 }))).size;
+                throw new CloudinaryVideoSizeLimitError(size, 104857600);
+            }
+            throw new Error(`Failed to upload video: ${details}`);
         }
+    }
+
+    private uploadVideoInChunks(
+        filePath: string,
+        options: {
+            readonly resource_type: 'video';
+            readonly folder: string;
+            readonly public_id: string | undefined;
+            readonly overwrite: true;
+        }
+    ): Promise<UploadApiResponse> {
+        return new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_large(
+                filePath,
+                { ...options, chunk_size: VIDEO_UPLOAD_CHUNK_SIZE_BYTES },
+                (error, result) => {
+                    if (error) {
+                        reject(error);
+                    } else if (result) {
+                        resolve(result);
+                    } else {
+                        reject(new Error('Cloudinary completed the chunked upload without a result.'));
+                    }
+                }
+            );
+
+            const streamWithErrors = uploadStream as unknown as {
+                on?: (event: 'error', listener: (error: Error) => void) => unknown;
+            };
+            streamWithErrors.on?.('error', reject);
+        });
+    }
+
+    private isPayloadTooLarge(error: unknown): boolean {
+        if (!error || typeof error !== 'object') return false;
+        const details = error as { http_code?: unknown; statusCode?: unknown };
+        return Number(details.http_code ?? details.statusCode) === 413;
+    }
+
+    private async getAccountVideoSizeLimit(): Promise<number | null> {
+        try {
+            const usage = await cloudinary.api.usage();
+            const limit = Number(usage?.media_limits?.video_max_size_bytes);
+            return Number.isFinite(limit) && limit > 0 ? limit : null;
+        } catch (error) {
+            // The upload attempt remains authoritative if the optional Admin API
+            // preflight is unavailable or rate-limited.
+            console.warn('⚠️ Could not read the Cloudinary video upload limit; proceeding with chunked upload.');
+            return null;
+        }
+    }
+
+    private formatUploadError(error: unknown): string {
+        if (error instanceof Error) {
+            const details = error as Error & { http_code?: unknown; name?: string };
+            const httpCode = details.http_code ? ` (HTTP ${details.http_code})` : '';
+            return `${details.message}${httpCode}`;
+        }
+        if (error && typeof error === 'object') {
+            const details = error as { message?: unknown; http_code?: unknown; name?: unknown };
+            return [details.name, details.message, details.http_code ? `HTTP ${details.http_code}` : '']
+                .filter(Boolean)
+                .join(': ') || JSON.stringify(error);
+        }
+        return String(error);
     }
 
     /**

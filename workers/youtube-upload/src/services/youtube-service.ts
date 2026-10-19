@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import fs from 'fs';
+import os from 'os';
 import path from "path";
 import { pipeline } from "stream/promises";
 import { getShortsPublishTimes } from "../../../../shared/services/shorts-publish-time-service";
@@ -78,7 +79,7 @@ export class YouTubeService {
     seriesTitle
   }: { jobId: string } & UploadCommonArgs): Promise<string> {
 
-    const tmpDir = "/tmp/youtube";
+    const tmpDir = path.join(os.tmpdir(), 'youtube');
     await fs.promises.mkdir(tmpDir, { recursive: true });
 
     const videoPath = path.join(tmpDir, `${Date.now()}.mp4`);

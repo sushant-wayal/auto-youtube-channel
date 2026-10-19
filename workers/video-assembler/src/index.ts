@@ -1,5 +1,5 @@
 import VideoAssemblyService, { VideoAssemblyInput } from './lib/video/video-assembly';
-import CloudinaryService from '../../../shared/services/cloudinary-service';
+import CloudinaryService, { CloudinaryVideoSizeLimitError } from '../../../shared/services/cloudinary-service';
 import { pickBackgroundTrack, getBrandingAssets } from './lib/assests/music-branding';
 import { validateConfig } from '../../../shared/config';
 
@@ -32,11 +32,24 @@ export async function assembleVideo(input: VideoAssemblyInput): Promise<{
 
     // Upload to Cloudinary
     const mainVideoPath = assembledVideo.outputPath;
-    const mainVideoUpload = await cloudinaryService.uploadVideo(
-        mainVideoPath,
-        `${input.jobId || input.videoId}/videos`,
-        'main-video'
-    );
+    let mainVideoUpload: Awaited<ReturnType<typeof cloudinaryService.uploadVideo>>;
+    try {
+        mainVideoUpload = await cloudinaryService.uploadVideo(
+            mainVideoPath,
+            `${input.jobId || input.videoId}/videos`,
+            'main-video'
+        );
+    } catch (error) {
+        if (!(error instanceof CloudinaryVideoSizeLimitError)) throw error;
+
+        console.error('⚠️ Final video exceeds the account upload cap; preserving audio and re-encoding video only.');
+        const compressed = await assemblyService.compressVideoToLimit(mainVideoPath, error.maxSizeBytes);
+        mainVideoUpload = await cloudinaryService.uploadVideo(
+            compressed.outputPath,
+            `${input.jobId || input.videoId}/videos`,
+            'main-video'
+        );
+    }
 
     return {
         videoId: assembledVideo.videoId,
