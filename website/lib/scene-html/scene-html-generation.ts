@@ -95,6 +95,7 @@ For the whole scene, define one visual premise and a recurring subject that can 
 Create contiguous timed beats that cover the full scene from 0 to the exact end of duration. Aim for a new meaningful visual action every 3–5 seconds; use fewer beats for very short scenes and never exceed 24.
 - NO FAST CYCLES OR SHORT LOOPS: Pacing must be slow, majestic, and progressive. NEVER plan rapid repeating cycles, short looping spinners, or fast oscillating orbits. The visual must unfold once continuously across the entire scene.
 - FULL TIMELINE COVERAGE (NEVER FREEZE EARLY): The timed beats must cover the full timeline up to 100% of duration. The final beat must end at the scene's full duration so the animation never ends early or freezes before narration ends.
+- VERTICAL SHORTS CENTER STAGE (MANDATORY): For 9:16 vertical shorts (1080x1920), the center 60% of the canvas (between y=350px and y=1450px) is the MAIN VISUAL STAGE. You MUST direct active, concrete, moving visual mechanisms, diagrams, or animations in this center area. NEVER leave the center screen empty with only text at the top and bottom.
 Each beat must anchor to an exact short phrase from the narration and specify:
 - its dramatic purpose in the visual story;
 - a concrete, physically readable action that demonstrates the spoken cause or consequence;
@@ -141,6 +142,7 @@ const HTML_SYSTEM_PROMPT = `You are a world-class motion-graphics director and s
 ART DIRECTION:
 - Make a full-frame, layered 2.5D visual world with depth, perspective, material detail, controlled lighting, and deliberate camera language. Compose for the actual topic, not a generic technology dashboard.
 - Keep one recognizable visual subject moving through the scene and changing state. Make each narration beat visibly advance the same visual story; build anticipation, reveal the consequence, then land on a clear payoff.
+- VERTICAL SHORTS CENTER STAGE (MANDATORY): When format is vertical YouTube Shorts (1080x1920), the CENTER AREA (between y=350px and y=1450px) is the MAIN VISUAL STAGE. You MUST populate this center stage with rich, large, dynamic animated visual graphics, diagrams, illustrations, or physical mechanisms that explain the narration. NEVER leave the center screen empty with only text at the top and bottom! Top text is merely a brief title; bottom text is merely a caption; the visual core of the Short MUST actively live, animate, and evolve in the center stage throughout the entire scene!
 - SLOW, PROGRESSIVE PACING (NO FAST LOOPS): All motion, state transitions, and camera moves must be slow, calm, and deliberate. NEVER create rapid repeating loops, 1-3s CSS keyframe cycles, or modulo resets (e.g. 't % 2' or short looping spinners). Every motion should progress smoothly and steadily once across the full scene timeline.
 - CONTINUOUS MOTION UNTIL END (NEVER FREEZE): Visuals must continuously live, evolve, and maintain subtle active motion all the way to the very last second (t = duration). Do not end animations early or let elements freeze into static screenshots before narration finishes.
 - Change the meaningful visual state throughout the scene, typically every 3–5 seconds. Use varied shot scales and compositions while keeping visual continuity. Motion must explain the mechanism, not decorate it.
@@ -162,6 +164,7 @@ const DIRECT_HTML_SYSTEM_PROMPT = `You are a world-class motion-graphics directo
 ART DIRECTION:
 - Make a full-frame, layered 2.5D visual world with depth, perspective, tactile materials, controlled lighting, and deliberate camera language.
 - Choose one recognizable subject or visual metaphor specific to the narration. Carry it through the scene as it changes state, builds anticipation, reveals a consequence, and lands on a clear payoff.
+- VERTICAL SHORTS CENTER STAGE (MANDATORY): When format is vertical YouTube Shorts (1080x1920), the CENTER AREA (between y=350px and y=1450px) is the MAIN VISUAL STAGE. You MUST populate this center stage with rich, large, dynamic animated visual graphics, diagrams, illustrations, or physical mechanisms that explain the narration. NEVER leave the center screen empty with only text at the top and bottom! Top text is merely a brief title; bottom text is merely a caption; the visual core of the Short MUST actively live, animate, and evolve in the center stage throughout the entire scene!
 - SLOW, PROGRESSIVE PACING (NO FAST LOOPS): All motion, state transitions, and camera moves must be slow, calm, and deliberate. NEVER create rapid repeating loops, 1-3s CSS keyframe cycles, or modulo resets (e.g. 't % 2' or short looping spinners). Every motion should progress smoothly and steadily once across the full scene timeline.
 - CONTINUOUS MOTION UNTIL END (NEVER FREEZE): Visuals must continuously live, evolve, and maintain subtle active motion all the way to the very last second (t = duration). Do not end animations early or let elements freeze into static screenshots before narration finishes.
 - Advance the visual story in meaningful stages, usually every 3–5 seconds. Motion must explain the mechanism or emotional turn, not decorate it.
@@ -669,9 +672,17 @@ export function sanitizeGeneratedHtml(
     .replace(/\bWebSocket\b/g, "BlockedWebSocket")
     .replace(/\bEventSource\b/g, "BlockedEventSource");
 
+  // Ensure the body has a single root #app container so that multiple elements (header, center visual, footer)
+  // are never orphaned, misaligned, or split when scaled.
+  if (!/<div\b[^>]*id=["']app["']/i.test(html) && /<body\b[^>]*>([\s\S]*?)<\/body>/i.test(html)) {
+    html = html.replace(/<body([^>]*)>([\s\S]*?)<\/body>/i, (match, bodyAttrs, bodyContent) => {
+      return `<body${bodyAttrs}><div id="app">${bodyContent}</div></body>`;
+    });
+  }
+
   html = ensureHeadMetadata(html, input);
   html = ensureFullscreenFix(html, input);
-  html = ensureRenderFrameHook(html);
+  html = ensureRenderFrameHook(html, input.duration);
   if (soundEvents) html = ensureSoundEventsHook(html, soundEvents);
 
   if (!/<\/html>\s*$/i.test(html)) {
@@ -697,7 +708,7 @@ function ensureHeadMetadata(html: string, input: Partial<SceneHtmlGenerationInpu
   const width = input.isShort ? 1080 : 1920;
   const height = input.isShort ? 1920 : 1080;
   // Reset body/html so flex-shrink never collapses the canvas before JS scaling runs.
-  const metadata = `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#fff;display:block!important;flex-shrink:0!important;}body{min-width:${width}px;min-height:${height}px;position:relative;}</style>`;
+  const metadata = `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#090D16;display:block!important;flex-shrink:0!important;}body{min-width:${width}px;min-height:${height}px;position:relative;}#app{position:absolute;left:50%;top:50%;margin-left:-${width / 2}px;margin-top:-${height / 2}px;width:${width}px;height:${height}px;overflow:hidden;}</style>`;
 
   if (/<head[\s\S]*?>/i.test(html)) {
     return html.replace(/<head[\s\S]*?>/i, match => `${match}${metadata}`);
@@ -707,8 +718,8 @@ function ensureHeadMetadata(html: string, input: Partial<SceneHtmlGenerationInpu
 }
 
 /**
- * Injects a script that patches two common AI-generation bugs that cause
- * clipping / letterboxing:
+ * Injects a script that patches common AI-generation bugs that cause
+ * clipping / letterboxing / missing center canvas:
  *
  * 1. Any inline `resize()` that used `Math.min` for scaling is overridden so
  *    the canvas always COVERS (fills) the screen rather than fitting inside it.
@@ -719,6 +730,9 @@ function ensureHeadMetadata(html: string, input: Partial<SceneHtmlGenerationInpu
  *
  * 3. Any #app (or the first full-viewport-sized child) is forced to use
  *    absolute centering via negative margins so the scale() origin is correct.
+ *
+ * 4. Any un-dimensioned <canvas> elements without explicit width/height attributes
+ *    are given proper resolution matching their container or viewport.
  */
 function ensureFullscreenFix(html: string, input: Partial<SceneHtmlGenerationInput>): string {
   const width = input.isShort ? 1080 : 1920;
@@ -749,6 +763,17 @@ function ensureFullscreenFix(html: string, input: Partial<SceneHtmlGenerationInp
     app.style.marginTop  = (-H / 2) + 'px';
     app.style.width  = W + 'px';
     app.style.height = H + 'px';
+
+    // Ensure any internal <canvas> elements without explicit dimensions receive resolution
+    var canvases = document.querySelectorAll('canvas');
+    canvases.forEach(function(c) {
+      if (!c.getAttribute('width') || c.width === 300) {
+        c.width = c.clientWidth || W;
+      }
+      if (!c.getAttribute('height') || c.height === 150) {
+        c.height = c.clientHeight || H;
+      }
+    });
   }
 
   // ── 2. Strip flex-centering from body that shrinks the canvas ───────────
@@ -789,15 +814,18 @@ function ensureFullscreenFix(html: string, input: Partial<SceneHtmlGenerationInp
   return html;
 }
 
-function ensureRenderFrameHook(html: string): string {
+function ensureRenderFrameHook(html: string, duration?: number): string {
+  const sceneDuration = duration ?? 30;
   const hook = `<script>
 (function(){
   const originalRenderFrame = typeof window.renderFrame === "function" ? window.renderFrame.bind(window) : null;
+  const totalDuration = ${sceneDuration};
   window.renderFrame = function(seconds) {
-    const ms = Math.max(0, Number(seconds) || 0) * 1000;
+    const s = Math.max(0, Number(seconds) || 0);
+    const ms = s * 1000;
     if (typeof originalRenderFrame === "function") {
       try {
-        originalRenderFrame(seconds);
+        originalRenderFrame(s);
       } catch (err) {
         console.error("AI renderFrame error:", err);
       }
@@ -810,7 +838,8 @@ function ensureRenderFrameHook(html: string): string {
         } catch (_) {}
       });
     }
-    document.documentElement.style.setProperty("--scene-time", String(seconds));
+    document.documentElement.style.setProperty("--scene-time", String(s));
+    document.documentElement.style.setProperty("--scene-progress", String(totalDuration > 0 ? Math.min(1, s / totalDuration) : 0));
   };
 })();
 </script>`;

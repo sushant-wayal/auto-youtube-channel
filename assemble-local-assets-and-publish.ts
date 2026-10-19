@@ -380,6 +380,7 @@ async function main(): Promise<void> {
   const renderer = new HtmlToVideoService();
   const renderedClips: string[] = [];
   const sceneDurations: number[] = [];
+  const perSceneSoundEvents: any[][] = [];
 
   for (let i = 0; i < sceneHtmlFiles.length; i++) {
     const audioDuration = await getVideoDuration(audioFiles[i]);
@@ -388,7 +389,7 @@ async function main(): Promise<void> {
     const output = path.join(renderedDir, `scene_${String(i + 1).padStart(2, '0')}.mp4`);
 
     console.log(`  Scene ${i + 1}/${sceneHtmlFiles.length}: ${path.basename(sceneHtmlFiles[i])} (${duration.toFixed(2)}s)`);
-    await renderer.render({
+    const renderRes = await renderer.render({
       html,
       width,
       height,
@@ -399,6 +400,7 @@ async function main(): Promise<void> {
 
     renderedClips.push(output);
     sceneDurations.push(duration);
+    perSceneSoundEvents.push(renderRes?.soundEvents || []);
   }
 
   console.log('Assembling final video...');
@@ -412,6 +414,7 @@ async function main(): Promise<void> {
       ? scriptMetadata.perSceneNarration.slice(0, audioFiles.length)
       : audioFiles.map((_, index) => `Scene ${index + 1}`),
     animationStopTimes: sceneDurations,
+    perSceneSoundEvents: perSceneSoundEvents.length > 0 ? perSceneSoundEvents : undefined,
     music: music ? path.resolve(music) : undefined,
     branding: {
       intro: intro ? path.resolve(intro) : undefined,

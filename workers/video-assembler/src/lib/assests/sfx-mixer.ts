@@ -47,7 +47,22 @@ export interface SoundEvent {
 // File map — type → WAV filename in the sfx/ directory
 // ---------------------------------------------------------------------------
 
-const SFX_DIR = path.join(__dirname, 'sfx');
+function resolveSfxDir(): string {
+  const candidates = [
+    path.join(__dirname, 'sfx'),
+    path.join(__dirname, '..', '..', 'src', 'lib', 'assests', 'sfx'),
+    path.join(process.cwd(), 'workers', 'video-assembler', 'src', 'lib', 'assests', 'sfx'),
+    path.join(process.cwd(), 'src', 'lib', 'assests', 'sfx'),
+  ];
+  for (const dir of candidates) {
+    if (fs.existsSync(dir)) {
+      return dir;
+    }
+  }
+  return path.join(__dirname, 'sfx');
+}
+
+const SFX_DIR = resolveSfxDir();
 
 const SFX_FILE_MAP: Record<SfxType, string> = {
   whoosh:     'whoosh.wav',
