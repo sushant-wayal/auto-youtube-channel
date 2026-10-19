@@ -8,11 +8,18 @@ local now_ms = tonumber(now_parts[1]) * 1000 + math.floor(tonumber(now_parts[2])
 local interval_ms = tonumber(ARGV[1])
 local next_allowed_ms = tonumber(redis.call('GET', KEYS[1]) or '0')
 local scheduled_ms = math.max(now_ms, next_allowed_ms)
+local wait_ms = math.max(0, scheduled_ms - now_ms)
+local max_wait_ms = tonumber(ARGV[2])
+
+if max_wait_ms and wait_ms > max_wait_ms then
+  return -wait_ms
+end
+
 local next_slot_ms = scheduled_ms + interval_ms
 local ttl_ms = math.max(interval_ms * 2, next_slot_ms - now_ms + interval_ms)
 
 redis.call('SET', KEYS[1], next_slot_ms, 'PX', ttl_ms)
-return math.max(0, scheduled_ms - now_ms)
+return wait_ms
 `;
 
 let redisClient: Redis | undefined;
@@ -31,7 +38,7 @@ function getRedisClient(): Redis {
  * Reserve a start time in a shared Redis queue for this Google Cloud project.
  * A 21-second interval stays below 3 requests in every rolling 60-second window.
  */
-export async function waitForGeminiProjectSlot(projectId: string): Promise<void> {
+export async function waitForGeminiProjectSlot(projectId: string, maxWaitMs?: number): Promise<void> {
   const bucket = projectId.trim() || "shared-default";
   const redisKey = `gemini:request-slot:v1:${encodeURIComponent(bucket)}`;
   const waitMs = Number(await getRedisClient().eval(
@@ -39,7 +46,12 @@ export async function waitForGeminiProjectSlot(projectId: string): Promise<void>
     1,
     redisKey,
     String(MIN_REQUEST_INTERVAL_MS),
+    maxWaitMs === undefined ? "" : String(Math.max(0, Math.floor(maxWaitMs))),
   ));
+
+  if (waitMs < 0) {
+    throw new Error(`Gemini project request slot is delayed beyond the remaining scene-generation budget (${Math.round(-waitMs)}ms)`);
+  }
 
   if (waitMs > 0) {
     await new Promise<void>((resolve) => setTimeout(resolve, waitMs));

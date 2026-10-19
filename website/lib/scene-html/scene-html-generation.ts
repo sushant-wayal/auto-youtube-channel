@@ -39,6 +39,8 @@ export interface SceneHtmlGenerationResult {
   generationMode: "storyboard" | "direct-html-fallback";
 }
 
+const SCENE_GENERATION_BUDGET_MS = 240_000;
+
 export interface StoryboardBeat {
   start: number;
   end: number;
@@ -192,8 +194,8 @@ function parseJsonObject(raw: string): Record<string, unknown> | null {
   }
 }
 
-function hasUsableStoryboard(raw: Record<string, unknown>, duration: number): boolean {
-  if (!Array.isArray(raw.beats)) return false;
+function inspectStoryboard(raw: Record<string, unknown>, duration: number): { valid: boolean; reason?: string } {
+  if (!Array.isArray(raw.beats)) return { valid: false, reason: "missing beats array" };
   const validBeats = raw.beats.flatMap((value) => {
     if (!isRecord(value)) return [];
     const start = finiteNumber(value.start);
@@ -206,9 +208,16 @@ function hasUsableStoryboard(raw: Record<string, unknown>, duration: number): bo
   const firstBeat = validBeats.reduce((earliest, beat) => Math.min(earliest, beat.start), duration);
   const lastBeatEnd = validBeats.reduce((latest, beat) => Math.max(latest, beat.end), 0);
 
-  return validBeats.length >= minimumBeatCount
-    && firstBeat <= Math.min(1, duration * 0.1)
-    && lastBeatEnd >= duration * 0.8;
+  if (validBeats.length < minimumBeatCount) {
+    return { valid: false, reason: `only ${validBeats.length} valid timed beats; need at least ${minimumBeatCount}` };
+  }
+  if (firstBeat > Math.min(1, duration * 0.1)) {
+    return { valid: false, reason: `first beat starts at ${firstBeat.toFixed(2)}s; expected within ${Math.min(1, duration * 0.1).toFixed(2)}s` };
+  }
+  if (lastBeatEnd < duration * 0.8) {
+    return { valid: false, reason: `last beat ends at ${lastBeatEnd.toFixed(2)}s; expected at or after ${(duration * 0.8).toFixed(2)}s` };
+  }
+  return { valid: true };
 }
 
 function assertGeneratedHtml(raw: string): void {
@@ -411,6 +420,8 @@ export class SceneHtmlGenerationService {
     const duration = Math.min(Math.max(input.duration ?? 30, 1), 120);
     const sceneInput = { ...input, duration };
     const sceneLabel = input.sceneId || "unknown scene";
+    const deadlineAt = Date.now() + SCENE_GENERATION_BUDGET_MS;
+    let storyboard: SceneStoryboard;
 
     try {
       const rawStoryboard = await this.createDirectionGemini().generateText(this.buildStoryboardPrompt(sceneInput), {
@@ -419,41 +430,65 @@ export class SceneHtmlGenerationService {
         topP: 0.9,
         maxOutputTokens: 7000,
         maxAttempts: 2,
-        timeoutMs: 45_000,
+        deadlineAt,
       });
       const parsedStoryboard = parseJsonObject(rawStoryboard);
-      if (!parsedStoryboard || !hasUsableStoryboard(parsedStoryboard, duration)) {
-        throw new Error("Gemini returned an invalid or unusable storyboard");
+      if (!parsedStoryboard) {
+        throw new Error(`Storyboard response was not parseable JSON (${rawStoryboard.length} characters)`);
       }
+      const validation = inspectStoryboard(parsedStoryboard, duration);
+      if (!validation.valid) throw new Error(`Storyboard validation failed: ${validation.reason}`);
 
-      const storyboard = normalizeStoryboard(parsedStoryboard, sceneInput);
-      const rawHtml = await this.createHtmlGemini().generateText(this.buildHtmlPrompt(sceneInput, storyboard), {
+      storyboard = normalizeStoryboard(parsedStoryboard, sceneInput);
+    } catch (storyboardError) {
+      console.warn(`[SceneHTML] Storyboard generation/validation failed for ${sceneLabel}; trying direct HTML generation.`, storyboardError);
+      return this.generateDirectHtml(sceneInput, deadlineAt);
+    }
+
+    let rawHtml: string;
+    try {
+      rawHtml = await this.createHtmlGemini().generateText(this.buildHtmlPrompt(sceneInput, storyboard), {
         model: process.env.GEMINI_HTML_MODEL || process.env.GEMINI_MODEL || "gemini-3.8-flash",
         temperature: 0.7,
         topP: 0.92,
         maxAttempts: 2,
-        timeoutMs: 45_000,
+        deadlineAt,
       });
-      assertGeneratedHtml(rawHtml);
-
-      const soundEvents: SoundEvent[] = storyboard.soundEvents.map(({ visualMoment: _visualMoment, ...event }) => event);
-      return {
-        html: sanitizeGeneratedHtml(rawHtml, input, soundEvents),
-        soundEvents,
-        storyboard,
-        generationMode: "storyboard",
-      };
-    } catch (storyboardError) {
-      console.warn(`[SceneHTML] Storyboard generation failed for ${sceneLabel}; trying direct HTML generation.`, storyboardError);
+    } catch (htmlGenerationError) {
+      // The direct prompt is shorter and can recover from a failed storyboard-to-HTML
+      // request. Its retries remain bounded by the same per-scene deadline.
+      console.warn(`[SceneHTML] Storyboard-approved HTML request failed for ${sceneLabel}; trying direct HTML within the remaining scene budget.`, htmlGenerationError);
+      return this.generateDirectHtml(sceneInput, deadlineAt);
     }
 
     try {
-      const rawHtml = await this.createHtmlGemini().generateText(this.buildDirectHtmlPrompt(sceneInput), {
+      assertGeneratedHtml(rawHtml);
+    } catch (invalidStoryboardHtml) {
+      console.warn(`[SceneHTML] Storyboard HTML response was unusable for ${sceneLabel}; trying direct HTML generation.`, invalidStoryboardHtml);
+      return this.generateDirectHtml(sceneInput, deadlineAt);
+    }
+
+    const soundEvents: SoundEvent[] = storyboard.soundEvents.map(({ visualMoment: _visualMoment, ...event }) => event);
+    return {
+      html: sanitizeGeneratedHtml(rawHtml, input, soundEvents),
+      soundEvents,
+      storyboard,
+      generationMode: "storyboard",
+    };
+  }
+
+  private async generateDirectHtml(
+    input: SceneHtmlGenerationInput,
+    deadlineAt: number,
+  ): Promise<SceneHtmlGenerationResult> {
+    const sceneLabel = input.sceneId || "unknown scene";
+    try {
+      const rawHtml = await this.createHtmlGemini().generateText(this.buildDirectHtmlPrompt(input), {
         model: process.env.GEMINI_HTML_MODEL || process.env.GEMINI_MODEL || "gemini-3.8-flash",
         temperature: 0.7,
         topP: 0.92,
         maxAttempts: 2,
-        timeoutMs: 45_000,
+        deadlineAt,
       });
       assertGeneratedHtml(rawHtml);
       return {
@@ -461,8 +496,8 @@ export class SceneHtmlGenerationService {
         generationMode: "direct-html-fallback",
       };
     } catch (directHtmlError) {
-      console.error(`[SceneHTML] Direct HTML generation also failed for ${sceneLabel}; AI scene rendering must stop.`, directHtmlError);
-      throw new Error(`Storyboard and direct HTML generation failed for ${sceneLabel}`);
+      console.error(`[SceneHTML] Direct HTML generation failed for ${sceneLabel}; AI scene rendering must stop.`, directHtmlError);
+      throw new Error(`Storyboard and direct HTML generation failed for ${sceneLabel}: ${directHtmlError instanceof Error ? directHtmlError.message : String(directHtmlError)}`);
     }
   }
 
@@ -479,6 +514,7 @@ export class SceneHtmlGenerationService {
     return new GeminiService({
       apiKey,
       projectId,
+      manageRetriesExternally: true,
     });
   }
 
@@ -490,6 +526,7 @@ export class SceneHtmlGenerationService {
     return new GeminiService({
       apiKey: process.env.GEMINI_HTML_API_KEY || undefined,
       projectId,
+      manageRetriesExternally: true,
     });
   }
 

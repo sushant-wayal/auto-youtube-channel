@@ -13,11 +13,15 @@ export interface GeminiConfig {
     maxAttempts?: number;
     /** Per-request HTTP timeout in milliseconds. */
     timeoutMs?: number;
+    /** Absolute deadline for a multi-call operation, used to bound queue and retry waits. */
+    deadlineAt?: number;
 }
 
 export interface GeminiServiceOptions {
     apiKey?: string;
     projectId?: string;
+    /** Route retries through the Redis-gated retry loop in this service. */
+    manageRetriesExternally?: boolean;
 }
 
 const DEFAULT_CANDIDATE_MODELS = [
@@ -26,17 +30,21 @@ const DEFAULT_CANDIDATE_MODELS = [
     "gemini-3-flash-preview",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
-].filter((m): m is string => Boolean(m));
+]
+    .map((model) => model?.trim())
+    .filter((model): model is string => Boolean(model));
 
 class GeminiService {
     private genAI: GoogleGenAI;
     private rateLimitProjectId: string;
 
     constructor(options: GeminiServiceOptions = {}) {
-        if (options.apiKey) {
+        if (options.apiKey || options.manageRetriesExternally) {
+            const apiKey = options.apiKey || GeminiClient.getInstance().getApiKey();
             this.genAI = new GoogleGenAIClient({
-                apiKey: options.apiKey,
+                apiKey,
                 apiVersion: "v1alpha",
+                ...(options.manageRetriesExternally ? { maxRetries: 0 } : {}),
             });
         } else {
             this.genAI = GeminiClient.getInstance().getGenAI();
@@ -64,11 +72,13 @@ class GeminiService {
         const BASE_DELAY_MS = 1_500;
         const MAX_DELAY_MS = 20_000;
 
-        const candidateModels = Array.from(
-            new Set(
-                [config?.model, ...DEFAULT_CANDIDATE_MODELS].filter((m): m is string => Boolean(m))
-            )
-        );
+        const candidateModels = Array.from(new Set(
+            [config?.model, ...DEFAULT_CANDIDATE_MODELS]
+                .map((model) => model?.trim())
+                .filter((model): model is string => Boolean(model)),
+        ));
+
+        if (candidateModels.length === 0) candidateModels.push("gemini-3.8-flash");
 
         let attempt = 0;
         let modelIndex = 0;
@@ -78,8 +88,24 @@ class GeminiService {
             const modelName = candidateModels[modelIndex % candidateModels.length];
 
             // Gate every actual attempt, including retries and model fallbacks.
-            await waitForGeminiProjectSlot(this.rateLimitProjectId);
+            // A scene deadline prevents a queued retry from outliving the renderer request.
+            const remainingBeforeSlot = config?.deadlineAt === undefined
+                ? Number.POSITIVE_INFINITY
+                : config.deadlineAt - Date.now();
+            if (remainingBeforeSlot < 15_000) {
+                throw new Error("Gemini scene-generation deadline reached before the next model attempt");
+            }
+            const maxSlotWaitMs = Number.isFinite(remainingBeforeSlot)
+                ? remainingBeforeSlot - 15_000
+                : undefined;
+            await waitForGeminiProjectSlot(this.rateLimitProjectId, maxSlotWaitMs);
 
+            const remainingAfterSlot = config?.deadlineAt === undefined
+                ? Number.POSITIVE_INFINITY
+                : config.deadlineAt - Date.now();
+            if (remainingAfterSlot < 15_000) {
+                throw new Error("Gemini scene-generation deadline reached while waiting for the project request slot");
+            }
             try {
                 console.log(
                     `🧠 Gemini text generation [${modelName}] (attempt ${attempt}/${maxAttempts})`
@@ -115,29 +141,42 @@ class GeminiService {
                 if (!statusCode) console.error(`Failed to get status code from error:`, error);
 
                 const message = (error?.message || "").toLowerCase();
-                const errStr = JSON.stringify(error).toLowerCase();
+                let errStr = String(error).toLowerCase();
+                try {
+                    errStr += ` ${JSON.stringify(error).toLowerCase()}`;
+                } catch {
+                    // Use the readable error text when SDK error objects contain cycles.
+                }
 
                 if (!message) console.error(`Failed to get message from error:`, error);
 
+                const normalizedStatus = Number(statusCode);
+                const statusText = String(statusCode || "").toLowerCase();
                 const isRetryable =
-                    statusCode === 500 ||
-                    statusCode === 503 ||
-                    statusCode === 429 ||
-                    statusCode === 404 ||
+                    [404, 408, 429, 500, 502, 503, 504].includes(normalizedStatus) ||
+                    statusText.includes("deadline_exceeded") ||
                     message.includes("internal") ||
                     message.includes("overloaded") ||
                     message.includes("unavailable") ||
                     message.includes("high demand") ||
+                    message.includes("deadline exceeded") ||
+                    message.includes("timed out") ||
+                    message.includes("timeout") ||
+                    message.includes("etimedout") ||
+                    message.includes("econnreset") ||
                     message.includes("quota") ||
                     message.includes("rate limit") ||
                     message.includes("not found") ||
-                    errStr.includes("500") ||
-                    errStr.includes("503") ||
-                    errStr.includes("429") ||
+                    /\b(404|408|429|500|502|503|504)\b/.test(errStr) ||
                     errStr.includes("internal") ||
                     errStr.includes("overloaded") ||
                     errStr.includes("unavailable") ||
-                    errStr.includes("high demand");
+                    errStr.includes("high demand") ||
+                    errStr.includes("deadline_exceeded") ||
+                    errStr.includes("timed out") ||
+                    errStr.includes("timeout") ||
+                    errStr.includes("etimedout") ||
+                    errStr.includes("econnreset");
 
                 if (!isRetryable || attempt >= maxAttempts) {
                     console.error(`❌ Gemini text generation failed permanently on model ${modelName}:`, error);
@@ -156,11 +195,19 @@ class GeminiService {
                         MAX_DELAY_MS
                     ) + Math.floor(Math.random() * 1_000); // jitter
 
+                const remainingBeforeDelay = config?.deadlineAt === undefined
+                    ? Number.POSITIVE_INFINITY
+                    : config.deadlineAt - Date.now();
+                if (remainingBeforeDelay < 15_000) {
+                    throw new Error(`Gemini retry budget exhausted after failure on ${modelName}: ${error.message || error}`);
+                }
+                const boundedDelay = Math.min(delay, Math.max(0, remainingBeforeDelay - 15_000));
+
                 console.warn(
-                    `⚠️ Gemini text error on model '${modelName}' (${statusCode || "retryable"}: ${error.message || "high demand / unavailable"}). Retrying with fallback model '${nextModel}' in ${delay}ms...`
+                    `⚠️ Gemini text error on model '${modelName}' (${statusCode || "retryable"}: ${error.message || "high demand / unavailable"}). Retrying with fallback model '${nextModel}' in ${boundedDelay}ms...`
                 );
 
-                await new Promise(res => setTimeout(res, delay));
+                if (boundedDelay > 0) await new Promise(res => setTimeout(res, boundedDelay));
             }
         }
 
