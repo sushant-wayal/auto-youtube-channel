@@ -456,7 +456,7 @@ Contents:
 |-----|---------|-----|
 | populate-ideas | 15 min | Trend fetching + Gemini calls |
 | generate-script | 10 min | Single Gemini API call to website |
-| render-scenes | 60 min | Puppeteer + FFmpeg per scene (sequential) |
+| render-scenes | 120 min | Puppeteer + FFmpeg per scene (sequential) |
 | generate-voiceover | **360 min** | F5-TTS model download + batch inference |
 | generate-thumbnail | 15 min | Single API call |
 | assemble-video | 60 min | FFmpeg assembly of all scenes |

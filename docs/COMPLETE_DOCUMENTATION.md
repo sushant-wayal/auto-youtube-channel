@@ -174,7 +174,7 @@ generate-script
 |-----|---------|-------------|--------------|
 | `populate-ideas` | 15 min | none | `REDIS_URL`, `GEMINI_API_KEY_1`, YouTube OAuth |
 | `generate-script` | 10 min | none | `WEBSITE_DOMAIN`, `REDIS_URL`, `SCENE_RENDER_METHOD` |
-| `render-scenes` | 60 min | ffmpeg, Chromium libs (for Puppeteer) | Cloudinary, `WEBSITE_DOMAIN`, `SCENE_RENDER_METHOD` |
+| `render-scenes` | 120 min | ffmpeg, Chromium libs (for Puppeteer) | Cloudinary, `WEBSITE_DOMAIN`, `SCENE_RENDER_METHOD` |
 | `generate-voiceover` | 360 min | ffmpeg, Python 3.11, F5-TTS | Cloudinary, `GEMINI_API_KEY_1/2`, `VOICEOVER_PROVIDER` |
 | `generate-thumbnail` | 15 min | none | `WEBSITE_DOMAIN` |
 | `assemble-video` | 60 min | ffmpeg | Cloudinary, `VOICEOVER_PROVIDER` |

@@ -21,6 +21,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pipelineApi, scheduleTimesApi, thumbnailApi, PipelineStatus, JobResult, ShortResult } from '../services/api';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { colors, spacing, borderRadius, typography, shadows, gradients } from '../theme';
@@ -159,6 +160,7 @@ const renderJobBadge = (jobState?: JobResult) => {
 };
 
 export default function PipelineStatusScreen() {
+    const insets = useSafeAreaInsets();
     const [status, setStatus] = useState<PipelineStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -533,6 +535,45 @@ export default function PipelineStatusScreen() {
     };
     const isYtPublished = isLongFormPublished();
 
+    const isPipelineFailedState = activeData.overallStatus === 'failure' || failedJobsCount > 0;
+    const isPipelineRunningState = !isPipelineFailedState && (activeData.overallStatus === 'running' || runningJobsCount > 0);
+
+    const getOverallStatusBadge = () => {
+        if (isPipelineFailedState) {
+            return {
+                status: 'failure' as const,
+                label: 'Pipeline Failed',
+                pillBg: 'rgba(248, 113, 113, 0.12)',
+                pillBorder: 'rgba(248, 113, 113, 0.35)',
+                textColor: colors.failed,
+                dotColor: colors.failed,
+                iconName: 'alert-circle' as keyof typeof Ionicons.glyphMap,
+            };
+        }
+        if (isPipelineRunningState) {
+            return {
+                status: 'running' as const,
+                label: 'Pipeline In Progress',
+                pillBg: 'rgba(251, 191, 36, 0.12)',
+                pillBorder: 'rgba(251, 191, 36, 0.35)',
+                textColor: colors.running,
+                dotColor: colors.running,
+                iconName: 'sync' as keyof typeof Ionicons.glyphMap,
+            };
+        }
+        return {
+            status: 'success' as const,
+            label: 'Pipeline Succeeded',
+            pillBg: 'rgba(74, 222, 128, 0.12)',
+            pillBorder: 'rgba(74, 222, 128, 0.35)',
+            textColor: colors.success,
+            dotColor: colors.success,
+            iconName: 'checkmark-circle' as keyof typeof Ionicons.glyphMap,
+        };
+    };
+
+    const overallBadge = getOverallStatusBadge();
+
     return (
         <View style={styles.container}>
             <ScrollView
@@ -562,14 +603,22 @@ export default function PipelineStatusScreen() {
                     </Text>
 
                     <View style={styles.heroStatusRow}>
-                        <View style={styles.statusPill}>
-                            {activeData.overallStatus === 'running' ? (
+                        <View
+                            style={[
+                                styles.statusPill,
+                                {
+                                    backgroundColor: overallBadge.pillBg,
+                                    borderColor: overallBadge.pillBorder,
+                                },
+                            ]}
+                        >
+                            {overallBadge.status === 'running' ? (
                                 <SpinningStatusIcon size={12} color={colors.running} name="sync" />
                             ) : (
-                                <View style={styles.statusPillDot} />
+                                <Ionicons name={overallBadge.iconName} size={13} color={overallBadge.dotColor} />
                             )}
-                            <Text style={styles.statusPillText}>
-                                {activeData.overallStatus === 'success' ? 'Pipeline Succeeded' : activeData.overallStatus === 'running' ? 'Pipeline In Progress' : 'Pipeline Failed'}
+                            <Text style={[styles.statusPillText, { color: overallBadge.textColor }]}>
+                                {overallBadge.label}
                             </Text>
                         </View>
                         <Text style={styles.heroStagesComplete}>
@@ -1724,7 +1773,16 @@ export default function PipelineStatusScreen() {
                         <View style={StyleSheet.absoluteFillObject} />
                     </TouchableWithoutFeedback>
 
-                    <View style={styles.masterModalSheet}>
+                    <View
+                        style={[
+                            styles.masterModalSheet,
+                            {
+                                paddingBottom: Math.max(insets.bottom, 16) + spacing.lg,
+                                paddingLeft: Math.max(insets.left, spacing.lg),
+                                paddingRight: Math.max(insets.right, spacing.lg),
+                            },
+                        ]}
+                    >
                         <View style={styles.logsDrawerHeader}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                 <Ionicons name="film-outline" size={16} color={colors.sandstone} />
@@ -1833,20 +1891,16 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.sm + 2,
         paddingVertical: 3,
         borderRadius: borderRadius.full,
-        backgroundColor: 'rgba(74, 222, 128, 0.1)',
         borderWidth: 1,
-        borderColor: 'rgba(74, 222, 128, 0.3)',
     },
     statusPillDot: {
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: colors.success,
     },
     statusPillText: {
         fontSize: 11,
         fontWeight: typography.fontWeightBold,
-        color: colors.success,
     },
     heroStagesComplete: {
         fontSize: 11,
