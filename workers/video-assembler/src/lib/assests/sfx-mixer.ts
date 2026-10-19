@@ -96,7 +96,7 @@ const SFX_PEAK_OFFSETS_MS: Record<SfxType, number> = {
 };
 
 /** Global SFX volume (applied on top of per-event intensity) */
-const SFX_BASE_VOLUME = 0.75;
+const SFX_BASE_VOLUME = 0.40;
 
 // ---------------------------------------------------------------------------
 // Helpers

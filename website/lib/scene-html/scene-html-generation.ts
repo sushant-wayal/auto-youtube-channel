@@ -84,7 +84,7 @@ const SFX_GUIDE = `Available sound effects (use only when the pictured action de
 - ping: a signal or connection point activates
 - data: packets or a stream visibly move
 
-SFX mixing contract: t is the desired sound peak / impact moment, aligned with the corresponding visible action. The renderer compensates for each sample's measured attack time. Do not schedule sound at narration syllables unless the visual action also lands there. Use 0–8 deliberate events per scene (usually 2–5), never a constant sound bed, and leave at least 0.20 seconds between events. Keep intensity between 0.60 and 1.0 (default 0.85) so tactile sound effects are crisp, punchy, and clearly audible alongside narration and background music. Only add duration for an intentional short typewriter/data texture, no longer than 1.2 seconds. Avoid sounds under quiet or emotionally serious narration.`;
+SFX mixing contract: t is the desired sound peak / impact moment, aligned with the corresponding visible action. The renderer compensates for each sample's measured attack time. Do not schedule sound at narration syllables unless the visual action also lands there. Use 0–8 deliberate events per scene (usually 2–5), never a constant sound bed, and leave at least 0.20 seconds between events. Keep intensity between 0.25 and 0.70 so effects sit below narration. Only add duration for an intentional short typewriter/data texture, no longer than 1.2 seconds. Avoid sounds under quiet or emotionally serious narration.`;
 
 const STORYBOARD_SYSTEM_PROMPT = `You are the lead visual director for a premium explanatory motion-graphics film. Before any HTML is written, create a compact, executable edit storyboard for this exact narration segment.
 

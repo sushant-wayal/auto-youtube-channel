@@ -39,7 +39,7 @@ function normalizeSoundEvents(raw: unknown, duration: number): SoundEvent[] {
       return {
         t,
         type,
-        intensity: Number.isFinite(intensity) ? Math.min(1.0, Math.max(0.4, intensity)) : 0.8,
+        intensity: Number.isFinite(intensity) ? Math.min(0.7, Math.max(0.25, intensity)) : 0.5,
         ...(eventDuration ? { duration: eventDuration } : {}),
       } satisfies SoundEvent;
     })
