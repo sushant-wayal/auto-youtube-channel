@@ -429,12 +429,23 @@ export class VideoAssemblyService {
             originalDuration = targetDuration;
         }
 
-        const needsExtension = originalDuration < targetDuration;
-        const extraDuration = Math.max(0, targetDuration - originalDuration);
-
-        const vf = needsExtension
-            ? `${videoFilter},tpad=stop_mode=clone:stop_duration=${extraDuration}`
-            : videoFilter;
+        let vf = videoFilter;
+        if (originalDuration < targetDuration) {
+            const scaleFactor = targetDuration / originalDuration;
+            // Smoothly stretch video timing with setpts so visuals continue playing
+            // throughout narration instead of freezing on the last frame.
+            if (scaleFactor <= 1.5) {
+                vf = `${videoFilter},setpts=${scaleFactor.toFixed(5)}*PTS`;
+            } else {
+                const scaledDuration = originalDuration * 1.4;
+                const extra = Math.max(0, targetDuration - scaledDuration);
+                vf = `${videoFilter},setpts=1.4*PTS,tpad=stop_mode=clone:stop_duration=${extra.toFixed(3)}`;
+            }
+        } else if (originalDuration > targetDuration && (targetDuration / originalDuration) >= 0.85) {
+            // Slight speedup (at most 15%) to fit the entire visual progression into narration
+            const scaleFactor = targetDuration / originalDuration;
+            vf = `${videoFilter},setpts=${scaleFactor.toFixed(5)}*PTS`;
+        }
 
         await runFFmpeg({
             inputs: [inputPath],
@@ -621,15 +632,12 @@ export class VideoAssemblyService {
         const outroDuration = Math.max(0, videoDuration - narrationDuration);
         console.error(`  Outro duration: ${outroDuration.toFixed(2)}s`);
 
-        // Determine if voiceover provider is F5
-        const isF5 = (voiceoverProvider || process.env.VOICEOVER_PROVIDER || 'gemini').toLowerCase() === 'f5';
+        // Locked audio balance: narration boosted to 1.5, background music at 0.05 during speech and 0.15 during outro
+        const musicNarrationVolume = '0.05';
+        const musicOutroVolume = '0.15';
 
-        // Choose volume settings: lower music and boost narration for 'f5' mode
-        const musicNarrationVolume = isF5 ? '0.05' : '0.15';
-        const musicOutroVolume = isF5 ? '0.15' : '0.30';
-
-        const narrationFilter = isF5 ? `[0:a]volume=1.5[narration_boosted];` : ``;
-        const narrationInput = isF5 ? `[narration_boosted]` : `[0:a]`;
+        const narrationFilter = `[0:a]volume=1.5[narration_boosted];`;
+        const narrationInput = `[narration_boosted]`;
 
         // Create filter complex for proper audio mixing:
         // 1. Loop music throughout entire video

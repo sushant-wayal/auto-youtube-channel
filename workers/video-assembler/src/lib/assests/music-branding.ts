@@ -9,8 +9,8 @@ import path from 'path';
 const assetsDir = path.join(__dirname, '../../assets');
 
 /**
- * Pick a random background music track from assets/music
- * @returns Absolute path to a random .mp3 file
+ * Pick background music track - locked to track2.mp3
+ * @returns Absolute path to track2.mp3 (with fallback if missing)
  */
 export function pickBackgroundTrack(): string {
   const musicDir = path.join(assetsDir, 'music');
@@ -23,7 +23,14 @@ export function pickBackgroundTrack(): string {
     );
   }
 
-  // Find all .mp3 files
+  // Lock to track2.mp3 as requested
+  const lockedTrack = path.join(musicDir, 'track2.mp3');
+  if (fs.existsSync(lockedTrack)) {
+    console.error('🎵 Using locked background track: track2.mp3');
+    return lockedTrack;
+  }
+
+  // Fallback to any available .mp3 file if track2.mp3 is missing
   const files = fs.readdirSync(musicDir);
   const mp3Files = files.filter(file => file.toLowerCase().endsWith('.mp3'));
 
@@ -34,11 +41,10 @@ export function pickBackgroundTrack(): string {
     );
   }
 
-  // Pick random track
-  const randomTrack = mp3Files[Math.floor(Math.random() * mp3Files.length)];
-  const trackPath = path.join(musicDir, randomTrack);
+  const fallbackTrack = mp3Files[0];
+  const trackPath = path.join(musicDir, fallbackTrack);
 
-  console.error(`🎵 Selected background track: ${randomTrack}`);
+  console.error(`🎵 Selected background track: ${fallbackTrack}`);
   return trackPath;
 }
 

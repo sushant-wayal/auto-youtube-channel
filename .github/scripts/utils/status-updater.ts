@@ -54,6 +54,15 @@ export async function setMetadata(fields: Record<string, string>) {
     }
 }
 
+export async function getMetadata(key: string): Promise<string | null> {
+    const redis = getClient();
+    try {
+        return await redis.hget('pipeline:status:metadata', key);
+    } finally {
+        await redis.quit();
+    }
+}
+
 export async function clearList(listKey: string) {
     const redis = getClient();
     try {

@@ -5,7 +5,7 @@
 
 import { assembleVideo } from '../../workers/video-assembler/src/index';
 import { validateConfig } from '../../shared/config';
-import { setJobStatus, setMetadata } from './utils/status-updater';
+import { setJobStatus, setMetadata, getMetadata } from './utils/status-updater';
 
 interface ScriptData {
     script: {
@@ -90,10 +90,18 @@ async function assembleMainVideo(
         const clipsTimings = Buffer.from(clipsTimingsEncoded, 'hex').toString('utf-8');
         const animationStopTimes = Buffer.from(animationStopTimesEncoded, 'hex').toString('utf-8');
         const voiceoverUrls = Buffer.from(voiceoverUrlsEncoded, 'hex').toString('utf-8');
-        // Decode sound events — optional, fall back to empty arrays per scene
-        const perSceneSoundEvents = perSceneSoundEventsEncoded && perSceneSoundEventsEncoded.trim()
-            ? Buffer.from(perSceneSoundEventsEncoded, 'hex').toString('utf-8')
-            : JSON.stringify([]);
+        // Decode sound events — fallback to Redis metadata if env var is missing or empty
+        let perSceneSoundEvents = '[]';
+        if (perSceneSoundEventsEncoded && perSceneSoundEventsEncoded.trim()) {
+            perSceneSoundEvents = Buffer.from(perSceneSoundEventsEncoded, 'hex').toString('utf-8');
+        } else {
+            try {
+                const cachedEvents = await getMetadata('perSceneSoundEvents');
+                if (cachedEvents) perSceneSoundEvents = cachedEvents;
+            } catch (e) {
+                console.warn('Could not read perSceneSoundEvents from Redis:', e);
+            }
+        }
 
         await setJobStatus('assembleLongForm', 'running');
         const result = await assembleMainVideo(

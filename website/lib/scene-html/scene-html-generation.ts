@@ -84,7 +84,7 @@ const SFX_GUIDE = `Available sound effects (use only when the pictured action de
 - ping: a signal or connection point activates
 - data: packets or a stream visibly move
 
-SFX mixing contract: t is the desired sound peak / impact moment, aligned with the corresponding visible action. The renderer compensates for each sample's measured attack time. Do not schedule sound at narration syllables unless the visual action also lands there. Use 0–8 deliberate events per scene (usually 2–5), never a constant sound bed, and leave at least 0.20 seconds between events. Keep intensity between 0.25 and 0.70 so effects sit below narration. Only add duration for an intentional short typewriter/data texture, no longer than 1.2 seconds. Avoid sounds under quiet or emotionally serious narration.`;
+SFX mixing contract: t is the desired sound peak / impact moment, aligned with the corresponding visible action. The renderer compensates for each sample's measured attack time. Do not schedule sound at narration syllables unless the visual action also lands there. Use 0–8 deliberate events per scene (usually 2–5), never a constant sound bed, and leave at least 0.20 seconds between events. Keep intensity between 0.60 and 1.0 (default 0.85) so tactile sound effects are crisp, punchy, and clearly audible alongside narration and background music. Only add duration for an intentional short typewriter/data texture, no longer than 1.2 seconds. Avoid sounds under quiet or emotionally serious narration.`;
 
 const STORYBOARD_SYSTEM_PROMPT = `You are the lead visual director for a premium explanatory motion-graphics film. Before any HTML is written, create a compact, executable edit storyboard for this exact narration segment.
 
@@ -92,7 +92,10 @@ The goal is comprehension and sustained visual curiosity through presentation. A
 
 For the whole scene, define one visual premise and a recurring subject that can change state. Make the subject specific to the spoken mechanism (for example, one request, thread, packet, key, or object) and carry it through the beats so the scene feels like one visual story.
 
-Create contiguous timed beats that cover the full scene. Aim for a new meaningful visual action every 3–5 seconds; use fewer beats for very short scenes and never exceed 24. Each beat must anchor to an exact short phrase from the narration and specify:
+Create contiguous timed beats that cover the full scene from 0 to the exact end of duration. Aim for a new meaningful visual action every 3–5 seconds; use fewer beats for very short scenes and never exceed 24.
+- NO FAST CYCLES OR SHORT LOOPS: Pacing must be slow, majestic, and progressive. NEVER plan rapid repeating cycles, short looping spinners, or fast oscillating orbits. The visual must unfold once continuously across the entire scene.
+- FULL TIMELINE COVERAGE (NEVER FREEZE EARLY): The timed beats must cover the full timeline up to 100% of duration. The final beat must end at the scene's full duration so the animation never ends early or freezes before narration ends.
+Each beat must anchor to an exact short phrase from the narration and specify:
 - its dramatic purpose in the visual story;
 - a concrete, physically readable action that demonstrates the spoken cause or consequence;
 - shot scale/angle and subject placement, using the canvas rather than a tiny center graphic;
@@ -138,6 +141,8 @@ const HTML_SYSTEM_PROMPT = `You are a world-class motion-graphics director and s
 ART DIRECTION:
 - Make a full-frame, layered 2.5D visual world with depth, perspective, material detail, controlled lighting, and deliberate camera language. Compose for the actual topic, not a generic technology dashboard.
 - Keep one recognizable visual subject moving through the scene and changing state. Make each narration beat visibly advance the same visual story; build anticipation, reveal the consequence, then land on a clear payoff.
+- SLOW, PROGRESSIVE PACING (NO FAST LOOPS): All motion, state transitions, and camera moves must be slow, calm, and deliberate. NEVER create rapid repeating loops, 1-3s CSS keyframe cycles, or modulo resets (e.g. 't % 2' or short looping spinners). Every motion should progress smoothly and steadily once across the full scene timeline.
+- CONTINUOUS MOTION UNTIL END (NEVER FREEZE): Visuals must continuously live, evolve, and maintain subtle active motion all the way to the very last second (t = duration). Do not end animations early or let elements freeze into static screenshots before narration finishes.
 - Change the meaningful visual state throughout the scene, typically every 3–5 seconds. Use varied shot scales and compositions while keeping visual continuity. Motion must explain the mechanism, not decorate it.
 - Use the full canvas with a strong focal hierarchy. Keep important objects and text inside a 7% safe margin. Avoid underfilled frames, oversized empty regions, repeated central rings, tiny diagram clusters, unrelated panels, overlapping elements, and accidental text collisions.
 - Use rich but controlled visual contrast and a consistent palette from the storyboard. Avoid flat black/white expanses unless the scene's art direction intentionally uses them. Ensure labels remain clearly readable at mobile playback size.
@@ -157,6 +162,8 @@ const DIRECT_HTML_SYSTEM_PROMPT = `You are a world-class motion-graphics directo
 ART DIRECTION:
 - Make a full-frame, layered 2.5D visual world with depth, perspective, tactile materials, controlled lighting, and deliberate camera language.
 - Choose one recognizable subject or visual metaphor specific to the narration. Carry it through the scene as it changes state, builds anticipation, reveals a consequence, and lands on a clear payoff.
+- SLOW, PROGRESSIVE PACING (NO FAST LOOPS): All motion, state transitions, and camera moves must be slow, calm, and deliberate. NEVER create rapid repeating loops, 1-3s CSS keyframe cycles, or modulo resets (e.g. 't % 2' or short looping spinners). Every motion should progress smoothly and steadily once across the full scene timeline.
+- CONTINUOUS MOTION UNTIL END (NEVER FREEZE): Visuals must continuously live, evolve, and maintain subtle active motion all the way to the very last second (t = duration). Do not end animations early or let elements freeze into static screenshots before narration finishes.
 - Advance the visual story in meaningful stages, usually every 3–5 seconds. Motion must explain the mechanism or emotional turn, not decorate it.
 - Use varied shot scales and compositions. Fill the canvas with a strong focal hierarchy, keeping important objects and text inside a 7% safe margin. Avoid underfilled frames, oversized empty regions, repeated central rings, tiny diagram clusters, unrelated panels, overlapping elements, and accidental text collisions.
 - Use rich but controlled contrast, a coherent topic-specific palette, and readable mobile-sized labels. Keep text sparse: at most one short label at once, up to six words. Never invent metrics or technical claims.
@@ -214,8 +221,8 @@ function inspectStoryboard(raw: Record<string, unknown>, duration: number): { va
   if (firstBeat > Math.min(1, duration * 0.1)) {
     return { valid: false, reason: `first beat starts at ${firstBeat.toFixed(2)}s; expected within ${Math.min(1, duration * 0.1).toFixed(2)}s` };
   }
-  if (lastBeatEnd < duration * 0.8) {
-    return { valid: false, reason: `last beat ends at ${lastBeatEnd.toFixed(2)}s; expected at or after ${(duration * 0.8).toFixed(2)}s` };
+  if (lastBeatEnd < duration * 0.90) {
+    return { valid: false, reason: `last beat ends at ${lastBeatEnd.toFixed(2)}s; expected at or after ${(duration * 0.90).toFixed(2)}s` };
   }
   return { valid: true };
 }

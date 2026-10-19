@@ -214,7 +214,7 @@ SCENE RULES (MAIN VIDEO)
 - EXACT SCENE COUNT: Generate exactly 7 to 8 scenes (MUST NOT be fewer than 7 scenes). Each scene is a distinct chapter in the story progression.
 - TOTAL NARRATION WORDS: Across all long-form scenes combined, narration MUST total between 1,050 and 1,250 words.
 - PER-SCENE NARRATION: Each scene's narration MUST contain 140 to 165 words (do not write brief or summarized scenes).
-- calculate baseDuration according to narration: baseDuration = Math.round(narration word count / 2.5). Each scene baseDuration MUST be between 52.0 and 66.0 seconds.
+- calculate baseDuration according to narration: baseDuration = Math.round(narration word count / 2.05). Each scene baseDuration MUST accurately reflect natural spoken narration pacing (typically 65.0 to 78.0 seconds for 140-165 words).
 - holdDuration: 2.0 seconds per scene.
 - narration length MUST match baseDuration + holdDuration.
 - The long-form video MUST follow this 7-8 scene story-first structure:
@@ -635,7 +635,7 @@ If the format is violated, the output will be rejected.
           ? parsed.scenes.map((scene: any) => {
               const narrationText = scene.narration || "";
               const wordCount = narrationText.trim().split(/\s+/).filter(Boolean).length;
-              const calculatedDuration = Math.round((wordCount / 2.5) * 10) / 10;
+              const calculatedDuration = Math.round((wordCount / 2.05) * 10) / 10;
               // If baseDuration is missing or drastically smaller than spoken narration, align with spoken narration
               const baseDuration = (typeof scene.baseDuration === "number" && scene.baseDuration >= calculatedDuration * 0.85)
                 ? scene.baseDuration
