@@ -527,70 +527,75 @@ export default function SeriesScreen() {
                                             )}
                                         </View>
 
-                                        <View style={styles.drawerActions}>
-                                            {item.status === 'completed' ? (
+                                        <View style={[
+                                            styles.drawerActions,
+                                            (!hasActiveInQueue && item.status !== 'completed') && styles.drawerActionsBetween,
+                                        ]}>
+                                            {!hasActiveInQueue && item.status !== 'completed' && (
                                                 <TouchableOpacity
-                                                    style={styles.drawerBtnPrimary}
-                                                    onPress={() => handleReactivateSeries(item)}
+                                                    style={styles.drawerBtnPushQueue}
+                                                    onPress={() => handlePushToQueue(item)}
+                                                    disabled={pushingQueueSeriesId === item.id}
                                                     activeOpacity={0.8}
                                                 >
-                                                    <Ionicons name="sparkles-outline" size={13} color={colors.primaryForeground} />
-                                                    <Text style={styles.drawerBtnPrimaryText}>Revive Track (New Season)</Text>
-                                                </TouchableOpacity>
-                                            ) : (
-                                                <>
-                                                    {!hasActiveInQueue && (
-                                                        <TouchableOpacity
-                                                            style={styles.drawerBtnPushQueue}
-                                                            onPress={() => handlePushToQueue(item)}
-                                                            disabled={pushingQueueSeriesId === item.id}
-                                                            activeOpacity={0.8}
-                                                        >
-                                                            {pushingQueueSeriesId === item.id ? (
-                                                                <ActivityIndicator size="small" color={colors.primaryForeground} />
-                                                            ) : (
-                                                                <Ionicons name="arrow-up-circle" size={13} color={colors.primaryForeground} />
-                                                            )}
-                                                            <Text style={styles.drawerBtnPushQueueText}>
-                                                                {pushingQueueSeriesId === item.id ? 'Queueing...' : 'Push to Queue'}
-                                                            </Text>
-                                                        </TouchableOpacity>
+                                                    {pushingQueueSeriesId === item.id ? (
+                                                        <ActivityIndicator size="small" color={colors.primaryForeground} />
+                                                    ) : (
+                                                        <Ionicons name="arrow-up-circle" size={13} color={colors.primaryForeground} />
                                                     )}
-
-                                                    <TouchableOpacity
-                                                        style={styles.drawerBtn}
-                                                        onPress={() => handleToggleStatus(item)}
-                                                        activeOpacity={0.8}
-                                                    >
-                                                        <Ionicons
-                                                            name={item.status === 'active' ? 'pause-outline' : 'play-outline'}
-                                                            size={13}
-                                                            color={colors.linenDim}
-                                                        />
-                                                        <Text style={styles.drawerBtnText}>
-                                                            {item.status === 'active' ? 'Pause' : 'Activate'}
-                                                        </Text>
-                                                    </TouchableOpacity>
-
-                                                    <TouchableOpacity
-                                                        style={styles.drawerBtn}
-                                                        onPress={() => handleCompleteSeries(item)}
-                                                        activeOpacity={0.8}
-                                                    >
-                                                        <Ionicons name="checkmark-done-outline" size={13} color={colors.linenDim} />
-                                                        <Text style={styles.drawerBtnText}>Complete Track</Text>
-                                                    </TouchableOpacity>
-                                                </>
+                                                    <Text style={styles.drawerBtnPushQueueText}>
+                                                        {pushingQueueSeriesId === item.id ? 'Queueing...' : 'Push to Queue'}
+                                                    </Text>
+                                                </TouchableOpacity>
                                             )}
 
-                                            <TouchableOpacity
-                                                style={styles.drawerBtnDanger}
-                                                onPress={() => handleDeleteSeries(item.id)}
-                                                activeOpacity={0.8}
-                                            >
-                                                <Ionicons name="trash-outline" size={13} color={colors.failed} />
-                                                <Text style={styles.drawerBtnDangerText}>Delete</Text>
-                                            </TouchableOpacity>
+                                            <View style={styles.drawerActionButtons}>
+                                                {item.status === 'completed' ? (
+                                                    <TouchableOpacity
+                                                        style={styles.drawerBtnPrimary}
+                                                        onPress={() => handleReactivateSeries(item)}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <Ionicons name="sparkles-outline" size={13} color={colors.primaryForeground} />
+                                                        <Text style={styles.drawerBtnPrimaryText}>Revive Track (New Season)</Text>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <>
+                                                        <TouchableOpacity
+                                                            style={styles.drawerBtn}
+                                                            onPress={() => handleToggleStatus(item)}
+                                                            activeOpacity={0.8}
+                                                        >
+                                                            <Ionicons
+                                                                name={item.status === 'active' ? 'pause-outline' : 'play-outline'}
+                                                                size={13}
+                                                                color={colors.linenDim}
+                                                            />
+                                                            <Text style={styles.drawerBtnText}>
+                                                                {item.status === 'active' ? 'Pause' : 'Activate'}
+                                                            </Text>
+                                                        </TouchableOpacity>
+
+                                                        <TouchableOpacity
+                                                            style={styles.drawerBtn}
+                                                            onPress={() => handleCompleteSeries(item)}
+                                                            activeOpacity={0.8}
+                                                        >
+                                                            <Ionicons name="checkmark-done-outline" size={13} color={colors.linenDim} />
+                                                            <Text style={styles.drawerBtnText}>Complete Track</Text>
+                                                        </TouchableOpacity>
+                                                    </>
+                                                )}
+
+                                                <TouchableOpacity
+                                                    style={styles.drawerBtnDanger}
+                                                    onPress={() => handleDeleteSeries(item.id)}
+                                                    activeOpacity={0.8}
+                                                >
+                                                    <Ionicons name="trash-outline" size={13} color={colors.failed} />
+                                                    <Text style={styles.drawerBtnDangerText}>Delete</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
                                     </View>
                                 )}
@@ -831,6 +836,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.md,
         paddingTop: spacing.md,
         paddingBottom: spacing.sm + 2,
+        width: '100%',
         ...shadows.subtle,
     },
     catalogCardExpanded: {
@@ -931,6 +937,7 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: colors.borderLight,
         gap: spacing.sm + 2,
+        width: '100%',
     },
     drawerSection: {
         gap: 4,
@@ -1177,12 +1184,24 @@ const styles = StyleSheet.create({
         gap: spacing.xs + 4,
         rowGap: spacing.xs + 4,
         paddingTop: 4,
+        width: '100%',
+    },
+    drawerActionsBetween: {
+        justifyContent: 'space-between',
+    },
+    drawerActionButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        flexWrap: 'wrap',
+        gap: spacing.xs + 2,
+        marginLeft: 'auto',
     },
     drawerBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 5,
-        paddingHorizontal: spacing.sm + 4,
+        gap: 4,
+        paddingHorizontal: spacing.sm + 2,
         paddingVertical: 6,
         borderRadius: borderRadius.xs,
         backgroundColor: colors.cardElevated,
@@ -1198,7 +1217,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 5,
-        paddingHorizontal: spacing.sm + 4,
+        paddingHorizontal: spacing.sm + 3,
         paddingVertical: 6,
         borderRadius: borderRadius.xs,
         backgroundColor: colors.sandstone,
@@ -1212,7 +1231,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 5,
-        paddingHorizontal: spacing.sm + 4,
+        paddingHorizontal: spacing.sm + 3,
         paddingVertical: 6,
         borderRadius: borderRadius.xs,
         backgroundColor: colors.sandstone,
@@ -1226,7 +1245,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        paddingHorizontal: spacing.sm + 4,
+        paddingHorizontal: spacing.sm + 2,
         paddingVertical: 6,
         borderRadius: borderRadius.xs,
         backgroundColor: 'rgba(244, 63, 94, 0.08)',

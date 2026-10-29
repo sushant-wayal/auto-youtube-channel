@@ -4,7 +4,7 @@
     "description": "Shared services and configuration for video generation pipeline",
     "main": "index.ts",
     "scripts": {
-        "build": "echo 'No build needed for shared utilities'"
+        "test": "tsx utils/__tests__/title-formatter.test.ts"
     },
     "dependencies": {
         "@google/genai": "^1.32.0",
