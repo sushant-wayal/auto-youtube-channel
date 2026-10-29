@@ -1173,7 +1173,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'flex-end',
         alignItems: 'center',
+        flexWrap: 'wrap',
         gap: spacing.xs + 4,
+        rowGap: spacing.xs + 4,
         paddingTop: 4,
     },
     drawerBtn: {
