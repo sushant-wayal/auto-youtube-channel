@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { CurrencyProvider } from "@/lib/currency-context";
 
 export const viewport: Viewport = {
   themeColor: "#110e08",
@@ -81,7 +82,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-[#110e08] text-[#f7f3ee] antialiased selection:bg-[#c8b29b]/25 selection:text-[#f7f3ee]">
-        {children}
+        <CurrencyProvider>{children}</CurrencyProvider>
       </body>
     </html>
   );

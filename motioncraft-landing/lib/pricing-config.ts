@@ -13,6 +13,8 @@ export interface PricingTier {
   priceMonthlyINR: number;
   priceMonthlyUSD: number;
   billingPeriod: string;
+  priceNoteINR: string;
+  priceNoteUSD: string;
   priceNote: string;
   reviewPeriodNote: string;
   highlighted: boolean;
@@ -26,7 +28,11 @@ export const BETA_PRICING_CONFIG: {
   currentBatch: string;
   tier: PricingTier;
   qualificationPriceRanges: string[];
+  qualificationPriceRangesINR: string[];
+  qualificationPriceRangesUSD: string[];
   productionSpendRanges: string[];
+  productionSpendRangesINR: string[];
+  productionSpendRangesUSD: string[];
 } = {
   currentBatch: "Batch 01 — Founding Creator Cohort",
 
@@ -41,6 +47,8 @@ export const BETA_PRICING_CONFIG: {
     priceMonthlyINR: 2999, // ₹2,999/month
     priceMonthlyUSD: 39,   // ~$39/month
     billingPeriod: "per month",
+    priceNoteINR: "Your founding price is locked at ₹2,999/mo for the first 12 months. Renews monthly, cancel anytime.",
+    priceNoteUSD: "Your founding price is locked at $39/mo for the first 12 months. Renews monthly, cancel anytime.",
     priceNote: "Your founding price is locked for the first 12 months. Renews monthly, cancel anytime.",
     reviewPeriodNote: "Applications are reviewed within 30 days. You will be contacted by email once your application has been reviewed. No payment is charged until your channel is accepted into the beta.",
     supportedScope: "1 Connected YouTube Channel during initial beta",
@@ -64,8 +72,8 @@ export const BETA_PRICING_CONFIG: {
     ],
   },
 
-  // Qualification selectable ranges requested in prompt:
-  qualificationPriceRanges: [
+  // Qualification selectable ranges (INR):
+  qualificationPriceRangesINR: [
     "Less than ₹500",
     "₹500–₹999",
     "₹1,000–₹1,999",
@@ -75,7 +83,47 @@ export const BETA_PRICING_CONFIG: {
     "I would not currently pay for this",
   ],
 
-  // Spend ranges as strictly specified in prompt:
+  // Qualification selectable ranges (USD):
+  qualificationPriceRangesUSD: [
+    "Less than $10",
+    "$10–$25",
+    "$25–$50",
+    "$50–$75",
+    "$75–$100",
+    "$100 or more",
+    "I would not currently pay for this",
+  ],
+
+  // Spend ranges (INR):
+  productionSpendRangesINR: [
+    "₹0",
+    "Less than ₹1,000",
+    "₹1,000–₹3,000",
+    "₹3,000–₹5,000",
+    "₹5,000–₹10,000",
+    "More than ₹10,000",
+  ],
+
+  // Spend ranges (USD):
+  productionSpendRangesUSD: [
+    "$0",
+    "Less than $20",
+    "$20–$50",
+    "$50–$100",
+    "$100–$200",
+    "More than $200",
+  ],
+
+  // Defaults for backwards compatibility:
+  qualificationPriceRanges: [
+    "Less than ₹500",
+    "₹500–₹999",
+    "₹1,000–₹1,999",
+    "₹2,000–₹3,999",
+    "₹4,000–₹5,999",
+    "₹6,000 or more",
+    "I would not currently pay for this",
+  ],
   productionSpendRanges: [
     "₹0",
     "Less than ₹1,000",

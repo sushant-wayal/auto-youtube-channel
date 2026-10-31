@@ -32,6 +32,7 @@ const VALID_WORKFLOWS = [
 ];
 
 const VALID_PRICE_RANGES = [
+  // INR options
   "Less than ₹500",
   "₹500–₹999",
   "₹1,000–₹1,999",
@@ -39,6 +40,14 @@ const VALID_PRICE_RANGES = [
   "₹4,000–₹5,999",
   "₹6,000 or more",
   "More than ₹6,000",
+  // USD options
+  "Less than $10",
+  "$10–$25",
+  "$25–$50",
+  "$50–$75",
+  "$75–$100",
+  "$100 or more",
+  "More than $100",
   "I would not currently pay for this",
 ];
 

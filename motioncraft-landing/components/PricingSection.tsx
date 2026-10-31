@@ -2,14 +2,17 @@
 
 import { BETA_PRICING_CONFIG } from "@/lib/pricing-config";
 import { trackEvent } from "@/lib/analytics";
+import { useCurrency } from "@/lib/currency-context";
 
 export default function PricingSection() {
   const { tier, currentBatch } = BETA_PRICING_CONFIG;
+  const { currency, setCurrency } = useCurrency();
 
   const handleApplyClick = () => {
     trackEvent("pricing_section_viewed", {
       tier_id: tier.id,
-      price_inr: tier.priceMonthlyINR,
+      currency,
+      price: currency === "INR" ? tier.priceMonthlyINR : tier.priceMonthlyUSD,
     });
   };
 
@@ -32,15 +35,44 @@ export default function PricingSection() {
         {/* Pricing Card */}
         <div className="mt-16 max-w-2xl mx-auto">
           <div className="studio-card p-8 sm:p-10 bg-[#16130d] border-[#c8b29b]/40 shadow-2xl relative">
-            {/* Top Badge */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-6 border-b border-[#2e281f]">
+            {/* Top Badge & Currency Switcher */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-[#2e281f]">
               <span className="px-3 py-1 rounded-full bg-[#c8b29b]/10 border border-[#c8b29b]/30 text-xs font-mono font-semibold uppercase text-[#c8b29b]">
                 {tier.badge}
               </span>
-              <span className="text-xs font-mono text-[#4ade80] flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#4ade80]"></span>
-                <span>{tier.supportedScope}</span>
-              </span>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-mono text-[#4ade80] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#4ade80]"></span>
+                  <span>{tier.supportedScope}</span>
+                </span>
+
+                {/* Country-Adaptive Currency Switcher */}
+                <div className="inline-flex items-center p-0.5 rounded-lg bg-[#110e08] border border-[#2e281f] text-[11px] font-mono">
+                  <button
+                    type="button"
+                    onClick={() => setCurrency("INR")}
+                    className={`px-2.5 py-1 rounded transition-colors ${
+                      currency === "INR"
+                        ? "bg-[#221e17] text-[#c8b29b] font-bold border border-[#c8b29b]/40 shadow-sm"
+                        : "text-[#9c958c] hover:text-[#f7f3ee]"
+                    }`}
+                  >
+                    ₹ INR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrency("USD")}
+                    className={`px-2.5 py-1 rounded transition-colors ${
+                      currency === "USD"
+                        ? "bg-[#221e17] text-[#c8b29b] font-bold border border-[#c8b29b]/40 shadow-sm"
+                        : "text-[#9c958c] hover:text-[#f7f3ee]"
+                    }`}
+                  >
+                    $ USD
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Price Header */}
@@ -54,15 +86,15 @@ export default function PricingSection() {
               {/* Price display */}
               <div className="pt-4 flex items-baseline gap-3">
                 <span className="text-4xl sm:text-5xl font-extrabold font-mono text-[#f7f3ee]">
-                  ₹{tier.priceMonthlyINR.toLocaleString()}
+                  {currency === "INR" ? `₹${tier.priceMonthlyINR.toLocaleString()}` : `$${tier.priceMonthlyUSD}`}
                 </span>
                 <span className="text-sm font-mono text-[#9c958c]">
-                  / month (~${tier.priceMonthlyUSD} USD)
+                  / month {currency === "INR" ? `(~$${tier.priceMonthlyUSD} USD)` : `(~₹${tier.priceMonthlyINR.toLocaleString()} INR)`}
                 </span>
               </div>
 
               <p className="text-xs font-mono text-[#c8b29b]">
-                {tier.priceNote}
+                {currency === "INR" ? tier.priceNoteINR : tier.priceNoteUSD}
               </p>
             </div>
 

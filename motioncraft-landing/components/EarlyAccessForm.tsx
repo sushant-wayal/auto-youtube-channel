@@ -2,6 +2,7 @@
 
 import { useState, FormEvent, useEffect } from "react";
 import { BETA_PRICING_CONFIG } from "@/lib/pricing-config";
+import { useCurrency } from "@/lib/currency-context";
 import { trackEvent, getTrackingContext } from "@/lib/analytics";
 import CustomSelect from "./CustomSelect";
 
@@ -39,6 +40,32 @@ export default function EarlyAccessForm() {
     channelUrl: string;
     willingnessToPay: string;
   } | null>(null);
+
+  const { currency } = useCurrency();
+  const spendRanges =
+    currency === "INR"
+      ? BETA_PRICING_CONFIG.productionSpendRangesINR
+      : BETA_PRICING_CONFIG.productionSpendRangesUSD;
+  const priceRanges =
+    currency === "INR"
+      ? BETA_PRICING_CONFIG.qualificationPriceRangesINR
+      : BETA_PRICING_CONFIG.qualificationPriceRangesUSD;
+
+  useEffect(() => {
+    if (currency === "USD") {
+      setFormData((prev) => ({
+        ...prev,
+        monthlySpend: prev.monthlySpend.startsWith("₹") ? BETA_PRICING_CONFIG.productionSpendRangesUSD[1] : prev.monthlySpend,
+        willingnessToPay: prev.willingnessToPay.startsWith("₹") ? "$25–$50" : prev.willingnessToPay,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        monthlySpend: prev.monthlySpend.startsWith("$") ? BETA_PRICING_CONFIG.productionSpendRangesINR[1] : prev.monthlySpend,
+        willingnessToPay: prev.willingnessToPay.startsWith("$") ? "₹2,000–₹3,999" : prev.willingnessToPay,
+      }));
+    }
+  }, [currency]);
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -358,7 +385,7 @@ export default function EarlyAccessForm() {
                   How much do you currently spend monthly on content production? *
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {BETA_PRICING_CONFIG.productionSpendRanges.map((spend) => (
+                  {spendRanges.map((spend) => (
                     <button
                       type="button"
                       key={spend}
@@ -383,7 +410,7 @@ export default function EarlyAccessForm() {
                   </label>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {BETA_PRICING_CONFIG.qualificationPriceRanges.map((priceRange) => (
+                  {priceRanges.map((priceRange) => (
                     <button
                       type="button"
                       key={priceRange}
