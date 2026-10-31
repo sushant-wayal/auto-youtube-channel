@@ -53,7 +53,7 @@ const SHOWCASE_FEATURES: ShowcaseFeature[] = [
       { label: "Planned Backlog", value: "21 Planned" },
     ],
     bulletPoints: [
-      "Track completion rates across entire series (e.g. 67% on dev kit audits, 92% on software reality check)",
+      "Track episode progression and backlog completion across entire series tracks directly from your dashboard",
       "Maintains narrative continuity and recurring visual motifs across all episodes",
       "One-click 'Push to Queue' to initiate the next scheduled episode",
     ],
@@ -62,16 +62,16 @@ const SHOWCASE_FEATURES: ShowcaseFeature[] = [
   {
     id: "publishing-schedules",
     badge: "PRECISION PUBLISHING & SHORTS",
-    headline: "Automated Daily Long-Form Releases & 5-Slot Shorts Syndication",
-    subhead: "Long-Form Daily Prime Window + 5-Slot Retention-Optimized Shorts",
+    headline: "Scheduled Daily Long-Form Releases & Multi-Slot Shorts Distribution",
+    subhead: "Configurable Daily Broadcast Windows & Automated Shorts Scheduling",
     description:
-      "Never miss a high-traffic release window. Serenity Studio automates your daily long-form broadcasts and syndicates vertical Shorts across 5 high-retention windows calculated for maximum algorithmic reach.",
+      "Maintain a predictable publishing cadence without manual intervention. Serenity Studio automates your daily long-form releases and distributes vertical Shorts across up to 5 scheduled daily windows configured for your channel's schedule.",
     screenshotUrl: "/screenshots/publishing-schedules.jpg",
     screenshotAlt: "Serenity Studio Publishing Schedules screen",
     metrics: [
-      { label: "Long-Form Broadcast", value: "18:30 IST Prime" },
-      { label: "Shorts Slots", value: "5 Slots / Day" },
-      { label: "Peak Retention", value: "~87% - 92% Priority" },
+      { label: "Long-Form Broadcast", value: "18:30 Daily" },
+      { label: "Shorts Slots", value: "5 Scheduled Slots" },
+      { label: "Cadence Mode", value: "Configurable Windows" },
     ],
     bulletPoints: [
       "Scheduled long-form releases timed to peak desktop consumption windows",
@@ -121,7 +121,7 @@ export default function ProductShowcase() {
           </h2>
           <p className="text-base sm:text-lg text-[#9c958c] leading-relaxed">
             These are actual application screens from Serenity Studio in production.
-            No mockup graphics or theoretical features.
+            No mockup graphics or theoretical features. Counters and metrics reflect live UI telemetry. Counters and metrics reflect live UI telemetry.
           </p>
         </div>
 

@@ -140,10 +140,10 @@ export default function Footer() {
               ) : (
                 <>
                   <p>
-                    <strong>Beta Scope:</strong> Founding Creator Beta provides direct operational access to the Serenity Studio pipeline. Pricing is locked at founding rates for the lifetime of your active subscription.
+                    <strong>Beta Scope:</strong> Founding Creator Beta provides direct operational access to the Serenity Studio pipeline for 1 primary YouTube channel. Pricing is locked at founding rates for your first 12 months.
                   </p>
                   <p>
-                    <strong>Operational Guarantee:</strong> We automate production processes; we make no guarantees regarding YouTube algorithmic recommendations, video view counts, or monetary earnings.
+                    <strong>Operational Guarantee:</strong> We automate production workflows; we do not make claims or guarantees regarding YouTube algorithm performance, video view counts, or monetary earnings.
                   </p>
                   <p>
                     <strong>Cancellation:</strong> Subscriptions can be canceled at any time with no lock-in.

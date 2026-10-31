@@ -4,7 +4,7 @@ import { BETA_PRICING_CONFIG } from "@/lib/pricing-config";
 import { trackEvent } from "@/lib/analytics";
 
 export default function PricingSection() {
-  const { tier, cohortRemaining, cohortCapacity, currentBatch } = BETA_PRICING_CONFIG;
+  const { tier, currentBatch } = BETA_PRICING_CONFIG;
 
   const handleApplyClick = () => {
     trackEvent("pricing_section_viewed", {
@@ -25,7 +25,7 @@ export default function PricingSection() {
             Founding Creator Access: Shape the Platform
           </h2>
           <p className="text-base sm:text-lg text-[#9c958c] leading-relaxed">
-            This is not a generic free waitlist. We are inviting a small cohort of serious YouTube operators into the paid private beta to deploy the actual production software.
+            This is not a generic free waitlist. We are inviting a small cohort of dedicated YouTube operators into the paid private beta to deploy the actual production software.
           </p>
         </div>
 
@@ -38,8 +38,8 @@ export default function PricingSection() {
                 {tier.badge}
               </span>
               <span className="text-xs font-mono text-[#4ade80] flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#4ade80] animate-pulse"></span>
-                <span>{cohortRemaining} of {cohortCapacity} Slots Remaining</span>
+                <span className="w-2 h-2 rounded-full bg-[#4ade80]"></span>
+                <span>{tier.supportedScope}</span>
               </span>
             </div>
 
@@ -69,7 +69,7 @@ export default function PricingSection() {
             {/* Included Capabilities */}
             <div className="mt-8 pt-6 border-t border-[#2e281f] text-left space-y-4">
               <div className="text-xs font-mono uppercase text-[#736d64] tracking-wider">
-                Full Production Stack Included:
+                Canonical 8-Stage Production Stack Included:
               </div>
 
               <ul className="space-y-2.5 text-xs sm:text-sm text-[#eae1d7]">
@@ -94,16 +94,16 @@ export default function PricingSection() {
               </ul>
             </div>
 
-            {/* Founding Benefits */}
+            {/* Operational Inclusions / Boundaries */}
             <div className="mt-6 p-4 rounded-xl bg-[#110e08] border border-[#2e281f] text-left space-y-2">
               <div className="text-xs font-mono uppercase text-[#c8b29b] font-semibold">
-                Founding Member Advantages:
+                Beta Operational Limits & Scope:
               </div>
               <ul className="space-y-1.5 text-xs text-[#9c958c]">
-                {tier.operationalBenefits.map((ben, idx) => (
-                  <li key={idx} className="flex items-center gap-2">
-                    <span className="text-[#c8b29b]">✦</span>
-                    <span>{ben}</span>
+                {tier.operationalInclusions.map((inc, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-[#c8b29b] mt-0.5">✦</span>
+                    <span>{inc}</span>
                   </li>
                 ))}
               </ul>
@@ -118,8 +118,8 @@ export default function PricingSection() {
               >
                 {tier.ctaText}
               </a>
-              <p className="mt-3 text-center text-[11px] text-[#736d64]">
-                Applications reviewed within 24 hours. No immediate payment charged until your channel is accepted.
+              <p className="mt-3 text-center text-xs text-[#9c958c] leading-relaxed">
+                {tier.reviewPeriodNote}
               </p>
             </div>
           </div>
@@ -128,4 +128,3 @@ export default function PricingSection() {
     </section>
   );
 }
-

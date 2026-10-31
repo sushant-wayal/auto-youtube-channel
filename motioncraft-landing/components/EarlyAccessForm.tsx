@@ -213,15 +213,15 @@ export default function EarlyAccessForm() {
                 <ul className="space-y-2 text-[#9c958c]">
                   <li className="flex items-start gap-2">
                     <span className="text-[#4ade80]">1.</span>
-                    <span>Our engineering team audits your channel's content style and pipeline fit within 24 hours.</span>
+                    <span>Applications are reviewed within 30 days. You will be contacted by email once your application has been reviewed.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-[#4ade80]">2.</span>
-                    <span>Qualified creators receive an invitation code to configure their first automated pipeline in Serenity Studio.</span>
+                    <span>No payment is charged until your channel is accepted into the beta.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-[#4ade80]">3.</span>
-                    <span>You'll get a direct channel link to our engineering team for custom template setup.</span>
+                    <span>Accepted creators receive an onboarding invitation to configure their automated pipeline in Serenity Studio.</span>
                   </li>
                 </ul>
               </div>

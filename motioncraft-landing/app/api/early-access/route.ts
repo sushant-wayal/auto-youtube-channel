@@ -17,6 +17,7 @@ const VALID_PRICE_RANGES = [
   "₹1,000–₹1,999",
   "₹2,000–₹3,999",
   "₹4,000–₹5,999",
+  "₹6,000 or more",
   "More than ₹6,000",
   "I would not currently pay for this",
 ];

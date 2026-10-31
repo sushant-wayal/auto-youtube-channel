@@ -1,6 +1,6 @@
 // =========================================================================
 // SERENITY STUDIO — COMMERCIAL & EARLY ACCESS CONFIGURATION
-// Edit this file to adjust the proposed beta price, quotas, and tier details
+// Centralized configuration for beta pricing, tier limits, and qualification
 // =========================================================================
 
 export interface PricingTier {
@@ -9,62 +9,58 @@ export interface PricingTier {
   badge: string;
   headline: string;
   description: string;
-  // Easily change beta pricing here:
+  // Beta pricing configuration:
   priceMonthlyINR: number;
   priceMonthlyUSD: number;
   billingPeriod: string;
   priceNote: string;
-  slotsAvailable: number;
+  reviewPeriodNote: string;
   highlighted: boolean;
   ctaText: string;
+  supportedScope: string;
   includedFeatures: string[];
-  operationalBenefits: string[];
+  operationalInclusions: string[];
 }
 
 export const BETA_PRICING_CONFIG: {
   currentBatch: string;
-  cohortCapacity: number;
-  cohortRemaining: number;
   tier: PricingTier;
   qualificationPriceRanges: string[];
   productionSpendRanges: string[];
 } = {
   currentBatch: "Batch 01 — Founding Creator Cohort",
-  cohortCapacity: 25,
-  cohortRemaining: 7,
 
-  // Editable Founding Creator Tier
+  // Founding Creator Tier (Verified beta offering)
   tier: {
     id: "founding-creator",
-    name: "Founding Creator Access",
-    badge: "Strictly Limited to 25 Channels",
-    headline: "Full End-to-End Operational Engine",
+    name: "Founding Creator Beta",
+    badge: "Limited Founding Creator Cohort",
+    headline: "Complete Production Automation Pipeline",
     description:
-      "Direct access to Serenity Studio's complete automation pipeline, from structured scripting and 1080p scene rendering to synchronized release windows.",
-    // Edit this single price value whenever you want to test different willingness-to-pay levels:
+      "Operational access to Serenity Studio's connected pipeline for individual YouTube operators. From topic ingestion and structured scripting to 1080p scene rendering and scheduled publishing.",
     priceMonthlyINR: 2999, // ₹2,999/month
     priceMonthlyUSD: 39,   // ~$39/month
     billingPeriod: "per month",
-    priceNote: "Founding rate locked for life. Renews monthly, cancel anytime.",
-    slotsAvailable: 7,
+    priceNote: "Your founding price is locked for the first 12 months. Renews monthly, cancel anytime.",
+    reviewPeriodNote: "Applications are reviewed within 30 days. You will be contacted by email once your application has been reviewed. No payment is charged until your channel is accepted into the beta.",
+    supportedScope: "1 Connected YouTube Channel during initial beta",
     highlighted: true,
     ctaText: "Apply for Paid Beta Access",
     includedFeatures: [
-      "End-to-end 8-stage automated production pipeline",
-      "Editorial ideas queue with series & standalone tracks",
-      "Structured multi-scene script generator",
+      "Canonical 8-stage automated production pipeline",
+      "Topic ingestion & editorial ideas backlog management",
+      "Beat-by-beat multi-scene script structuring",
       "Synchronized voiceover audio synthesis",
-      "1080p automated scene rendering & video assembly",
-      "Programmatic high-CTR YouTube thumbnails",
-      "Automated YouTube long-form scheduling (Prime windows)",
-      "5-slot automated Shorts clipping & retention scheduling",
-      "Autonomous comment response & persona tuning",
+      "1080p programmatic scene rendering & multi-track assembly",
+      "Programmatic high-contrast YouTube thumbnail generation",
+      "Scheduled YouTube long-form publishing windows",
+      "Automated vertical Shorts generation from long-form master videos",
     ],
-    operationalBenefits: [
-      "Priority GPU rendering queue & dedicated storage",
-      "Direct Slack/Discord channel with core engineering team",
-      "Shape upcoming features, scene templates, and voice styles",
-      "No per-video rendering surcharges during the beta period",
+    operationalInclusions: [
+      "Speech synthesis and motion graphic rendering included (no external subscriptions required)",
+      "Dedicated rendering queue and cloud project storage included",
+      "Direct technical feedback channel with the core engineering team",
+      "Specific monthly video and rendering allowances confirmed during onboarding based on your publishing schedule",
     ],
   },
 
@@ -75,16 +71,17 @@ export const BETA_PRICING_CONFIG: {
     "₹1,000–₹1,999",
     "₹2,000–₹3,999",
     "₹4,000–₹5,999",
-    "More than ₹6,000",
+    "₹6,000 or more",
     "I would not currently pay for this",
   ],
 
+  // Spend ranges as strictly specified in prompt:
   productionSpendRanges: [
-    "₹0 (All manual / free tools)",
-    "₹1,000–₹5,000 ($12–$60)",
-    "₹5,000–₹15,000 ($60–$180)",
-    "₹15,000–₹40,000 ($180–$500)",
-    "More than ₹40,000 ($500+)",
+    "₹0",
+    "Less than ₹1,000",
+    "₹1,000–₹3,000",
+    "₹3,000–₹5,000",
+    "₹5,000–₹10,000",
+    "More than ₹10,000",
   ],
 };
-

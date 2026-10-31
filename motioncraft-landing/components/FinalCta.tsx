@@ -23,7 +23,7 @@ export default function FinalCta() {
         </h2>
 
         <p className="text-sm sm:text-base text-[#eae1d7] max-w-xl mx-auto leading-relaxed">
-          Reclaim 20+ hours a week lost to fragmented tools, timeline rendering, and manual video clipping. Let Serenity Studio handle the repetitive production pipeline while you retain total strategic direction.
+          Reduce repetitive manual production work lost to fragmented tools, timeline rendering, and manual video clipping. Let Serenity Studio handle the continuous production pipeline while you retain total strategic direction.
         </p>
 
         <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -50,7 +50,7 @@ export default function FinalCta() {
         </div>
 
         <div className="text-xs font-mono text-[#736d64] pt-2">
-          Strictly limited to 25 channels for Founding Cohort Batch 01.
+          Limited Founding Creator Cohort · Applications reviewed within 30 days · No payment until accepted
         </div>
       </div>
     </section>

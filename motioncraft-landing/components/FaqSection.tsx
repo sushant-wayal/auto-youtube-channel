@@ -12,7 +12,7 @@ const FAQS: FaqItem[] = [
   {
     question: "What exactly does Serenity Studio automate?",
     answer:
-      "Serenity Studio automates the full operational production chain: topic queue management, beat-by-beat scene scripting, voiceover audio synthesis, 1080p motion graphic rendering, multi-track master assembly, high-CTR thumbnail generation, scheduled YouTube long-form publishing, 5-slot Shorts syndication, and autonomous audience comment responses.",
+      "Serenity Studio automates the full operational production chain across 8 canonical stages: topic ingestion and queue dispatch, structured script generation, scene motion rendering, voiceover synthesis, multi-track video assembly, thumbnail generation, scheduled YouTube publishing, and automated Shorts packaging. In addition, an autonomous audience response module handles comment engagement.",
   },
   {
     question: "Can I review and edit content before it gets published?",
@@ -22,7 +22,7 @@ const FAQS: FaqItem[] = [
   {
     question: "Does it generate both long-form videos and YouTube Shorts?",
     answer:
-      "Yes. The pipeline outputs both a full-length 1080p landscape master video (scheduled for prime daily windows such as 18:30 IST) and reformats key high-hook segments into vertical 9:16 YouTube Shorts with dynamic captions across 5 retention-optimized time slots.",
+      "Yes. The pipeline outputs both a full-length 1080p landscape master video (scheduled for prime daily windows such as 18:30 IST) and reformats key high-hook segments into vertical 9:16 YouTube Shorts with dynamic captions across up to 5 scheduled daily time slots.",
   },
   {
     question: "Do I need separate subscriptions for voiceovers and video editing?",
@@ -35,9 +35,9 @@ const FAQS: FaqItem[] = [
       "No editing knowledge is required. You can manage ideas and approve pipeline runs entirely from the mobile application (iOS and Android companion). If you are a technical creator, you also have fine-grained control over scene HTML, series curriculum tracks, and voice pacing.",
   },
   {
-    question: "Can I manage multiple YouTube channels and series?",
+    question: "What channel setup is supported during the beta?",
     answer:
-      "Yes. Serenity Studio is architected around Series Curricula and multi-channel telemetry. You can run standalone releases or curate multi-episode tracks (e.g. tracking episode counts, published vs. planned metrics, and progress percentages).",
+      "The Founding Creator Beta is specifically optimized for individual YouTube channel operators managing 1 primary channel with multi-episode series tracks. You can run standalone releases or curate multi-part curriculum tracks. Multi-tenant workspace isolation for agencies and multiple channels is on our future product roadmap.",
   },
   {
     question: "Is this suitable for an existing YouTube channel?",
@@ -47,7 +47,7 @@ const FAQS: FaqItem[] = [
   {
     question: "How do I get early access to the Founding Creator Beta?",
     answer:
-      "Submit the application form above with your YouTube channel details and operational bottleneck. We review each application within 24 hours to confirm content alignment and invite qualified operators in small cohorts.",
+      "Submit the application form above with your YouTube channel details and operational bottleneck. Applications are reviewed within 30 days. You will be contacted by email once your application has been reviewed. No payment is charged until your channel is accepted into the beta.",
   },
 ];
 
