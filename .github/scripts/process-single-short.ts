@@ -68,6 +68,68 @@ interface ScriptData {
     };
 }
 
+/**
+ * Atomically updates an existing short entry by shortIndex in Redis list,
+ * or appends it if no existing entry with the same shortIndex is found.
+ * This prevents rerun runs from creating duplicate entries (e.g. Short 4 for Short 2).
+ */
+export async function saveOrUpdateShortInRedis(redis: Redis, videoId: string, shortResult: any) {
+    const listKey = `pipeline:shorts:${videoId}`;
+    const newEntryStr = JSON.stringify(shortResult);
+    const luaScript = `
+        local listKey = KEYS[1]
+        local newEntry = ARGV[1]
+        local targetIdx = tonumber(ARGV[2])
+        local ttl = tonumber(ARGV[3])
+
+        local items = redis.call('LRANGE', listKey, 0, -1)
+        local foundIndex = -1
+
+        for i, raw in ipairs(items) do
+            local success, decoded = pcall(cjson.decode, raw)
+            if success and decoded and decoded.shortIndex == targetIdx then
+                foundIndex = i - 1
+                break
+            end
+        end
+
+        if foundIndex >= 0 then
+            redis.call('LSET', listKey, foundIndex, newEntry)
+        else
+            redis.call('RPUSH', listKey, newEntry)
+        end
+
+        redis.call('EXPIRE', listKey, ttl)
+        return 'OK'
+    `;
+
+    try {
+        await redis.eval(luaScript, 1, listKey, newEntryStr, String(shortResult.shortIndex), '604800');
+    } catch (evalErr) {
+        console.warn('⚠️ Lua atomic update failed, falling back to read-modify-write:', evalErr);
+        const rawItems = await redis.lrange(listKey, 0, -1);
+        let found = false;
+        const updatedItems = rawItems.map((item: string) => {
+            try {
+                const parsed = JSON.parse(item);
+                if (parsed.shortIndex === shortResult.shortIndex) {
+                    found = true;
+                    return newEntryStr;
+                }
+            } catch {}
+            return item;
+        });
+
+        if (found) {
+            await redis.del(listKey);
+            await redis.rpush(listKey, ...updatedItems);
+        } else {
+            await redis.rpush(listKey, newEntryStr);
+        }
+        await redis.expire(listKey, 60 * 60 * 24 * 7);
+    }
+}
+
 async function processSingleShort(videoId: string, shortIndex: number, scriptData: string) {
     validateConfig(['cloudinary', 'voiceover', 'youtube']);
 
@@ -194,8 +256,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
     // Persist result to Redis so the pipeline-status API can return it
     try {
         const redis = new Redis(process.env.REDIS_URL!);
-        await redis.rpush(`pipeline:shorts:${videoId}`, JSON.stringify(result));
-        await redis.expire(`pipeline:shorts:${videoId}`, 60 * 60 * 24 * 7); // 7 days
+        await saveOrUpdateShortInRedis(redis, videoId, result);
         await redis.quit();
         console.error(`✅ Short ${shortIndex} result stored in Redis`);
     } catch (redisErr) {
@@ -248,8 +309,7 @@ async function processSingleShort(videoId: string, shortIndex: number, scriptDat
                         status: 'failure',
                         error: error?.message || 'Short processing failed',
                     };
-                    await redis.rpush(`pipeline:shorts:${videoId}`, JSON.stringify(failureResult));
-                    await redis.expire(`pipeline:shorts:${videoId}`, 60 * 60 * 24 * 7);
+                    await saveOrUpdateShortInRedis(redis, videoId, failureResult);
                 }
                 await redis.hset('pipeline:status:jobs', 'shortsProcessing', 'failure');
                 await redis.expire('pipeline:status:jobs', 60 * 60 * 24 * 7);

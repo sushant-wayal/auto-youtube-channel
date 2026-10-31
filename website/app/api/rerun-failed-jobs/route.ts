@@ -124,6 +124,38 @@ export async function POST(req: NextRequest) {
                     }
                 }
             }
+
+            // Reset failed shorts to 'running' so UI updates existing entry state immediately
+            const videoId = await redis.hget('pipeline:status:metadata', 'videoId');
+            if (videoId) {
+                const shortsKey = `pipeline:shorts:${videoId}`;
+                const rawShorts = await redis.lrange(shortsKey, 0, -1);
+                if (rawShorts.length > 0) {
+                    let hasFailedShort = false;
+                    const updatedShorts = rawShorts.map(raw => {
+                        try {
+                            const parsed = JSON.parse(raw);
+                            if (parsed.status === 'failure' || (!parsed.youtubeId && !parsed.videoUrl)) {
+                                hasFailedShort = true;
+                                return JSON.stringify({
+                                    ...parsed,
+                                    status: 'running',
+                                    error: undefined,
+                                });
+                            }
+                            return raw;
+                        } catch {
+                            return raw;
+                        }
+                    });
+
+                    if (hasFailedShort) {
+                        await redis.del(shortsKey);
+                        await redis.rpush(shortsKey, ...updatedShorts);
+                        await redis.expire(shortsKey, 60 * 60 * 24 * 7);
+                    }
+                }
+            }
         }
 
         return NextResponse.json({

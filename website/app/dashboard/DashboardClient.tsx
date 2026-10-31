@@ -44,6 +44,8 @@ type ShortResult = {
     videoUrl?: string;
     scheduledPublishTime?: string;
     rank?: number;
+    status?: 'success' | 'failure' | 'running' | 'pending';
+    error?: string;
 };
 
 type PipelineStatus = {
@@ -353,27 +355,58 @@ function ShortsOutput({ shorts, shortHooks }: { shorts?: ShortResult[]; shortHoo
     if (!shorts || shorts.length === 0) {
         return <p className="text-xs text-gray-500 italic">No shorts data available yet.</p>;
     }
+
+    // Deduplicate shorts by shortIndex so rerun updates the existing short entry
+    const uniqueMap = new Map<number, ShortResult>();
+    for (const s of shorts) {
+        const existing = uniqueMap.get(s.shortIndex);
+        if (!existing) {
+            uniqueMap.set(s.shortIndex, s);
+        } else {
+            if (existing.status === 'failure' && s.status !== 'failure') {
+                uniqueMap.set(s.shortIndex, s);
+            } else if (existing.status !== 'failure' && s.status === 'failure') {
+                // keep existing success
+            } else {
+                uniqueMap.set(s.shortIndex, s);
+            }
+        }
+    }
+    const deduplicatedShorts = Array.from(uniqueMap.values()).sort((a, b) => a.shortIndex - b.shortIndex);
+
     return (
         <div className="space-y-2">
-            {[...shorts]
-                .sort((a, b) => a.shortIndex - b.shortIndex)
-                .map((s) => (
-                    <div key={s.shortIndex} className="flex items-start justify-between gap-3 border rounded-lg p-3 bg-gray-50">
-                        <div className="flex-1 min-w-0">
+            {deduplicatedShorts.map((s) => (
+                <div key={s.shortIndex} className="flex items-start justify-between gap-3 border rounded-lg p-3 bg-gray-50">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
                             <p className="text-sm font-medium">Short {s.shortIndex + 1}</p>
-                            {shortHooks?.[s.shortIndex] && (
-                                <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{shortHooks[s.shortIndex]}</p>
+                            {s.status === 'failure' && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-700">Failed</span>
                             )}
-                            {s.scheduledPublishTime && (
-                                <p className="text-xs text-gray-400 mt-0.5">Scheduled: {s.scheduledPublishTime}</p>
+                            {s.status === 'running' && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 animate-pulse">Running</span>
+                            )}
+                            {s.status === 'success' && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700">Ready</span>
                             )}
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                            <YouTubeButton youtubeId={s.youtubeId} label="YouTube" />
-                            {s.videoUrl && <CopyButton text={s.videoUrl} />}
-                        </div>
+                        {shortHooks?.[s.shortIndex] && (
+                            <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{shortHooks[s.shortIndex]}</p>
+                        )}
+                        {s.scheduledPublishTime && (
+                            <p className="text-xs text-gray-400 mt-0.5">Scheduled: {s.scheduledPublishTime}</p>
+                        )}
+                        {s.error && s.status === 'failure' && (
+                            <p className="text-xs text-red-600 mt-0.5">{s.error}</p>
+                        )}
                     </div>
-                ))}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {s.youtubeId ? <YouTubeButton youtubeId={s.youtubeId} label="YouTube" /> : null}
+                        {s.videoUrl && <CopyButton text={s.videoUrl} />}
+                    </div>
+                </div>
+            ))}
         </div>
     );
 }
