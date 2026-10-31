@@ -43,10 +43,9 @@ export default function HeroSection() {
 
           {/* Concise explanation */}
           <p className="text-sm sm:text-base text-[#9c958c] max-w-2xl mx-auto leading-relaxed">
-            Stop juggling 8 different AI tools and editors. Serenity Studio
+            Stop juggling multiple disconnected tools. Serenity Studio
             orchestrates topic ingestion, structured scripting, voiceover
-            synthesis, 1080p scene rendering, automated Shorts clipping, and daily
-            prime broadcast scheduling in one continuous pipeline.
+            synthesis, 1080p scene rendering, automated Shorts clipping, and configurable daily broadcast scheduling in one continuous pipeline.
           </p>
 
           {/* CTAs */}

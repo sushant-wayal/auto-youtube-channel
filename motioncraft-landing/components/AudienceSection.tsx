@@ -6,20 +6,20 @@ const AUDIENCE_SEGMENTS = [
   {
     title: "Faceless Channel Operators",
     tagline: "Automated end-to-end production without showing your face on camera",
-    pain: "Spent hours piecing together stock videos, robotic voices, and manual subtitle animations.",
+    pain: "Fragmented workflow piecing together stock videos, voice files, and manual subtitle animations.",
     gain: "Structured technical scenes, natural synced voiceovers, and automated rendering directly into 1080p master files.",
   },
   {
     title: "Solo Creators & Niche Educators",
     tagline: "Run a dedicated single-channel production pipeline with full editorial control",
-    pain: "Exhausted by spending entire weekends editing, assembling b-roll, and formatting video assets.",
+    pain: "Repetitive manual work editing, assembling visual b-roll, and formatting video assets.",
     gain: "Turn core outlines and curriculum into finished videos, leaving only master review before automated dispatch.",
   },
   {
     title: "Technical & Explainer Channels",
     tagline: "Explain architecture, code, and systems with clean infographic visuals",
-    pain: "Manual motion design keyframing takes days per technical deep-dive video.",
-    gain: "Code-driven motion graphics and animated diagrams rendered in minutes, synchronized with technical narration.",
+    pain: "Manual motion design keyframing and complex timeline editing for technical deep-dive videos.",
+    gain: "Code-driven motion graphics and animated diagrams synchronized with technical narration.",
   },
   {
     title: "Studios & Multi-Channel Operators (Roadmap)",
