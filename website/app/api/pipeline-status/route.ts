@@ -318,9 +318,47 @@ export async function GET() {
         });
         
         const shortsRaw = await redis.lrange(`pipeline:shorts:${metadata.videoId}`, 0, -1);
-        const shorts = shortsRaw.map(s => {
+        const parsedShorts = shortsRaw.map(s => {
             try { return JSON.parse(s); } catch { return null; }
-        }).filter(Boolean).sort((a: any, b: any) => (a.shortIndex ?? 0) - (b.shortIndex ?? 0));
+        }).filter(Boolean);
+
+        // Deduplicate shorts by shortIndex. If multiple entries exist for the same shortIndex (e.g. after a rerun),
+        // update the existing entry state with the latest/successful short instead of creating new entries.
+        const shortsByIndex = new Map<number, any>();
+        for (const s of parsedShorts) {
+            const idx = s.shortIndex;
+            if (idx === undefined || idx === null) continue;
+            const existing = shortsByIndex.get(idx);
+            if (!existing) {
+                shortsByIndex.set(idx, s);
+            } else {
+                // Prefer success over failure; if both have the same status, take the later entry
+                if (existing.status === 'failure' && s.status !== 'failure') {
+                    shortsByIndex.set(idx, s);
+                } else if (existing.status !== 'failure' && s.status === 'failure') {
+                    // keep existing success
+                } else {
+                    shortsByIndex.set(idx, s);
+                }
+            }
+        }
+        const shorts = Array.from(shortsByIndex.values()).sort((a: any, b: any) => (a.shortIndex ?? 0) - (b.shortIndex ?? 0));
+
+        // Self-heal Redis list if legacy duplicate entries were present
+        if (shortsRaw.length > shorts.length && metadata.videoId) {
+            (async () => {
+                try {
+                    await redis?.del(`pipeline:shorts:${metadata.videoId}`);
+                    const strings = shorts.map(s => JSON.stringify(s));
+                    if (strings.length > 0 && redis) {
+                        await redis.rpush(`pipeline:shorts:${metadata.videoId}`, ...strings);
+                        await redis.expire(`pipeline:shorts:${metadata.videoId}`, 60 * 60 * 24 * 7);
+                    }
+                } catch (cleanupErr) {
+                    console.error('[pipeline-status] Error cleaning duplicate shorts in Redis:', cleanupErr);
+                }
+            })().catch(() => {});
+        }
 
         let parsedScriptData = null;
         let sceneNarrations: string[] = [];
@@ -379,16 +417,18 @@ export async function GET() {
             }
         }
 
-        const totalShortsSlots = Math.max(expectedShortsCount, shorts.length);
+        const totalShortsSlots = expectedShortsCount > 0
+            ? expectedShortsCount
+            : (shorts.length > 0 ? Math.max(...shorts.map((s: any) => (s.shortIndex ?? 0) + 1)) : 0);
         const enhancedShorts = Array.from({ length: totalShortsSlots }, (_, idx) => {
-            const existing = shorts.find((s: any) => (s.shortIndex ?? -1) === idx) || shorts[idx];
+            const existing = shortsByIndex.get(idx);
             const caption = existing?.caption || shortCaptions[idx] || parsedScriptData?.shorts?.[idx]?.instagramCaption || parsedScriptData?.script?.shorts?.[idx]?.instagramCaption || '';
             const hook = shortHooks[idx] || parsedScriptData?.shorts?.[idx]?.hook || parsedScriptData?.script?.shorts?.[idx]?.hook || '';
 
             if (existing && (existing.youtubeId || existing.videoUrl)) {
                 return {
                     ...existing,
-                    shortIndex: existing.shortIndex ?? idx,
+                    shortIndex: idx,
                     status: existing.status || 'success',
                     caption,
                     hook,
@@ -401,6 +441,16 @@ export async function GET() {
                     shortIndex: idx,
                     status: 'failure',
                     error: existing.error || 'Short processing failed',
+                    caption,
+                    hook,
+                };
+            }
+
+            if (existing && existing.status === 'running') {
+                return {
+                    ...existing,
+                    shortIndex: idx,
+                    status: 'running',
                     caption,
                     hook,
                 };

@@ -454,7 +454,24 @@ export default function PipelineStatusScreen() {
     const currentVoNarration = narrations[safeVoScene] ?? narrations[0] ?? '';
     const currentVoAudioUrl = voUrls[safeVoScene] || '';
 
-    const rawShortsList = [...(activeData.shorts || [])].sort((a, b) => (a.shortIndex ?? 0) - (b.shortIndex ?? 0));
+    // Deduplicate shorts by shortIndex so rerun updates the existing short entry
+    const uniqueShortsMap = new Map<number, ShortResult>();
+    for (const s of (activeData.shorts || [])) {
+        const idx = s.shortIndex ?? 0;
+        const existing = uniqueShortsMap.get(idx);
+        if (!existing) {
+            uniqueShortsMap.set(idx, s);
+        } else {
+            if (existing.status === 'failure' && s.status !== 'failure') {
+                uniqueShortsMap.set(idx, s);
+            } else if (existing.status !== 'failure' && s.status === 'failure') {
+                // keep success
+            } else {
+                uniqueShortsMap.set(idx, s);
+            }
+        }
+    }
+    const rawShortsList = Array.from(uniqueShortsMap.values()).sort((a, b) => (a.shortIndex ?? 0) - (b.shortIndex ?? 0));
     const shortHooks = activeData.shortHooks || [];
     const shortCaptions = activeData.shortCaptions || [];
     const shortsCount = Math.max(rawShortsList.length, shortHooks.length, shortCaptions.length);
@@ -1617,7 +1634,7 @@ export default function PipelineStatusScreen() {
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabStrip}>
                                                 {shortsList.map((s, idx) => (
                                                     <TouchableOpacity
-                                                        key={idx}
+                                                        key={s.shortIndex ?? idx}
                                                         style={[
                                                             styles.sceneTab,
                                                             selectedShortIndex === idx && styles.sceneTabActive,
@@ -1658,6 +1675,10 @@ export default function PipelineStatusScreen() {
                                                     {activeShort?.status === 'failure' ? (
                                                         <View style={[styles.stepBadgeSuccess, { backgroundColor: 'rgba(248, 113, 113, 0.15)', borderColor: 'rgba(248, 113, 113, 0.3)' }]}>
                                                             <Text style={[styles.stepBadgeSuccessText, { color: colors.failed }]}>Failed</Text>
+                                                        </View>
+                                                    ) : activeShort?.status === 'running' ? (
+                                                        <View style={[styles.stepBadgeSuccess, { backgroundColor: 'rgba(59, 130, 246, 0.15)', borderColor: 'rgba(59, 130, 246, 0.3)' }]}>
+                                                            <Text style={[styles.stepBadgeSuccessText, { color: colors.running }]}>Running</Text>
                                                         </View>
                                                     ) : activeShort?.rank ? (
                                                         <Text style={styles.retentionBadgeText}>Rank #{activeShort.rank}</Text>
