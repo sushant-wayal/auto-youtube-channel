@@ -58,7 +58,7 @@ export const BETA_PRICING_CONFIG: {
       "Programmatic high-CTR YouTube thumbnails",
       "Automated YouTube long-form scheduling (Prime windows)",
       "5-slot automated Shorts clipping & retention scheduling",
-      "Autonomous Gemini-powered comment response & persona tuning",
+      "Autonomous comment response & persona tuning",
     ],
     operationalBenefits: [
       "Priority GPU rendering queue & dedicated storage",

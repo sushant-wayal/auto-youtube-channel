@@ -12,7 +12,7 @@ const FAQS: FaqItem[] = [
   {
     question: "What exactly does Serenity Studio automate?",
     answer:
-      "Serenity Studio automates the full operational production chain: topic queue management, beat-by-beat scene scripting, voiceover audio synthesis, 1080p motion graphic rendering, multi-track master assembly, high-CTR thumbnail generation, scheduled YouTube long-form publishing, 5-slot Shorts syndication, and Gemini-powered audience comment responses.",
+      "Serenity Studio automates the full operational production chain: topic queue management, beat-by-beat scene scripting, voiceover audio synthesis, 1080p motion graphic rendering, multi-track master assembly, high-CTR thumbnail generation, scheduled YouTube long-form publishing, 5-slot Shorts syndication, and autonomous audience comment responses.",
   },
   {
     question: "Can I review and edit content before it gets published?",

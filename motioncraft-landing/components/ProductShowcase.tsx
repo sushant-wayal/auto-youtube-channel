@@ -83,10 +83,10 @@ const SHOWCASE_FEATURES: ShowcaseFeature[] = [
   {
     id: "audience-engagement",
     badge: "AUTONOMOUS ENGAGEMENT & RETENTION",
-    headline: "Auto Comment Reply Powered by Gemini: Always Engaged",
+    headline: "Autonomous Comment Reply: Always Engaged",
     subhead: "Autonomous Community Engagement with Tuned Brand Personas",
     description:
-      "Viewer retention isn't just about uploading videos—it's about responding to early feedback. Serenity Studio uses Gemini AI to review audience comments, prioritize technical questions, and reply empathetically to critiques.",
+      "Viewer retention isn't just about uploading videos—it's about responding to early feedback. Serenity Studio uses autonomous response intelligence to review audience comments, prioritize technical questions, and reply empathetically to critiques.",
     screenshotUrl: "/screenshots/audience-engagement.jpg",
     screenshotAlt: "Serenity Studio Audience Response & Tuning screen",
     metrics: [

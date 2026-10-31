@@ -25,7 +25,7 @@ const AUDIENCE_SEGMENTS = [
     title: "YouTube Automation Agencies",
     tagline: "Deliver consistent publishing schedules for high-ticket clients",
     pain: "Missed deadlines, inconsistent thumbnail branding, and dropped upload cadence.",
-    gain: "Predictable daily release windows (e.g. 18:30 IST) and automated Gemini comment engagement for client retention.",
+    gain: "Predictable daily release windows (e.g. 18:30 IST) and autonomous comment engagement for client retention.",
   },
 ];
 

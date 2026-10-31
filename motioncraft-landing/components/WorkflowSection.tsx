@@ -88,7 +88,7 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
   {
     number: "09",
     stage: "Autonomous Audience Engagement",
-    headline: "Gemini-Powered Comment Tuning",
+    headline: "Autonomous Comment Tuning",
     description:
       "Engages with viewers autonomously using tuned brand personas (e.g. FRIENDLY), answering technical questions and de-escalating critiques.",
     telemetryMetric: "Live Posted Replies · Sentiment Tracked",
