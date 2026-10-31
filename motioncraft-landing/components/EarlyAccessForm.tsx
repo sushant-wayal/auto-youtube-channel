@@ -3,6 +3,7 @@
 import { useState, FormEvent, useEffect } from "react";
 import { BETA_PRICING_CONFIG } from "@/lib/pricing-config";
 import { trackEvent, getTrackingContext } from "@/lib/analytics";
+import CustomSelect from "./CustomSelect";
 
 interface FormData {
   name: string;
@@ -288,34 +289,22 @@ export default function EarlyAccessForm() {
                   <label className="block text-xs font-mono uppercase text-[#eae1d7]">
                     Number of Channels Managed
                   </label>
-                  <select
+                  <CustomSelect
                     value={formData.channelsCount}
-                    onChange={(e) => handleInputChange("channelsCount", e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg bg-[#110e08] border border-[#2e281f] text-sm text-[#f7f3ee] focus:border-[#c8b29b]"
-                  >
-                    {CHANNELS_COUNT_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt} className="bg-[#110e08]">
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleInputChange("channelsCount", val)}
+                    options={CHANNELS_COUNT_OPTIONS}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="block text-xs font-mono uppercase text-[#eae1d7]">
                     Monthly Publishing Volume
                   </label>
-                  <select
+                  <CustomSelect
                     value={formData.monthlyVideos}
-                    onChange={(e) => handleInputChange("monthlyVideos", e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg bg-[#110e08] border border-[#2e281f] text-sm text-[#f7f3ee] focus:border-[#c8b29b]"
-                  >
-                    {MONTHLY_VIDEOS_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt} className="bg-[#110e08]">
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleInputChange("monthlyVideos", val)}
+                    options={MONTHLY_VIDEOS_OPTIONS}
+                  />
                 </div>
               </div>
 
