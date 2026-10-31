@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model EarlyAccessApplication {
+  id                 String   @id @default(cuid())
+  name               String
+  email              String   @unique
+  channelUrl         String   @map("channel_url")
+  channelsCount      String   @map("channels_count")
+  monthlyVideos      String   @map("monthly_videos")
+  currentWorkflow    String   @map("current_workflow")
+  monthlySpend       String   @map("monthly_spend")
+  willingnessToPay   String   @map("willingness_to_pay")
+  selectedTier       String   @default("Founding Creator Beta") @map("selected_tier")
+  notes              String?  @db.Text
+  utmSource          String?  @map("utm_source")
+  utmMedium          String?  @map("utm_medium")
+  utmCampaign        String?  @map("utm_campaign")
+  referrer           String?  @map("referrer")
+  status             String   @default("pending")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@map("early_access_applications")
+}
+
+model WaitlistEntry {
+  id                    String   @id @default(cuid())
+  name                  String
+  email                 String   @unique
+  profession            String?
+  currentWorkflow       String?  @map("current_workflow")
+  painPoint             String?  @map("pain_point") @db.Text
+  selectedPlan          String?  @map("selected_plan")
+  paymentObjection      String?  @map("payment_objection")
+  paymentObjectionOther String?  @map("payment_objection_other") @db.Text
+  primaryUseCases       String[] @map("primary_use_cases")
+  primaryUseCaseOther   String?  @map("primary_use_case_other") @db.Text
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@map("waitlist")
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  email     String?
+  category  String   @default("General feedback")
+  feedback  String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("feedback")
+}
