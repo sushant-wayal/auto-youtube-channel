@@ -1,3 +1,23 @@
+function extractYouTubeTag(input: string): string {
+  let cleaned = String(input || "").trim();
+  if (!cleaned) return "";
+
+  // Strip query params and hashes
+  cleaned = cleaned.split("?")[0].split("#")[0];
+  // Strip trailing slashes
+  cleaned = cleaned.replace(/\/+$/, "");
+
+  // Match youtube URL patterns (handle /@..., /c/..., /channel/..., /user/...)
+  const match = cleaned.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:@|c\/|user\/|channel\/)?([^\/\s]+)/i);
+  let tag = match && match[1] ? match[1] : cleaned;
+
+  // Clean any remaining protocol or domain if partial
+  tag = tag.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/^youtube\.com\/?/i, "");
+
+  // Normalize to @tag
+  return tag.startsWith("@") ? tag : `@${tag}`;
+}
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import fs from "fs";
@@ -28,7 +48,8 @@ export async function POST(request: Request) {
 
     const name = String(body.name || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
-    const channelUrl = String(body.channelUrl || "").trim();
+    const rawChannel = String(body.channelUrl || "").trim();
+    const channelUrl = extractYouTubeTag(rawChannel);
     const channelsCount = String(body.channelsCount || "1").trim();
     const monthlyVideos = String(body.monthlyVideos || "5-10").trim();
     const currentWorkflow = String(body.currentWorkflow || "").trim();
@@ -58,7 +79,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (channelUrl.length < 3) {
+    if (channelUrl.length < 2) {
       return NextResponse.json(
         { error: "Please provide your YouTube channel URL or @handle." },
         { status: 400 }

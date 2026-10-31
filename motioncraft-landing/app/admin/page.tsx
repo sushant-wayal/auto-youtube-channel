@@ -127,15 +127,23 @@ export default async function AdminPage() {
                     <div className="text-[#736d64] font-mono text-[11px]">{app.email}</div>
                   </td>
                   <td className="py-3 px-4 text-[#c8b29b] font-mono">
-                    <a
-                      href={app.channelUrl.startsWith("http") ? app.channelUrl : `https://${app.channelUrl}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline flex items-center gap-1"
-                    >
-                      <Youtube className="w-3.5 h-3.5 text-[#ef4444]" />
-                      <span className="truncate max-w-[160px]">{app.channelUrl}</span>
-                    </a>
+                    {(() => {
+                      const raw = String(app.channelUrl || "").trim();
+                      const match = raw.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:@|c\/|user\/|channel\/)?([^\/\s?#]+)/i);
+                      const cleanTag = (match && match[1] ? match[1] : raw).replace(/^@+/, "");
+                      const redirectUrl = `https://youtube.com/@${cleanTag}`;
+                      return (
+                        <a
+                          href={redirectUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline flex items-center gap-1.5"
+                        >
+                          <Youtube className="w-3.5 h-3.5 text-[#ef4444] shrink-0" />
+                          <span className="truncate max-w-[160px]">@{cleanTag}</span>
+                        </a>
+                      );
+                    })()}
                   </td>
                   <td className="py-3 px-4 font-mono text-[#9c958c]">
                     <div>{app.channelsCount}</div>
