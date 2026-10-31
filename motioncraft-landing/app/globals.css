@@ -93,6 +93,29 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+/* Explicit cursor behavior: All buttons give cursor: pointer on hover */
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"],
+.studio-button,
+a[href^="#apply"],
+a[href^="#pipeline"],
+a[href^="#workflow"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+input[type="submit"]:disabled {
+  cursor: not-allowed;
+}
+
+/* Non-button links do not give cursor pointer */
+a:not([role="button"]):not(.studio-button):not([href^="#apply"]):not([href^="#pipeline"]):not([href^="#workflow"]) {
+  cursor: default;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
