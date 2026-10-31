@@ -4,7 +4,8 @@ import { MessageSquare, Trash2, Users, WalletCards, Youtube } from "lucide-react
 import { prisma } from "@/lib/prisma";
 import { ADMIN_COOKIE, isValidAdminToken } from "@/lib/admin-auth";
 import { logout } from "./login/actions";
-import { deleteFeedback, deleteWaitlistEntry } from "./actions";
+import { deleteEarlyAccessApplication, deleteFeedback, deleteWaitlistEntry } from "./actions";
+import ExportCsvButton from "./ExportCsvButton";
 
 export const dynamic = "force-dynamic";
 
@@ -36,11 +37,14 @@ export default async function AdminPage() {
             <span className="ml-2 font-mono text-xs text-[#c8b29b]">Admin Telemetry</span>
           </div>
         </div>
-        <form action={logout}>
-          <button className="px-3 py-1.5 rounded-md border border-[#2e281f] bg-[#16130d] text-xs font-mono text-[#9c958c] hover:text-[#f7f3ee]">
-            Sign out
-          </button>
-        </form>
+        <div className="flex items-center gap-3">
+          <ExportCsvButton data={earlyAccessApps} />
+          <form action={logout}>
+            <button className="px-3 py-1.5 rounded-md border border-[#2e281f] bg-[#16130d] text-xs font-mono text-[#9c958c] hover:text-[#f7f3ee]">
+              Sign out
+            </button>
+          </form>
+        </div>
       </nav>
 
       <header className="py-8 space-y-2 text-left">
@@ -112,6 +116,7 @@ export default async function AdminPage() {
                 <th className="py-3 px-4 text-left font-mono">Willingness to Pay</th>
                 <th className="py-3 px-4 text-left font-mono">Bottleneck Notes</th>
                 <th className="py-3 px-4 text-left font-mono">Date</th>
+                <th className="py-3 px-4 text-right font-mono">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#2e281f]">
@@ -146,6 +151,17 @@ export default async function AdminPage() {
                   </td>
                   <td className="py-3 px-4 font-mono text-[#736d64]">
                     {new Date(app.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <form action={deleteEarlyAccessApplication}>
+                      <input type="hidden" name="id" value={app.id} />
+                      <button
+                        title="Delete candidate"
+                        className="text-[#736d64] hover:text-[#ef4444] transition-colors p-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </form>
                   </td>
                 </tr>
               ))}

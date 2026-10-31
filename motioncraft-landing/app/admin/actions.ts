@@ -11,6 +11,17 @@ async function requireAdmin() {
   if (!isValidAdminToken(jar.get(ADMIN_COOKIE)?.value)) redirect("/admin/login");
 }
 
+export async function deleteEarlyAccessApplication(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") || "");
+
+  if (id) {
+    await prisma.earlyAccessApplication.delete({ where: { id } }).catch(() => null);
+  }
+
+  revalidatePath("/admin");
+}
+
 export async function deleteWaitlistEntry(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") || "");
