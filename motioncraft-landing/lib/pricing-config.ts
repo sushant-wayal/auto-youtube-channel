@@ -57,7 +57,7 @@ export const BETA_PRICING_CONFIG: {
       "Automated vertical Shorts generation from long-form master videos",
     ],
     operationalInclusions: [
-      "Speech synthesis and motion graphic rendering included (no external subscriptions required)",
+      "Speech synthesis and motion graphic rendering included within applicable beta usage limits",
       "Dedicated rendering queue and cloud project storage included",
       "Direct technical feedback channel with the core engineering team",
       "Specific monthly video and rendering allowances confirmed during onboarding based on your publishing schedule",

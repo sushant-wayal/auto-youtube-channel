@@ -41,10 +41,10 @@ const SHOWCASE_FEATURES: ShowcaseFeature[] = [
   {
     id: "series-curriculum",
     badge: "SERIES ARCHITECTURE & LIBRARY",
-    headline: "Curate Deep Multi-Episode Tracks That Build Loyal Audiences",
+    headline: "Curate Multi-Episode Series Tracks",
     subhead: "9 Tracks · 81 Published Episodes · 21 Planned",
     description:
-      "YouTube channels grow fastest when viewers binge multi-part curriculum tracks. Serenity Studio tracks episode progression, queue backlog, and completion percentages for every series on your channel.",
+      "Organize content into multi-episode series to maintain a consistent publishing structure. Serenity Studio tracks episode progression, queue backlog, and completion for every series track on your channel.",
     screenshotUrl: "/screenshots/series-curriculum.jpg",
     screenshotAlt: "Serenity Studio Series Architecture mobile screen",
     metrics: [
@@ -65,32 +65,32 @@ const SHOWCASE_FEATURES: ShowcaseFeature[] = [
     headline: "Scheduled Daily Long-Form Releases & Multi-Slot Shorts Distribution",
     subhead: "Configurable Daily Broadcast Windows & Automated Shorts Scheduling",
     description:
-      "Maintain a predictable publishing cadence without manual intervention. Serenity Studio automates your daily long-form releases and distributes vertical Shorts across up to 5 scheduled daily windows configured for your channel's schedule.",
+      "Manage publishing schedules directly from one centralized workflow. Schedule long-form videos and Shorts according to your preferred publishing calendar without manual intervention.",
     screenshotUrl: "/screenshots/publishing-schedules.jpg",
     screenshotAlt: "Serenity Studio Publishing Schedules screen",
     metrics: [
       { label: "Long-Form Broadcast", value: "18:30 Daily" },
-      { label: "Shorts Slots", value: "5 Scheduled Slots" },
+      { label: "Shorts Slots", value: "Up to 5 Slots" },
       { label: "Cadence Mode", value: "Configurable Windows" },
     ],
     bulletPoints: [
-      "Scheduled long-form releases timed to peak desktop consumption windows",
-      "5 automated vertical Shorts slots: Dinner Window (19:45), Evening Prime (20:45), Early Evening (18:45)",
-      "Automatic thumbnail linking and 'Reset Optimal' schedule synchronization",
+      "Schedule long-form videos and Shorts according to your preferred publishing calendar",
+      "Up to five configurable daily Shorts publishing slots",
+      "Manage publishing schedules directly from one centralized workflow",
     ],
     imageFirst: false,
   },
   {
     id: "audience-engagement",
-    badge: "AUTONOMOUS ENGAGEMENT & RETENTION",
-    headline: "Autonomous Comment Reply: Always Engaged",
+    badge: "AUTONOMOUS AUDIENCE ENGAGEMENT",
+    headline: "Autonomous Comment Reply: Community Operations",
     subhead: "Autonomous Community Engagement with Tuned Brand Personas",
     description:
-      "Viewer retention isn't just about uploading videos—it's about responding to early feedback. Serenity Studio uses autonomous response intelligence to review audience comments, prioritize technical questions, and reply empathetically to critiques.",
+      "Managing a channel involves staying responsive to your audience. Serenity Studio uses autonomous response intelligence to review audience comments, prioritize technical questions, and generate context-aware replies.",
     screenshotUrl: "/screenshots/audience-engagement.jpg",
     screenshotAlt: "Serenity Studio Audience Response & Tuning screen",
     metrics: [
-      { label: "Sent Live", value: "16 Replies" },
+      { label: "Sent Replies", value: "16 Replies" },
       { label: "Active Persona", value: "Friendly" },
       { label: "Priority Mode", value: "Questions Priority" },
     ],
@@ -120,8 +120,7 @@ export default function ProductShowcase() {
             Built From the Ground Up For Serious YouTube Channels
           </h2>
           <p className="text-base sm:text-lg text-[#9c958c] leading-relaxed">
-            These are actual application screens from Serenity Studio in production.
-            No mockup graphics or theoretical features. Counters and metrics reflect live UI telemetry. Counters and metrics reflect live UI telemetry.
+            Actual Serenity Studio application screens. Figures shown represent captured application snapshots.
           </p>
         </div>
 
@@ -147,7 +146,7 @@ export default function ProductShowcase() {
                     className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-[1.01]"
                   />
                   <div className="absolute top-3 right-3 px-2 py-0.5 rounded bg-[#110e08]/90 border border-[#2e281f] text-[10px] font-mono text-[#c8b29b]">
-                    Live Screen
+                    App Screen
                   </div>
                 </div>
               </div>

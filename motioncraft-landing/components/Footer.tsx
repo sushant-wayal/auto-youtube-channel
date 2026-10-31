@@ -76,7 +76,7 @@ export default function Footer() {
               Security & Compliance
             </div>
             <p className="text-xs text-[#736d64] leading-relaxed">
-              All YouTube API integrations adhere strictly to YouTube Developer Policies and Google OAuth security protocols. Content review checkpoints require human approval before public dispatch.
+              Serenity Studio integrates with YouTube to support authorized channel operations and publishing workflows. Channel access requires user authorization. Content review checkpoints allow approval before public dispatch.
             </p>
             <div className="flex items-center gap-4 pt-2 text-xs">
               <button
@@ -131,7 +131,7 @@ export default function Footer() {
                     <strong>Data Collection:</strong> We collect only information submitted via the early access form (name, email, channel URL, and production qualification responses).
                   </p>
                   <p>
-                    <strong>Channel Credentials:</strong> YouTube OAuth tokens are encrypted at rest and used solely to publish approved videos and manage community replies. We never sell or share channel data.
+                    <strong>Channel Credentials:</strong> YouTube OAuth authorization is used solely to publish approved videos and manage community replies for your connected channel. We never sell or share channel data.
                   </p>
                   <p>
                     <strong>Deletion:</strong> You can request immediate removal of your application and telemetry logs at any time.

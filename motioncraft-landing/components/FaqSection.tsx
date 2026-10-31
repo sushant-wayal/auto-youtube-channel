@@ -27,7 +27,7 @@ const FAQS: FaqItem[] = [
   {
     question: "Do I need separate subscriptions for voiceovers and video editing?",
     answer:
-      "No. Serenity Studio integrates speech synthesis, code-driven motion graphic rendering, and video assembly directly into its connected execution pipeline. You do not need external subscriptions to Premiere Pro, After Effects, or standalone voice apps to produce finished content.",
+      "No separate video editing software or standalone voice subscriptions are required. Serenity Studio integrates speech synthesis, code-driven motion graphic rendering, and video assembly directly into its connected execution pipeline within applicable beta usage limits.",
   },
   {
     question: "Do I need technical or video editing knowledge to use it?",
