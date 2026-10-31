@@ -11,8 +11,16 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL("https://serenitystudio.app"),
   title: "Serenity Studio — End-to-End YouTube Channel Automation Platform",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", sizes: "640x640", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/icon.png",
+  },
   description:
-    "Automate the repetitive operational workflow of running high-performing YouTube channels. From structured scripting and voiceover synthesis to 1080p scene rendering, automated Shorts distribution, and AI audience engagement.",
+    "Automate the repetitive operational workflow of running high-performing YouTube channels. From structured scripting and voiceover synthesis to 1080p scene rendering, automated Shorts distribution, and autonomous audience engagement.",
   keywords: [
     "YouTube Automation",
     "YouTube Channel Automation",
@@ -44,6 +52,14 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Serenity Studio — End-to-End YouTube Channel Automation Platform",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", sizes: "640x640", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/icon.png",
+  },
     description:
       "Run your YouTube channel without manually managing every production step. Connected pipeline from ideation to publishing.",
     images: ["/screenshots/pipeline-telemetry.jpg"],

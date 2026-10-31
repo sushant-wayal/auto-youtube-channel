@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { trackEvent } from "@/lib/analytics";
 
 export default function Navbar() {
@@ -36,10 +37,14 @@ export default function Navbar() {
           className="flex items-center gap-3 group"
           onClick={() => trackEvent("workflow_step_inspected", { section: "brand_logo" })}
         >
-          <div className="w-9 h-9 rounded-lg bg-[#191610] border border-[#c8b29b]/30 flex items-center justify-center shadow-inner group-hover:border-[#c8b29b] transition-colors">
-            <span className="font-mono text-xs font-bold text-[#c8b29b] tracking-tighter">
-              SS
-            </span>
+          <div className="w-9 h-9 rounded-lg overflow-hidden border border-[#c8b29b]/40 flex items-center justify-center bg-[#191610] shadow-inner group-hover:border-[#c8b29b] transition-colors shrink-0">
+            <Image
+              src="/icon.png"
+              alt="Serenity Studio"
+              width={36}
+              height={36}
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
@@ -213,4 +218,3 @@ export default function Navbar() {
     </header>
   );
 }
-
