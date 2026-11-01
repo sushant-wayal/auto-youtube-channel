@@ -6,6 +6,7 @@ import { trackEvent } from "@/lib/analytics";
 interface WorkflowStep {
   number: string;
   stage: string;
+  pillar: string;
   headline: string;
   description: string;
   telemetryMetric: string;
@@ -16,6 +17,7 @@ const PRODUCTION_PIPELINE_STEPS: WorkflowStep[] = [
   {
     number: "01",
     stage: "Populate Ideas",
+    pillar: "Content Management",
     headline: "Editorial Queue & Topic Backlog",
     description:
       "Concepts are organized into curriculum tracks or standalone releases. When a production slot opens, the concept automatically initiates active pipeline execution.",
@@ -25,6 +27,7 @@ const PRODUCTION_PIPELINE_STEPS: WorkflowStep[] = [
   {
     number: "02",
     stage: "Generate Script",
+    pillar: "Core Production",
     headline: "Beat-by-Beat Scene Structuring",
     description:
       "Generates structured narrative scripts broken into visual beats, ensuring voiceover timing directly aligns with corresponding on-screen graphics.",
@@ -34,6 +37,7 @@ const PRODUCTION_PIPELINE_STEPS: WorkflowStep[] = [
   {
     number: "03",
     stage: "Render Scenes",
+    pillar: "Core Production",
     headline: "1080p Motion Graphic Rendering",
     description:
       "Renders dynamic technical diagrams, motion typography, and infographic sequences using code-driven visual templates rather than generic stock footage.",
@@ -43,6 +47,7 @@ const PRODUCTION_PIPELINE_STEPS: WorkflowStep[] = [
   {
     number: "04",
     stage: "Voiceover Synthesis",
+    pillar: "Core Production",
     headline: "Speech Synthesis & Audio Timing",
     description:
       "Synthesizes natural narration with word-level timestamps so animations and key on-screen highlights trigger in sync with spoken points.",
@@ -52,6 +57,7 @@ const PRODUCTION_PIPELINE_STEPS: WorkflowStep[] = [
   {
     number: "05",
     stage: "Assembled Video",
+    pillar: "Core Production",
     headline: "Multi-Track Master Assembly",
     description:
       "Binds rendered visual scenes, narration audio, background ambient tracks, and sound cues into a single broadcast-ready master video.",
@@ -61,6 +67,7 @@ const PRODUCTION_PIPELINE_STEPS: WorkflowStep[] = [
   {
     number: "06",
     stage: "Generated Thumbnail",
+    pillar: "Core Production",
     headline: "High-Contrast Thumbnail Packaging",
     description:
       "Generates custom YouTube thumbnails with high-contrast text hierarchies and branded visual styling for clean display across mobile and desktop feeds.",
@@ -70,6 +77,7 @@ const PRODUCTION_PIPELINE_STEPS: WorkflowStep[] = [
   {
     number: "07",
     stage: "Upload to YouTube",
+    pillar: "Content Management",
     headline: "Scheduled Publishing Windows",
     description:
       "Directly stages uploads to YouTube Studio, sets formatted metadata, and schedules release for configured daily broadcast windows (e.g. 18:30 IST).",
@@ -79,6 +87,7 @@ const PRODUCTION_PIPELINE_STEPS: WorkflowStep[] = [
   {
     number: "08",
     stage: "Shorts Packaging",
+    pillar: "Content Management",
     headline: "Automated Shorts Scheduling",
     description:
       "Extracts key segments, reformats into vertical 9:16 Shorts with dynamic captions, and schedules release across configured daily short-form slots.",
@@ -111,7 +120,7 @@ export default function WorkflowSection() {
             From Video Idea to Published Content. One Connected Automated Workflow.
           </h2>
           <p className="text-base sm:text-lg text-[#9c958c] leading-relaxed">
-            Serenity Studio connects the complete production lifecycle into 8 sequential stages, from raw topic ingestion to scheduled publishing.
+            Serenity Studio connects the complete production lifecycle into 8 sequential stages, spanning Core Production, Content Management, and Distribution.
           </p>
         </div>
 
@@ -147,6 +156,9 @@ export default function WorkflowSection() {
               <div className="flex items-center gap-3">
                 <span className="font-mono text-2xl font-bold text-[#c8b29b]">
                   Stage {currentStep.number}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase bg-[#110e08] border border-[#2e281f] text-[#c8b29b]">
+                  {currentStep.pillar}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono uppercase bg-[#4ade80]/10 border border-[#4ade80]/20 text-[#4ade80]">
                   {currentStep.statusTag}
@@ -204,7 +216,7 @@ export default function WorkflowSection() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded bg-[#c8b29b]/10 border border-[#c8b29b]/20 text-[10px] font-mono uppercase text-[#c8b29b]">
-                Ongoing Operations
+                Audience &amp; Channel Intelligence
               </span>
               <span className="text-xs font-semibold text-[#f7f3ee]">
                 Autonomous Audience Response

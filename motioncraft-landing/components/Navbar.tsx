@@ -24,10 +24,11 @@ export default function Navbar() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
           ? "bg-[#110e08]/90 backdrop-blur-md border-b border-[#2e281f]"
           : "bg-transparent border-b border-transparent"
-        }`}
+      }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         {/* Brand */}
@@ -94,11 +95,11 @@ export default function Navbar() {
             Who It's For
           </a>
           <a
-            href="#pricing"
-            onClick={() => handleNavClick("pricing")}
+            href="#early-access"
+            onClick={() => handleNavClick("early-access")}
             className="hover:text-[#f7f3ee] transition-colors"
           >
-            Founding Access
+            Early Access
           </a>
           <a
             href="#faq"
@@ -112,11 +113,11 @@ export default function Navbar() {
         {/* Desktop CTA */}
         <div className="hidden md:flex items-center gap-4">
           <a
-            href="#apply"
+            href="#register"
             onClick={() => trackEvent("hero_cta_clicked", { location: "navbar" })}
             className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold tracking-wide uppercase rounded-md bg-[#c8b29b] text-[#110e08] hover:bg-[#d8c4ad] transition-all shadow-sm active:translate-y-0.5"
           >
-            Apply for Beta
+            Register Your Interest
           </a>
         </div>
 
@@ -186,11 +187,11 @@ export default function Navbar() {
               Who It's For
             </a>
             <a
-              href="#pricing"
-              onClick={() => handleNavClick("pricing")}
+              href="#early-access"
+              onClick={() => handleNavClick("early-access")}
               className="py-1 hover:text-[#f7f3ee]"
             >
-              Founding Access
+              Early Access
             </a>
             <a
               href="#faq"
@@ -202,14 +203,14 @@ export default function Navbar() {
           </div>
           <div className="pt-3 border-t border-[#2e281f]">
             <a
-              href="#apply"
+              href="#register"
               onClick={() => {
                 setMobileMenuOpen(false);
                 trackEvent("hero_cta_clicked", { location: "mobile_menu" });
               }}
               className="w-full inline-flex items-center justify-center px-4 py-2.5 text-xs font-semibold tracking-wide uppercase rounded-md bg-[#c8b29b] text-[#110e08] hover:bg-[#d8c4ad]"
             >
-              Apply for Early Access
+              Register Your Interest
             </a>
           </div>
         </div>

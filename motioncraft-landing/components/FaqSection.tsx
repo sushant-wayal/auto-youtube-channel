@@ -10,44 +10,44 @@ interface FaqItem {
 
 const FAQS: FaqItem[] = [
   {
-    question: "What exactly does Serenity Studio automate?",
+    question: "What is Serenity Studio and what does it automate?",
     answer:
-      "Serenity Studio automates the full operational production chain across 8 canonical stages: topic ingestion and queue dispatch, structured script generation, scene motion rendering, voiceover synthesis, multi-track video assembly, thumbnail generation, scheduled YouTube publishing, and automated Shorts packaging. In addition, an autonomous audience response module handles comment engagement.",
+      "Serenity Studio automates the complete YouTube production lifecycle across three connected pillars: Core Production (script structuring, voiceover synthesis, 1080p motion scene rendering, multi-track video assembly, high-contrast thumbnail packaging), Content Management (editorial ideas queue, multi-episode series progression, scheduled daily publishing), and Audience & Channel Intelligence (autonomous comment engagement).",
   },
   {
-    question: "Can I review and edit content before it gets published?",
+    question: "When will the first public release be available?",
     answer:
-      "Yes. The platform includes a mandatory 'Review Master' checkpoint in the telemetry pipeline. Every script, rendered scene, thumbnail, and title can be inspected, adjusted, or re-run before the automated scheduler publishes to YouTube.",
+      "We are currently preparing the first public release of Serenity Studio. By registering your interest today, you join our priority notification queue. We will contact registered creators via email within the next 30 days with release updates and onboarding details.",
   },
   {
-    question: "Does it generate both long-form videos and YouTube Shorts?",
+    question: "How much will Serenity Studio cost?",
     answer:
-      "Yes. The pipeline outputs both a full-length 1080p landscape master video (scheduled for prime daily windows such as 18:30 IST) and reformats key high-hook segments into vertical 9:16 YouTube Shorts with dynamic captions across up to 5 scheduled daily time slots.",
+      "Subscription pricing and tier options will be announced closer to the public launch. Registering your interest is 100% free with no payment, credit card, or financial commitment required.",
   },
   {
-    question: "Do I need separate subscriptions for voiceovers and video editing?",
+    question: "What does registering your interest do?",
     answer:
-      "No separate video editing software or standalone voice subscriptions are required. Serenity Studio integrates speech synthesis, code-driven motion graphic rendering, and video assembly directly into its connected execution pipeline within applicable beta usage limits.",
+      "Registering puts your channel on our priority notification list. Selected creators will get an opportunity to try the first public release, deploy the connected 8-stage production pipeline, and shape final platform features before general availability.",
   },
   {
-    question: "Do I need technical or video editing knowledge to use it?",
+    question: "Do I need to authorize or connect my YouTube account right now?",
     answer:
-      "No editing knowledge is required. You can manage ideas and approve pipeline runs entirely from the mobile application (iOS and Android companion). If you are a technical creator, you also have fine-grained control over scene HTML, series curriculum tracks, and voice pacing.",
+      "No. Registering your interest only collects your basic contact details and content preferences. You do not need to link, authorize, or grant permissions to your YouTube account during early access registration.",
   },
   {
-    question: "What channel setup is supported during the beta?",
+    question: "Can I review and edit content before anything gets published?",
     answer:
-      "The Founding Creator Beta is specifically optimized for individual YouTube channel operators managing 1 primary channel with multi-episode series tracks. You can run standalone releases or curate multi-part curriculum tracks. Multi-tenant workspace isolation for agencies and multiple channels is on our future product roadmap.",
+      "Yes. Serenity Studio includes a mandatory human Master Review checkpoint. You retain total creative authority: every script beat, rendered scene, voiceover track, thumbnail, and title can be inspected, adjusted, or re-rendered before public release.",
   },
   {
-    question: "Is this suitable for an existing YouTube channel?",
+    question: "Does it produce both long-form videos and YouTube Shorts?",
     answer:
-      "Yes. Serenity Studio connects directly to your existing YouTube channel via the standard YouTube Data API. It preserves your existing publishing cadence, metadata styles, and channel branding.",
+      "Yes. The platform outputs full-length 1080p landscape master videos along with vertical 9:16 Shorts with dynamic captions, distributed across up to five configurable daily Shorts publishing slots.",
   },
   {
-    question: "How do I get early access to the Founding Creator Beta?",
+    question: "Are multiple channels or agencies supported in the first release?",
     answer:
-      "Submit the application form above with your YouTube channel details and operational bottleneck. Applications are reviewed within 30 days. You will be contacted by email once your application has been reviewed. No payment is charged until your channel is accepted into the beta.",
+      "The initial public release is focused on single-channel operations with multi-episode series tracks. Multi-channel agency management, team workspaces, and client review dashboards are currently under active development on our future roadmap.",
   },
 ];
 
@@ -71,10 +71,10 @@ export default function FaqSection() {
             <span>FREQUENTLY ASKED QUESTIONS</span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#f7f3ee]">
-            Practical Answers on Automation & Control
+            Answers to Common Questions
           </h2>
           <p className="text-base text-[#9c958c] max-w-xl mx-auto leading-relaxed">
-            Clear, verified facts regarding platform capabilities, scheduling control, and beta onboarding.
+            Everything you need to know about Serenity Studio, the first public release, and our early-access interest list.
           </p>
         </div>
 
@@ -113,4 +113,3 @@ export default function FaqSection() {
     </section>
   );
 }
-

@@ -28,11 +28,11 @@ export default function FinalCta() {
 
         <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
-            href="#apply"
+            href="#register"
             onClick={handleClick}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-[#c8b29b] text-[#110e08] font-bold text-xs uppercase tracking-wider hover:bg-[#d8c4ad] transition-all shadow-xl active:translate-y-0.5"
           >
-            <span>Apply for Paid Beta Access</span>
+            <span>Register Your Interest</span>
             <svg
               className="w-4 h-4"
               fill="none"
@@ -50,10 +50,9 @@ export default function FinalCta() {
         </div>
 
         <div className="text-xs font-mono text-[#736d64] pt-2">
-          Limited Founding Creator Cohort · Applications reviewed within 30 days · No payment until accepted
+          Free early-access interest list · We will contact you via email within the next 30 days · No payment required
         </div>
       </div>
     </section>
   );
 }
-

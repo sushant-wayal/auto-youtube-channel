@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 export default function Footer() {
@@ -58,8 +57,8 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <a href="#pricing" className="hover:text-[#f7f3ee] transition-colors">
-                  Founding Access & Pricing
+                <a href="#early-access" className="hover:text-[#f7f3ee] transition-colors">
+                  Early Access
                 </a>
               </li>
               <li>
@@ -91,7 +90,7 @@ export default function Footer() {
                 onClick={() => setShowLegalModal("terms")}
                 className="hover:text-[#f7f3ee] underline underline-offset-2"
               >
-                Terms of Beta Access
+                Terms of Early Access
               </button>
             </div>
           </div>
@@ -114,7 +113,7 @@ export default function Footer() {
           <div className="studio-card max-w-lg w-full p-6 bg-[#16130d] border-[#2e281f] space-y-4 text-left">
             <div className="flex items-center justify-between pb-3 border-b border-[#2e281f]">
               <h3 className="text-base font-bold text-[#f7f3ee]">
-                {showLegalModal === "privacy" ? "Privacy Notice" : "Terms of Beta Access"}
+                {showLegalModal === "privacy" ? "Privacy Notice" : "Terms of Early Access"}
               </h3>
               <button
                 onClick={() => setShowLegalModal(null)}
@@ -128,25 +127,25 @@ export default function Footer() {
               {showLegalModal === "privacy" ? (
                 <>
                   <p>
-                    <strong>Data Collection:</strong> We collect only information submitted via the early access form (name, email, channel URL, and production qualification responses).
+                    <strong>Data Collection:</strong> We collect only information submitted via the early access interest registration form (name, email, optional channel URL, and publishing volume preferences).
                   </p>
                   <p>
-                    <strong>Channel Credentials:</strong> YouTube OAuth authorization is used solely to publish approved videos and manage community replies for your connected channel. We never sell or share channel data.
+                    <strong>Channel Authorization:</strong> YouTube account access is not requested during interest registration. In the application itself, OAuth authorization is used strictly for authorized publishing and community response tasks that you configure.
                   </p>
                   <p>
-                    <strong>Deletion:</strong> You can request immediate removal of your application and telemetry logs at any time.
+                    <strong>Data Protection & Deletion:</strong> We do not sell or monetize creator data. You can request immediate deletion of your registration and contact records at any time.
                   </p>
                 </>
               ) : (
                 <>
                   <p>
-                    <strong>Beta Scope:</strong> Founding Creator Beta provides direct operational access to the Serenity Studio pipeline for 1 primary YouTube channel. Pricing is locked at founding rates for your first 12 months.
+                    <strong>Early Access Scope:</strong> Registering your interest places you on our priority notification list for the first public release of Serenity Studio. Registration is free and does not require payment or financial commitment.
                   </p>
                   <p>
-                    <strong>Operational Guarantee:</strong> We automate production workflows; we do not make claims or guarantees regarding YouTube algorithm performance, video view counts, or monetary earnings.
+                    <strong>Operational Notice:</strong> We automate production and publishing workflows; we do not control YouTube&apos;s recommendation algorithms and make no guarantees regarding viral views, channel growth rates, or monetary earnings.
                   </p>
                   <p>
-                    <strong>Cancellation:</strong> Subscriptions can be canceled at any time with no lock-in.
+                    <strong>Commercial Terms:</strong> Subscription pricing and plan details will be communicated transparently prior to general release.
                   </p>
                 </>
               )}
@@ -166,4 +165,3 @@ export default function Footer() {
     </footer>
   );
 }
-

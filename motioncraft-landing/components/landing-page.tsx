@@ -23,7 +23,7 @@ export default function LandingPage() {
         {/* Hero Section */}
         <HeroSection />
 
-        {/* The Problem: 9 Disconnected Tools */}
+        {/* The Problem: Disconnected Tools */}
         <ProblemSection />
 
         {/* The Solution: One Connected Workflow */}
@@ -35,10 +35,10 @@ export default function LandingPage() {
         {/* Built For Real YouTube Operators */}
         <AudienceSection />
 
-        {/* Commercial Validation / Founding Creator Pricing */}
+        {/* Early Access 3-Step Process */}
         <PricingSection />
 
-        {/* High-Intent Lead Capture & Demand Validation */}
+        {/* Early Access Registration Form */}
         <EarlyAccessForm />
 
         {/* Practical FAQs */}

@@ -22,10 +22,10 @@ const AUDIENCE_SEGMENTS = [
     gain: "Code-driven motion graphics and animated diagrams synchronized with technical narration.",
   },
   {
-    title: "Studios & Multi-Channel Operators (Roadmap)",
-    tagline: "Future multi-channel management currently under active development",
-    pain: "Need separate team permissions and multi-account workspace isolation.",
-    gain: "Current beta focuses strictly on single-channel stability; multi-channel isolation is on the near-term roadmap.",
+    title: "Studios & Multi-Channel Operators (In Development)",
+    tagline: "Multi-channel agency management is currently under active development",
+    pain: "Need separate team permissions, client dashboards, and multi-account workspace isolation.",
+    gain: "The initial public release focuses strictly on individual channel operations; multi-channel agency management remains under active development for future updates.",
   },
 ];
 
@@ -81,11 +81,10 @@ export default function AudienceSection() {
             Our Honest Commitment
           </div>
           <p className="text-xs sm:text-sm text-[#9c958c] leading-relaxed">
-            We automate the repetitive production and distribution workflow—not YouTube's algorithm. We do not make misleading promises about viral overnight views, instant monetization, or guaranteed subscribers. We reduce repetitive manual production work so you can focus on channel strategy and high-impact ideas.
+            We automate the repetitive production and distribution workflow—not YouTube&apos;s algorithm. We do not make misleading promises about viral overnight views, instant monetization, or guaranteed subscribers. We reduce repetitive manual production work so you can focus on channel strategy and high-impact ideas.
           </p>
         </div>
       </div>
     </section>
   );
 }
-

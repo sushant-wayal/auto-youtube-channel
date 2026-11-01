@@ -5,7 +5,7 @@ import { trackEvent } from "@/lib/analytics";
 
 export default function HeroSection() {
   const handlePrimaryCta = () => {
-    trackEvent("hero_cta_clicked", { action: "apply_paid_beta" });
+    trackEvent("hero_cta_clicked", { action: "register_interest" });
   };
 
   const handleSecondaryCta = () => {
@@ -23,7 +23,7 @@ export default function HeroSection() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#191610] border border-[#2e281f] text-xs font-mono text-[#c8b29b]">
             <span className="w-2 h-2 rounded-full bg-[#4ade80]"></span>
             <span className="uppercase tracking-wider font-semibold">
-              Batch 01 Founding Creator Access Now Open
+              First Public Release in Preparation · Early Access Interest List
             </span>
           </div>
 
@@ -31,31 +31,28 @@ export default function HeroSection() {
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-[#f7f3ee] leading-[1.12]">
             Your YouTube Channel.{" "}
             <span className="text-[#c8b29b] block sm:inline">
-              Running on Autopilot.
+              One Automated Production Studio.
             </span>
           </h1>
 
           {/* Subheading / Value Proposition */}
           <p className="text-lg sm:text-xl text-[#eae1d7] font-medium leading-relaxed">
-            From video idea to published long-form and Shorts. One connected,
-            automated operational workflow.
+            Run your YouTube channel&apos;s entire content production workflow without managing a dozen disconnected tools.
           </p>
 
           {/* Concise explanation */}
           <p className="text-sm sm:text-base text-[#9c958c] max-w-2xl mx-auto leading-relaxed">
-            Stop juggling multiple disconnected tools. Serenity Studio
-            orchestrates topic ingestion, structured scripting, voiceover
-            synthesis, 1080p scene rendering, automated Shorts clipping, and configurable daily broadcast scheduling in one continuous pipeline.
+            Serenity Studio automates the complete workflow from ideas and scripts to voiceovers, video production, Shorts, and publishing. The first public release is currently in preparation — register your interest below to join the early access queue.
           </p>
 
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <a
-              href="#apply"
+              href="#register"
               onClick={handlePrimaryCta}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg bg-[#c8b29b] text-[#110e08] font-semibold text-sm hover:bg-[#d8c4ad] transition-all shadow-md active:translate-y-0.5"
             >
-              <span>Apply for Paid Beta Access</span>
+              <span>Register Your Interest</span>
               <svg
                 className="w-4 h-4"
                 fill="none"
@@ -141,7 +138,7 @@ export default function HeroSection() {
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              <span>Not a generic AI wrapper — complete operational stack</span>
+              <span>Free early-access interest list (no payment required)</span>
             </div>
           </div>
         </div>
@@ -256,10 +253,10 @@ export default function HeroSection() {
 
                 <div className="pt-2">
                   <a
-                    href="#apply"
+                    href="#register"
                     className="block w-full py-3 px-4 rounded-lg bg-[#221e17] border border-[#c8b29b]/30 text-center text-xs font-semibold uppercase tracking-wider text-[#d8c4ad] hover:border-[#c8b29b] hover:bg-[#262119] transition-all"
                   >
-                    Request Early Access to Telemetry & Pipeline
+                    Register Your Interest
                   </a>
                 </div>
               </div>
@@ -270,4 +267,3 @@ export default function HeroSection() {
     </section>
   );
 }
-

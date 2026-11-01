@@ -9,8 +9,10 @@ export type AnalyticsEventType =
   | "workflow_step_inspected"
   | "screenshot_tab_switched"
   | "pricing_section_viewed"
+  | "early_access_section_cta_clicked"
   | "early_access_form_started"
   | "early_access_step1_completed"
+  | "early_access_registered"
   | "willingness_to_pay_selected"
   | "form_submitted"
   | "faq_toggled";
@@ -55,51 +57,38 @@ export function getTrackingContext() {
 }
 
 /**
- * Dispatches an analytics event to browser dataLayer, console, and optional backend API
+ * Dispatches an analytics event to internal audit log / beacon
  */
 export function trackEvent(
   event: AnalyticsEventType,
-  properties: Record<string, unknown> = {}
+  properties?: Record<string, unknown>
 ) {
   if (typeof window === "undefined") return;
 
-  const trackingContext = getTrackingContext();
   const payload: AnalyticsPayload = {
     event,
     properties,
     timestamp: new Date().toISOString(),
     url: window.location.href,
-    referrer: trackingContext.referrer,
-    utm: trackingContext.utm,
+    ...getTrackingContext(),
   };
 
-  // 1. Log in dev console for instant verification
-  if (process.env.NODE_ENV !== "production") {
-    console.debug(`[Serenity Analytics] ${event}`, payload);
+  // Push to dataLayer if Google Tag Manager or similar is initialized
+  if (Array.isArray((window as unknown as { dataLayer: unknown[] }).dataLayer)) {
+    (window as unknown as { dataLayer: unknown[] }).dataLayer.push(payload);
   }
 
-  // 2. Window dataLayer integration (Google Tag Manager / GA4)
-  const win = window as unknown as { dataLayer?: unknown[] };
-  if (Array.isArray(win.dataLayer)) {
-    win.dataLayer.push({
-      event,
-      ...properties,
-      ...trackingContext.utm,
-    });
+  // Internal beacon / console logging for development observability
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[Analytics Event: ${event}]`, payload);
   }
 
-  // 3. Optional PostHog or Plausible integration if configured
-  const winAny = window as unknown as {
-    plausible?: (event: string, options?: { props: Record<string, unknown> }) => void;
-    posthog?: { capture: (event: string, properties?: Record<string, unknown>) => void };
-  };
-
-  if (typeof winAny.plausible === "function") {
-    winAny.plausible(event, { props: properties });
-  }
-
-  if (winAny.posthog && typeof winAny.posthog.capture === "function") {
-    winAny.posthog.capture(event, properties);
+  // Optional: Dispatch to background collector if configured
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon("/api/analytics", JSON.stringify(payload));
+    }
+  } catch {
+    // Graceful silent fallback
   }
 }
-

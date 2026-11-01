@@ -23,34 +23,6 @@ import { prisma } from "@/lib/prisma";
 import fs from "fs";
 import path from "path";
 
-const VALID_WORKFLOWS = [
-  "Entirely manually",
-  "Using multiple AI tools",
-  "Using an existing automation platform",
-  "Outsourced to editors or an agency",
-  "Other",
-];
-
-const VALID_PRICE_RANGES = [
-  // INR options
-  "Less than ₹500",
-  "₹500–₹999",
-  "₹1,000–₹1,999",
-  "₹2,000–₹3,999",
-  "₹4,000–₹5,999",
-  "₹6,000 or more",
-  "More than ₹6,000",
-  // USD options
-  "Less than $10",
-  "$10–$25",
-  "$25–$50",
-  "$50–$75",
-  "$75–$100",
-  "$100 or more",
-  "More than $100",
-  "I would not currently pay for this",
-];
-
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -58,14 +30,29 @@ export async function POST(request: Request) {
     const name = String(body.name || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const rawChannel = String(body.channelUrl || "").trim();
-    const channelUrl = extractYouTubeTag(rawChannel);
-    const channelsCount = String(body.channelsCount || "1").trim();
-    const monthlyVideos = String(body.monthlyVideos || "5-10").trim();
-    const currentWorkflow = String(body.currentWorkflow || "").trim();
-    const monthlySpend = String(body.monthlySpend || "").trim();
-    const willingnessToPay = String(body.willingnessToPay || "").trim();
-    const selectedTier = String(body.selectedTier || "Founding Creator Beta").trim();
-    const notes = body.notes ? String(body.notes).trim() : null;
+    const channelUrl = rawChannel ? extractYouTubeTag(rawChannel) : "";
+    const channelsCount = String(body.channelsCount || "1 Channel").trim();
+    const monthlyVideos = String(body.monthlyVideos || "1–4 videos / mo").trim();
+    const monthlyShorts = String(body.monthlyShorts || "0 Shorts / mo").trim();
+    const automationFocus = body.automationFocus
+      ? String(body.automationFocus).trim()
+      : body.notes
+      ? String(body.notes).trim()
+      : "";
+
+    const currentWorkflow = String(body.currentWorkflow || "Early Access Interest List").trim();
+    const monthlySpend = String(body.monthlySpend || "N/A (Interest List)").trim();
+    const willingnessToPay = String(body.willingnessToPay || "Early Access Interest").trim();
+    const selectedTier = String(body.selectedTier || "First Public Release Early Access").trim();
+
+    const combinedNotes = [
+      monthlyShorts ? `Shorts Volume: ${monthlyShorts}` : null,
+      automationFocus ? `Automation Focus: ${automationFocus}` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    const notes = combinedNotes || null;
 
     const utmSource = body.utmSource ? String(body.utmSource).trim() : null;
     const utmMedium = body.utmMedium ? String(body.utmMedium).trim() : null;
@@ -75,7 +62,7 @@ export async function POST(request: Request) {
     // Strict validation
     if (name.length < 2) {
       return NextResponse.json(
-        { error: "Please enter your full name." },
+        { error: "Please enter your name." },
         { status: 400 }
       );
     }
@@ -88,33 +75,14 @@ export async function POST(request: Request) {
       );
     }
 
-    if (channelUrl.length < 2) {
-      return NextResponse.json(
-        { error: "Please provide your YouTube channel URL or @handle." },
-        { status: 400 }
-      );
-    }
-
-    if (!VALID_WORKFLOWS.includes(currentWorkflow)) {
-      return NextResponse.json(
-        { error: "Please select how you currently produce videos." },
-        { status: 400 }
-      );
-    }
-
-    if (!VALID_PRICE_RANGES.includes(willingnessToPay)) {
-      return NextResponse.json(
-        { error: "Please select your monthly willingness-to-pay range." },
-        { status: 400 }
-      );
-    }
-
     const submissionData = {
       name,
       email,
       channelUrl,
       channelsCount,
       monthlyVideos,
+      monthlyShorts,
+      automationFocus,
       currentWorkflow,
       monthlySpend,
       willingnessToPay,
@@ -208,13 +176,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Application submitted successfully.",
+      message: "You're on the Serenity Studio early-access interest list! We'll contact you via email within the next 30 days with updates about our first public release.",
       savedInDb,
       candidate: {
         name,
         email,
         channelUrl,
-        willingnessToPay,
       },
     });
   } catch (err: unknown) {
@@ -225,4 +192,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

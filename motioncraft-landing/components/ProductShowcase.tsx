@@ -5,6 +5,7 @@ import { trackEvent } from "@/lib/analytics";
 
 interface ShowcaseFeature {
   id: string;
+  pillar: "Core Production" | "Content Management" | "Audience & Channel Intelligence";
   badge: string;
   headline: string;
   subhead: string;
@@ -19,7 +20,8 @@ interface ShowcaseFeature {
 const SHOWCASE_FEATURES: ShowcaseFeature[] = [
   {
     id: "editorial-queue",
-    badge: "IDEATION & QUEUE DISPATCH",
+    pillar: "Content Management",
+    badge: "CONTENT MANAGEMENT · IDEAS QUEUE",
     headline: "Editorial Ideas Queue: Never Stare at a Blank Screen",
     subhead: "5 Concepts Ready for Production · 4 Queued for Scripting",
     description:
@@ -40,7 +42,8 @@ const SHOWCASE_FEATURES: ShowcaseFeature[] = [
   },
   {
     id: "series-curriculum",
-    badge: "SERIES ARCHITECTURE & LIBRARY",
+    pillar: "Content Management",
+    badge: "CONTENT MANAGEMENT · SERIES TRACKS",
     headline: "Curate Multi-Episode Series Tracks",
     subhead: "9 Tracks · 81 Published Episodes · 21 Planned",
     description:
@@ -61,7 +64,8 @@ const SHOWCASE_FEATURES: ShowcaseFeature[] = [
   },
   {
     id: "publishing-schedules",
-    badge: "PRECISION PUBLISHING & SHORTS",
+    pillar: "Content Management",
+    badge: "CONTENT MANAGEMENT · AUTOMATED PUBLISHING",
     headline: "Scheduled Daily Long-Form Releases & Multi-Slot Shorts Distribution",
     subhead: "Configurable Daily Broadcast Windows & Automated Shorts Scheduling",
     description:
@@ -82,7 +86,8 @@ const SHOWCASE_FEATURES: ShowcaseFeature[] = [
   },
   {
     id: "audience-engagement",
-    badge: "AUTONOMOUS AUDIENCE ENGAGEMENT",
+    pillar: "Audience & Channel Intelligence",
+    badge: "AUDIENCE & CHANNEL INTELLIGENCE",
     headline: "Autonomous Comment Reply: Community Operations",
     subhead: "Autonomous Community Engagement with Tuned Brand Personas",
     description:
@@ -114,7 +119,7 @@ export default function ProductShowcase() {
         {/* Section Heading */}
         <div className="max-w-3xl mx-auto text-center space-y-4">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#191610] border border-[#2e281f] text-xs font-mono text-[#c8b29b]">
-            <span>VERIFIED CAPABILITIES</span>
+            <span>PLATFORM CAPABILITIES</span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#f7f3ee]">
             Built From the Ground Up For Serious YouTube Channels
@@ -122,6 +127,52 @@ export default function ProductShowcase() {
           <p className="text-base sm:text-lg text-[#9c958c] leading-relaxed">
             Actual Serenity Studio application screens. Figures shown represent captured application snapshots.
           </p>
+        </div>
+
+        {/* 3 Core Capability Pillars Overview */}
+        <div className="mt-12 max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+          <div className="p-5 rounded-xl bg-[#16130d] border border-[#2e281f] space-y-2">
+            <div className="text-[11px] font-mono uppercase text-[#c8b29b] font-semibold tracking-wider">
+              Pillar 01
+            </div>
+            <h3 className="text-base font-bold text-[#f7f3ee]">Core Production</h3>
+            <p className="text-xs text-[#9c958c] leading-relaxed">
+              Structured scripting, voiceover synthesis, 1080p motion graphic scene rendering, multi-track master assembly, and high-contrast thumbnail packaging.
+            </p>
+          </div>
+
+          <div className="p-5 rounded-xl bg-[#16130d] border border-[#2e281f] space-y-2">
+            <div className="text-[11px] font-mono uppercase text-[#c8b29b] font-semibold tracking-wider">
+              Pillar 02
+            </div>
+            <h3 className="text-base font-bold text-[#f7f3ee]">Content Management</h3>
+            <p className="text-xs text-[#9c958c] leading-relaxed">
+              Editorial backlog queue, multi-episode series architecture, progression tracking, and scheduled daily long-form &amp; Shorts publishing calendar.
+            </p>
+          </div>
+
+          <div className="p-5 rounded-xl bg-[#16130d] border border-[#2e281f] space-y-2">
+            <div className="text-[11px] font-mono uppercase text-[#c8b29b] font-semibold tracking-wider">
+              Pillar 03
+            </div>
+            <h3 className="text-base font-bold text-[#f7f3ee]">Audience &amp; Channel Intelligence</h3>
+            <p className="text-xs text-[#9c958c] leading-relaxed">
+              Context-aware comment responses, sentiment and question triage, customizable brand personas, and post-publish community operations.
+            </p>
+          </div>
+        </div>
+
+        {/* Plan Availability Disclaimer */}
+        <div className="mt-6 max-w-5xl mx-auto p-4 rounded-xl bg-[#191610] border border-[#2e281f] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#9c958c] text-left">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#c8b29b] shrink-0"></span>
+            <span>
+              Advanced capabilities, throughput limits, and volume allowances will depend on the eventual subscription plan once released. Multi-channel agency operations are currently in active development.
+            </span>
+          </div>
+          <span className="text-xs font-mono text-[#c8b29b] shrink-0">
+            Roadmap Disclosure
+          </span>
         </div>
 
         {/* Alternating Feature Showcase */}
@@ -217,4 +268,3 @@ export default function ProductShowcase() {
     </section>
   );
 }
-

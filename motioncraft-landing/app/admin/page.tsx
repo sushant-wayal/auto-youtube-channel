@@ -19,8 +19,8 @@ export default async function AdminPage() {
     prisma.feedback.findMany({ orderBy: { createdAt: "desc" } }),
   ]);
 
-  const highIntentPaidCount = earlyAccessApps.filter(
-    (app) => app.willingnessToPay && !app.willingnessToPay.includes("not currently pay")
+  const candidatesWithDetails = earlyAccessApps.filter(
+    (app) => (app.channelUrl && app.channelUrl.trim().length > 0) || (app.notes && app.notes.trim().length > 0)
   ).length;
 
   return (
@@ -52,10 +52,10 @@ export default async function AdminPage() {
           MARKET DEMAND SIGNALS
         </p>
         <h1 className="text-3xl font-bold tracking-tight text-[#f7f3ee]">
-          Founding Creator Applications
+          Early Access Registrations
         </h1>
         <p className="text-sm text-[#9c958c]">
-          Real-time qualification telemetry from YouTube channel operators.
+          Real-time registration telemetry from YouTube channel operators for the first public release.
         </p>
       </header>
 
@@ -63,24 +63,24 @@ export default async function AdminPage() {
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="p-5 rounded-xl bg-[#16130d] border border-[#2e281f] text-left">
           <div className="flex items-center justify-between text-[#9c958c]">
-            <span className="text-xs font-mono uppercase">Total Applications</span>
+            <span className="text-xs font-mono uppercase">Total Registrations</span>
             <Users className="w-4 h-4 text-[#c8b29b]" />
           </div>
           <div className="text-3xl font-mono font-bold text-[#f7f3ee] mt-2">
             {earlyAccessApps.length}
           </div>
-          <p className="text-[11px] text-[#736d64] mt-1">Founding Cohort Candidates</p>
+          <p className="text-[11px] text-[#736d64] mt-1">Early Access Interest List</p>
         </div>
 
         <div className="p-5 rounded-xl bg-[#16130d] border border-[#2e281f] text-left">
           <div className="flex items-center justify-between text-[#9c958c]">
-            <span className="text-xs font-mono uppercase">Validated Paid Intent</span>
+            <span className="text-xs font-mono uppercase">With Channel / Details</span>
             <WalletCards className="w-4 h-4 text-[#4ade80]" />
           </div>
           <div className="text-3xl font-mono font-bold text-[#4ade80] mt-2">
-            {highIntentPaidCount}
+            {candidatesWithDetails}
           </div>
-          <p className="text-[11px] text-[#736d64] mt-1">Ready for Paid Beta Onboarding</p>
+          <p className="text-[11px] text-[#736d64] mt-1">High-Context Creators</p>
         </div>
 
         <div className="p-5 rounded-xl bg-[#16130d] border border-[#2e281f] text-left">
@@ -112,9 +112,8 @@ export default async function AdminPage() {
                 <th className="py-3 px-4 text-left font-mono">Channel URL</th>
                 <th className="py-3 px-4 text-left font-mono">Volume</th>
                 <th className="py-3 px-4 text-left font-mono">Current Workflow</th>
-                <th className="py-3 px-4 text-left font-mono">Monthly Spend</th>
-                <th className="py-3 px-4 text-left font-mono">Willingness to Pay</th>
-                <th className="py-3 px-4 text-left font-mono">Bottleneck Notes</th>
+                <th className="py-3 px-4 text-left font-mono">Tier / List</th>
+                <th className="py-3 px-4 text-left font-mono">Automation Notes</th>
                 <th className="py-3 px-4 text-left font-mono">Date</th>
                 <th className="py-3 px-4 text-right font-mono">Action</th>
               </tr>
@@ -129,8 +128,10 @@ export default async function AdminPage() {
                   <td className="py-3 px-4 text-[#c8b29b] font-mono">
                     {(() => {
                       const raw = String(app.channelUrl || "").trim();
+                      if (!raw) return <span className="text-[#736d64]">—</span>;
                       const match = raw.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:@|c\/|user\/|channel\/)?([^\/\s?#]+)/i);
                       const cleanTag = (match && match[1] ? match[1] : raw).replace(/^@+/, "");
+                      if (!cleanTag) return <span className="text-[#736d64]">—</span>;
                       const redirectUrl = `https://youtube.com/@${cleanTag}`;
                       return (
                         <a
@@ -150,11 +151,8 @@ export default async function AdminPage() {
                     <div className="text-[10px] text-[#736d64]">{app.monthlyVideos}</div>
                   </td>
                   <td className="py-3 px-4 text-[#eae1d7]">{app.currentWorkflow}</td>
-                  <td className="py-3 px-4 font-mono text-[#9c958c]">{app.monthlySpend}</td>
-                  <td className="py-3 px-4 font-mono font-bold text-[#4ade80]">
-                    {app.willingnessToPay}
-                  </td>
-                  <td className="py-3 px-4 max-w-[220px] truncate text-[#736d64]">
+                  <td className="py-3 px-4 font-mono text-[#c8b29b]">{app.selectedTier || "Early Access"}</td>
+                  <td className="py-3 px-4 max-w-[260px] truncate text-[#eae1d7]" title={app.notes || ""}>
                     {app.notes || "—"}
                   </td>
                   <td className="py-3 px-4 font-mono text-[#736d64]">
@@ -177,7 +175,7 @@ export default async function AdminPage() {
           </table>
           {earlyAccessApps.length === 0 && (
             <div className="p-8 text-center text-xs text-[#736d64]">
-              No applications submitted yet. The landing page form will stream entries directly here.
+              No registrations submitted yet. The landing page form will stream entries directly here.
             </div>
           )}
         </div>
