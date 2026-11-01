@@ -4,17 +4,11 @@ import Link from "next/link";
 import {
   Activity,
   BarChart3,
-  Calendar,
   CheckCircle2,
-  Clock,
-  Eye,
-  Filter,
-  Layers,
   MousePointerClick,
   Play,
   Trash2,
   Users,
-  Video,
   WalletCards,
   Youtube,
 } from "lucide-react";
@@ -23,20 +17,39 @@ import { ADMIN_COOKIE, isValidAdminToken } from "@/lib/admin-auth";
 import { logout } from "./login/actions";
 import { deleteEarlyAccessApplication } from "./actions";
 import ExportCsvButton from "./ExportCsvButton";
-import { WILLINGNESS_TO_PAY_OPTIONS } from "@/components/EarlyAccessForm";
+import { WILLINGNESS_TO_PAY_OPTIONS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
 interface AdminPageProps {
-  searchParams: Promise<{ range?: string }>;
+  searchParams?: Promise<{ range?: string }>;
+}
+
+function safeGetHostname(raw?: string | null): string {
+  if (!raw || raw === "direct") return "Direct / Organic";
+  try {
+    const formatted = raw.startsWith("http://") || raw.startsWith("https://")
+      ? raw
+      : `https://${raw}`;
+    return new URL(formatted).hostname || raw;
+  } catch {
+    return raw.replace(/^[a-z]+:\/\//i, "").split("/")[0] || raw;
+  }
 }
 
 export default async function AdminPage({ searchParams }: AdminPageProps) {
   const jar = await cookies();
-  if (!isValidAdminToken(jar.get(ADMIN_COOKIE)?.value)) redirect("/admin/login");
+  if (!isValidAdminToken(jar.get(ADMIN_COOKIE)?.value)) {
+    redirect("/admin/login");
+  }
 
-  const resolvedParams = await searchParams;
-  const range = resolvedParams.range || "all";
+  let range = "all";
+  try {
+    const resolved = searchParams ? await searchParams : {};
+    range = (resolved && (resolved as any).range) || "all";
+  } catch {
+    range = "all";
+  }
 
   // Compute date filter boundary
   const now = new Date();
@@ -49,17 +62,35 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     startDate = new Date(now.getFullYear(), now.getMonth(), 1);
   }
 
-  // Fetch analytics events & applications in parallel
-  const [events, applications] = await Promise.all([
-    prisma.analyticsEvent.findMany({
-      where: range === "all" ? undefined : { createdAt: { gte: startDate } },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.earlyAccessApplication.findMany({
-      where: range === "all" ? undefined : { createdAt: { gte: startDate } },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  // Fetch analytics events & applications with try-catch safety
+  let events: any[] = [];
+  let applications: any[] = [];
+
+  try {
+    const whereClause = range === "all" ? {} : { createdAt: { gte: startDate } };
+
+    const [eventsRes, appsRes] = await Promise.all([
+      prisma.analyticsEvent.findMany({
+        where: whereClause,
+        orderBy: { createdAt: "desc" },
+      }).catch((e) => {
+        console.warn("[Admin] analyticsEvent query fallback:", e);
+        return [];
+      }),
+      prisma.earlyAccessApplication.findMany({
+        where: whereClause,
+        orderBy: { createdAt: "desc" },
+      }).catch((e) => {
+        console.warn("[Admin] earlyAccessApplication query fallback:", e);
+        return [];
+      }),
+    ]);
+
+    events = eventsRes || [];
+    applications = appsRes || [];
+  } catch (err) {
+    console.error("[Admin Page] Unexpected database error:", err);
+  }
 
   // Aggregate Traffic Metrics
   const uniqueVisitors = new Set(events.map((e) => e.visitorId).filter(Boolean)).size;
@@ -80,7 +111,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const ctaClicks = events.filter((e) => e.eventType === "cta_click").length;
   const formViews = events.filter((e) => e.eventType === "form_viewed").length;
   const formStarts = events.filter((e) => e.eventType === "form_started").length;
-  const formSubmits = events.filter((e) => e.eventType === "form_submit_attempt").length;
   const totalRegistrations = applications.length;
 
   const visitorConversionRate =
@@ -104,13 +134,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   // Traffic Source & UTM Breakdown
   const sourcesMap: Record<string, number> = {};
   applications.forEach((app) => {
-    const src =
-      app.utmSource ||
-      (app.referrer && app.referrer !== "direct"
-        ? new URL(
-            app.referrer.startsWith("http") ? app.referrer : `https://${app.referrer}`
-          ).hostname
-        : "Direct / Organic");
+    const src = app.utmSource || safeGetHostname(app.referrer);
     sourcesMap[src] = (sourcesMap[src] || 0) + 1;
   });
   const topSources = Object.entries(sourcesMap).sort((a, b) => b[1] - a[1]);

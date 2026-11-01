@@ -3,6 +3,14 @@
 import { useState, FormEvent, useEffect, useRef } from "react";
 import { trackEvent, getAttributionContext } from "@/lib/analytics";
 import CustomSelect from "./CustomSelect";
+import {
+  WILLINGNESS_TO_PAY_OPTIONS,
+  CHANNELS_COUNT_OPTIONS,
+  MONTHLY_VIDEOS_OPTIONS,
+  MONTHLY_SHORTS_OPTIONS,
+  WORKFLOW_OPTIONS,
+  SPEND_OPTIONS,
+} from "@/lib/constants";
 
 interface FormData {
   name: string;
@@ -16,55 +24,6 @@ interface FormData {
   monthlySpend: string;
   primaryProblem: string;
 }
-
-export const WILLINGNESS_TO_PAY_OPTIONS = [
-  "₹0 - Only interested if free",
-  "Under ₹3,000",
-  "₹3,000–₹8,999",
-  "₹9,000–₹22,999",
-  "₹23,000–₹37,999",
-  "₹38,000–₹89,999",
-  "₹90,000+",
-  "Not sure yet",
-];
-
-const CHANNELS_COUNT_OPTIONS = [
-  "1 Channel",
-  "2–3 Channels",
-  "4–10 Channels",
-  "10+ Channels",
-];
-
-const MONTHLY_VIDEOS_OPTIONS = [
-  "0 videos / mo",
-  "1–4 videos / mo",
-  "5–10 videos / mo",
-  "11–20 videos / mo",
-  "20+ videos / mo",
-];
-
-const MONTHLY_SHORTS_OPTIONS = [
-  "0 Shorts / mo",
-  "1–10 Shorts / mo",
-  "11–30 Shorts / mo",
-  "30+ Shorts / mo",
-];
-
-const WORKFLOW_OPTIONS = [
-  "Using multiple AI tools",
-  "Entirely manually",
-  "Existing automation platform",
-  "Outsourced to editors / agency",
-  "Other",
-];
-
-const SPEND_OPTIONS = [
-  "₹0",
-  "Under ₹3,000",
-  "₹3,000–₹8,999",
-  "₹9,000–₹22,999",
-  "₹23,000+",
-];
 
 export default function EarlyAccessForm() {
   const containerRef = useRef<HTMLDivElement>(null);
