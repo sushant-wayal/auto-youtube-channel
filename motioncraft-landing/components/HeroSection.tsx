@@ -161,7 +161,7 @@ export default function HeroSection() {
                   8 of 8 Stages Complete
                 </span>
                 <span className="hidden sm:inline text-[#736d64]">
-                  Channel: JarvisAI
+                  Connected Channel
                 </span>
               </div>
             </div>
