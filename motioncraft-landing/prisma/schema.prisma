@@ -14,19 +14,48 @@ model EarlyAccessApplication {
   channelUrl         String   @map("channel_url")
   channelsCount      String   @map("channels_count")
   monthlyVideos      String   @map("monthly_videos")
+  monthlyShorts      String?  @map("monthly_shorts")
   currentWorkflow    String   @map("current_workflow")
   monthlySpend       String   @map("monthly_spend")
   willingnessToPay   String   @map("willingness_to_pay")
-  selectedTier       String   @default("Founding Creator Beta") @map("selected_tier")
+  primaryProblem     String?  @map("primary_problem") @db.Text
+  selectedTier       String   @default("Public Release Early Access") @map("selected_tier")
   notes              String?  @db.Text
   utmSource          String?  @map("utm_source")
   utmMedium          String?  @map("utm_medium")
   utmCampaign        String?  @map("utm_campaign")
+  utmContent         String?  @map("utm_content")
+  utmTerm            String?  @map("utm_term")
   referrer           String?  @map("referrer")
+  visitorId          String?  @map("visitor_id")
+  sessionId          String?  @map("session_id")
   status             String   @default("pending")
   createdAt          DateTime @default(now()) @map("created_at")
 
   @@map("early_access_applications")
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  eventType   String   @map("event_type")
+  eventName   String?  @map("event_name")
+  visitorId   String   @map("visitor_id")
+  sessionId   String   @map("session_id")
+  path        String?
+  referrer    String?
+  utmSource   String?  @map("utm_source")
+  utmMedium   String?  @map("utm_medium")
+  utmCampaign String?  @map("utm_campaign")
+  utmContent  String?  @map("utm_content")
+  utmTerm     String?  @map("utm_term")
+  properties  Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([eventType, createdAt])
+  @@index([visitorId])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("analytics_events")
 }
 
 model WaitlistEntry {

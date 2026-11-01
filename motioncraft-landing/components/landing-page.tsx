@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
+import { trackEvent } from "@/lib/analytics";
 import Navbar from "./Navbar";
 import HeroSection from "./HeroSection";
+import ProductDemoSection from "./ProductDemoSection";
 import ProblemSection from "./ProblemSection";
 import WorkflowSection from "./WorkflowSection";
 import ProductShowcase from "./ProductShowcase";
@@ -13,6 +16,10 @@ import FinalCta from "./FinalCta";
 import Footer from "./Footer";
 
 export default function LandingPage() {
+  useEffect(() => {
+    trackEvent("page_view");
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#110e08] text-[#f7f3ee] flex flex-col font-sans selection:bg-[#c8b29b]/25 selection:text-[#f7f3ee]">
       {/* Sticky Navigation */}
@@ -22,6 +29,9 @@ export default function LandingPage() {
       <main className="flex-1">
         {/* Hero Section */}
         <HeroSection />
+
+        {/* 1:52 Product Demo Video */}
+        <ProductDemoSection />
 
         {/* The Problem: Disconnected Tools */}
         <ProblemSection />

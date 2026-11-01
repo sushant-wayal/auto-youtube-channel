@@ -28,7 +28,7 @@ const THREE_STEPS = [
 
 export default function PricingSection() {
   const handleCtaClick = () => {
-    trackEvent("early_access_section_cta_clicked", { action: "register_interest" });
+    trackEvent("cta_click", { section: "early_access_3step", cta: "register_interest_steps" });
   };
 
   return (

@@ -5,11 +5,11 @@ import { trackEvent } from "@/lib/analytics";
 
 export default function HeroSection() {
   const handlePrimaryCta = () => {
-    trackEvent("hero_cta_clicked", { action: "register_interest" });
+    trackEvent("cta_click", { section: "hero", cta: "register_interest_hero" });
   };
 
   const handleSecondaryCta = () => {
-    trackEvent("hero_cta_clicked", { action: "explore_pipeline" });
+    trackEvent("cta_click", { section: "hero", cta: "explore_pipeline_hero" });
   };
 
   return (

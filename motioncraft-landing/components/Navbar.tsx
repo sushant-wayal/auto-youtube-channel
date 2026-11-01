@@ -114,7 +114,7 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-4">
           <a
             href="#register"
-            onClick={() => trackEvent("hero_cta_clicked", { location: "navbar" })}
+            onClick={() => trackEvent("cta_click", { section: "navbar", cta: "register_interest_navbar" })}
             className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold tracking-wide uppercase rounded-md bg-[#c8b29b] text-[#110e08] hover:bg-[#d8c4ad] transition-all shadow-sm active:translate-y-0.5"
           >
             Register Your Interest
@@ -206,7 +206,7 @@ export default function Navbar() {
               href="#register"
               onClick={() => {
                 setMobileMenuOpen(false);
-                trackEvent("hero_cta_clicked", { location: "mobile_menu" });
+                trackEvent("cta_click", { section: "mobile_menu", cta: "register_interest_mobile" });
               }}
               className="w-full inline-flex items-center justify-center px-4 py-2.5 text-xs font-semibold tracking-wide uppercase rounded-md bg-[#c8b29b] text-[#110e08] hover:bg-[#d8c4ad]"
             >

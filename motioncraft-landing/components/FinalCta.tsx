@@ -4,7 +4,7 @@ import { trackEvent } from "@/lib/analytics";
 
 export default function FinalCta() {
   const handleClick = () => {
-    trackEvent("hero_cta_clicked", { location: "final_cta_section" });
+    trackEvent("cta_click", { section: "final_cta", cta: "register_interest_final" });
   };
 
   return (

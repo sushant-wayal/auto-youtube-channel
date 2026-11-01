@@ -23,6 +23,17 @@ import { prisma } from "@/lib/prisma";
 import fs from "fs";
 import path from "path";
 
+const VALID_WTP_OPTIONS = [
+  "₹0 - Only interested if free",
+  "Under ₹3,000",
+  "₹3,000–₹8,999",
+  "₹9,000–₹22,999",
+  "₹23,000–₹37,999",
+  "₹38,000–₹89,999",
+  "₹90,000+",
+  "Not sure yet",
+];
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -34,35 +45,30 @@ export async function POST(request: Request) {
     const channelsCount = String(body.channelsCount || "1 Channel").trim();
     const monthlyVideos = String(body.monthlyVideos || "1–4 videos / mo").trim();
     const monthlyShorts = String(body.monthlyShorts || "0 Shorts / mo").trim();
-    const automationFocus = body.automationFocus
+    const currentWorkflow = String(body.currentWorkflow || "Using multiple AI tools").trim();
+    const monthlySpend = String(body.monthlySpend || "Under ₹3,000").trim();
+    const willingnessToPay = String(body.willingnessToPay || "").trim();
+    const primaryProblem = body.primaryProblem
+      ? String(body.primaryProblem).trim()
+      : body.automationFocus
       ? String(body.automationFocus).trim()
-      : body.notes
-      ? String(body.notes).trim()
       : "";
 
-    const currentWorkflow = String(body.currentWorkflow || "Early Access Interest List").trim();
-    const monthlySpend = String(body.monthlySpend || "N/A (Interest List)").trim();
-    const willingnessToPay = String(body.willingnessToPay || "Early Access Interest").trim();
-    const selectedTier = String(body.selectedTier || "First Public Release Early Access").trim();
+    const selectedTier = String(body.selectedTier || "Public Release Early Access").trim();
 
-    const combinedNotes = [
-      monthlyShorts ? `Shorts Volume: ${monthlyShorts}` : null,
-      automationFocus ? `Automation Focus: ${automationFocus}` : null,
-    ]
-      .filter(Boolean)
-      .join(" | ");
-
-    const notes = combinedNotes || null;
-
+    const visitorId = body.visitorId ? String(body.visitorId).trim() : null;
+    const sessionId = body.sessionId ? String(body.sessionId).trim() : null;
     const utmSource = body.utmSource ? String(body.utmSource).trim() : null;
     const utmMedium = body.utmMedium ? String(body.utmMedium).trim() : null;
     const utmCampaign = body.utmCampaign ? String(body.utmCampaign).trim() : null;
+    const utmContent = body.utmContent ? String(body.utmContent).trim() : null;
+    const utmTerm = body.utmTerm ? String(body.utmTerm).trim() : null;
     const referrer = body.referrer ? String(body.referrer).trim() : null;
 
     // Strict validation
     if (name.length < 2) {
       return NextResponse.json(
-        { error: "Please enter your name." },
+        { error: "Please enter your full name." },
         { status: 400 }
       );
     }
@@ -75,6 +81,22 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!willingnessToPay || !VALID_WTP_OPTIONS.includes(willingnessToPay)) {
+      return NextResponse.json(
+        { error: "Please select how much you would realistically be willing to pay per month." },
+        { status: 400 }
+      );
+    }
+
+    const notesSummary = [
+      monthlyShorts ? `Shorts: ${monthlyShorts}` : null,
+      primaryProblem ? `Problem: ${primaryProblem}` : null,
+      currentWorkflow ? `Workflow: ${currentWorkflow}` : null,
+      monthlySpend ? `Current Spend: ${monthlySpend}` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
     const submissionData = {
       name,
       email,
@@ -82,15 +104,19 @@ export async function POST(request: Request) {
       channelsCount,
       monthlyVideos,
       monthlyShorts,
-      automationFocus,
       currentWorkflow,
       monthlySpend,
       willingnessToPay,
+      primaryProblem: primaryProblem || null,
       selectedTier,
-      notes,
+      notes: notesSummary || null,
+      visitorId,
+      sessionId,
       utmSource,
       utmMedium,
       utmCampaign,
+      utmContent,
+      utmTerm,
       referrer,
       createdAt: new Date().toISOString(),
     };
@@ -104,7 +130,6 @@ export async function POST(request: Request) {
       });
 
       if (existing) {
-        // Update existing application
         await prisma.earlyAccessApplication.update({
           where: { email },
           data: {
@@ -112,14 +137,20 @@ export async function POST(request: Request) {
             channelUrl,
             channelsCount,
             monthlyVideos,
+            monthlyShorts,
             currentWorkflow,
             monthlySpend,
             willingnessToPay,
+            primaryProblem: primaryProblem || null,
             selectedTier,
-            notes,
+            notes: notesSummary || null,
+            visitorId,
+            sessionId,
             utmSource,
             utmMedium,
             utmCampaign,
+            utmContent,
+            utmTerm,
             referrer,
           },
         });
@@ -131,31 +162,62 @@ export async function POST(request: Request) {
             channelUrl,
             channelsCount,
             monthlyVideos,
+            monthlyShorts,
             currentWorkflow,
             monthlySpend,
             willingnessToPay,
+            primaryProblem: primaryProblem || null,
             selectedTier,
-            notes,
+            notes: notesSummary || null,
+            visitorId,
+            sessionId,
             utmSource,
             utmMedium,
             utmCampaign,
+            utmContent,
+            utmTerm,
             referrer,
           },
         });
       }
       savedInDb = true;
+
+      // Also record analytics conversion event
+      await prisma.analyticsEvent.create({
+        data: {
+          eventType: "form_submit_success",
+          eventName: "form_submit_success",
+          visitorId: visitorId || "anonymous",
+          sessionId: sessionId || "anonymous",
+          path: "/#register",
+          referrer,
+          utmSource,
+          utmMedium,
+          utmCampaign,
+          utmContent,
+          utmTerm,
+          properties: {
+            willingnessToPay,
+            channelsCount,
+            monthlyVideos,
+            monthlyShorts,
+            currentWorkflow,
+            monthlySpend,
+          },
+        },
+      });
     } catch (dbErr) {
-      console.warn("[EarlyAccess API] Prisma DB write bypassed or failed, saving to durable disk store:", dbErr);
+      console.warn("[EarlyAccess API] Prisma DB write warning:", dbErr);
     }
 
-    // Always persist to durable local file store as well so zero data is lost
+    // Always persist to durable local file store as well
     try {
       const dataDir = path.join(process.cwd(), "data");
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
       }
       const leadsFile = path.join(dataDir, "early_access_applications.json");
-      let allLeads: typeof submissionData[] = [];
+      let allLeads: any[] = [];
       if (fs.existsSync(leadsFile)) {
         try {
           allLeads = JSON.parse(fs.readFileSync(leadsFile, "utf-8"));
@@ -182,6 +244,7 @@ export async function POST(request: Request) {
         name,
         email,
         channelUrl,
+        willingnessToPay,
       },
     });
   } catch (err: unknown) {

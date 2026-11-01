@@ -133,6 +133,9 @@ export default function Footer() {
                     <strong>Channel Authorization:</strong> YouTube account access is not requested during interest registration. In the application itself, OAuth authorization is used strictly for authorized publishing and community response tasks that you configure.
                   </p>
                   <p>
+                    <strong>Usage Analytics:</strong> We collect privacy-preserving, first-party aggregated interaction telemetry (such as demo video milestones, page visits, and referral attribution) without third-party trackers or cross-site profiling cookies.
+                  </p>
+                  <p>
                     <strong>Data Protection & Deletion:</strong> We do not sell or monetize creator data. You can request immediate deletion of your registration and contact records at any time.
                   </p>
                 </>
