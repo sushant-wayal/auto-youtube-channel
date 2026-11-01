@@ -125,7 +125,7 @@ export default function ProductShowcase() {
             Built From the Ground Up For Serious YouTube Channels
           </h2>
           <p className="text-base sm:text-lg text-[#9c958c] leading-relaxed">
-            Actual Serenity Studio application screens. Figures shown represent captured application snapshots.
+            Actual Serenity Studio application screens. Figures shown represent captured application snapshots. Example workspace data from Serenity Studio.
           </p>
         </div>
 
@@ -197,7 +197,7 @@ export default function ProductShowcase() {
                     className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-[1.01]"
                   />
                   <div className="absolute top-3 right-3 px-2 py-0.5 rounded bg-[#110e08]/90 border border-[#2e281f] text-[10px] font-mono text-[#c8b29b]">
-                    App Screen
+                    Example Workspace Data
                   </div>
                 </div>
               </div>
@@ -225,18 +225,23 @@ export default function ProductShowcase() {
                 </p>
 
                 {/* Metrics row */}
-                <div className="grid grid-cols-3 gap-3 py-2">
-                  {feature.metrics.map((m, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-lg bg-[#16130d] border border-[#2e281f]"
-                    >
-                      <div className="text-[11px] text-[#9c958c] font-mono">{m.label}</div>
-                      <div className="text-xs sm:text-sm font-semibold text-[#f7f3ee] mt-0.5">
-                        {m.value}
+                <div className="space-y-1.5 py-2">
+                  <div className="grid grid-cols-3 gap-3">
+                    {feature.metrics.map((m, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-lg bg-[#16130d] border border-[#2e281f]"
+                      >
+                        <div className="text-[11px] text-[#9c958c] font-mono">{m.label}</div>
+                        <div className="text-xs sm:text-sm font-semibold text-[#f7f3ee] mt-0.5">
+                          {m.value}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  <div className="text-[10px] font-mono text-[#736d64]">
+                    * Example workspace data from Serenity Studio.
+                  </div>
                 </div>
 
                 {/* Bullet Points */}

@@ -55,7 +55,7 @@ export default function ExportCsvButton({ data }: { data: ApplicationExportData[
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `serenity_founding_creators_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `serenity_early_access_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

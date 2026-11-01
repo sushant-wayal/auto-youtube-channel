@@ -20,7 +20,7 @@ export default function Footer() {
               </span>
             </div>
             <p className="text-xs text-[#736d64] max-w-sm leading-relaxed">
-              The end-to-end operational engine for running high-performing YouTube channels. From topic research to scheduled broadcasting and Shorts syndication.
+              The end-to-end production engine for managing your YouTube content workflow, from ideas to publishing.
             </p>
             <div className="flex items-center gap-2 pt-2">
               <span className="w-2 h-2 rounded-full bg-[#4ade80]"></span>

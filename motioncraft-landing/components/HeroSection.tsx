@@ -106,7 +106,7 @@ export default function HeroSection() {
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              <span>Real production software (iOS & Android companion)</span>
+              <span>Connected production dashboard and mobile experience</span>
             </div>
             <div className="flex items-center gap-1.5">
               <svg
@@ -201,6 +201,9 @@ export default function HeroSection() {
                     <span className="text-xs font-medium text-[#4ade80]">
                       Pipeline Succeeded · Ready for Master Review
                     </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-[#736d64] pt-0.5">
+                    Example workspace data from Serenity Studio.
                   </div>
                 </div>
 
