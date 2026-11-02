@@ -5,6 +5,7 @@ import {
   Activity,
   BarChart3,
   CheckCircle2,
+  Globe,
   MousePointerClick,
   Play,
   Trash2,
@@ -131,7 +132,48 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     wtpCounts[val] = (wtpCounts[val] || 0) + 1;
   });
 
-  // Traffic Source & UTM Breakdown
+  // Traffic Sources & Referrers from All Analytics Events (Unique Visitors & Page Views)
+  const visitorSourcesMap: Record<string, { visitors: Set<string>; views: number }> = {};
+
+  events.forEach((ev) => {
+    let source = "Direct / Organic";
+    if (ev.utmSource && ev.utmSource.trim()) {
+      source = ev.utmSource.trim();
+    } else if (ev.referrer && ev.referrer !== "direct" && ev.referrer !== "none") {
+      source = safeGetHostname(ev.referrer);
+    }
+
+    // Clean display labels for common referrers
+    const lower = source.toLowerCase();
+    if (lower.includes("facebook.com")) source = "Facebook";
+    else if (lower.includes("instagram.com")) source = "Instagram";
+    else if (lower.includes("twitter.com") || lower.includes("x.com") || lower.includes("t.co")) source = "Twitter / X";
+    else if (lower.includes("linkedin.com")) source = "LinkedIn";
+    else if (lower.includes("youtube.com") || lower.includes("youtu.be")) source = "YouTube";
+    else if (lower.includes("reddit.com")) source = "Reddit";
+    else if (lower.includes("google.")) source = "Google Search";
+
+    if (!visitorSourcesMap[source]) {
+      visitorSourcesMap[source] = { visitors: new Set(), views: 0 };
+    }
+    if (ev.visitorId) {
+      visitorSourcesMap[source].visitors.add(ev.visitorId);
+    }
+    if (ev.eventType === "page_view") {
+      visitorSourcesMap[source].views += 1;
+    }
+  });
+
+  const topVisitorSources = Object.entries(visitorSourcesMap)
+    .map(([source, data]) => ({
+      source,
+      uniqueVisitors: data.visitors.size,
+      pageViews: data.views,
+      percent: uniqueVisitors > 0 ? Math.round((data.visitors.size / uniqueVisitors) * 100) : 0,
+    }))
+    .sort((a, b) => b.uniqueVisitors - a.uniqueVisitors || b.pageViews - a.pageViews);
+
+  // Lead Attribution & UTM Breakdown (From Submitted Applications)
   const sourcesMap: Record<string, number> = {};
   applications.forEach((app) => {
     const src = app.utmSource || safeGetHostname(app.referrer);
@@ -219,8 +261,10 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           <div className="text-2xl sm:text-3xl font-mono font-bold text-[#f7f3ee] mt-2">
             {uniqueVisitors}
           </div>
-          <p className="text-[10px] text-[#736d64] mt-1 font-mono">
-            {pageViews} page views · {uniqueSessions} sessions
+          <p className="text-[10px] text-[#c8b29b] mt-1 font-mono truncate">
+            {topVisitorSources.length > 0
+              ? topVisitorSources.map((s) => `${s.uniqueVisitors} ${s.source}`).join(" · ")
+              : `${pageViews} page views`}
           </p>
         </div>
 
@@ -449,36 +493,87 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       </section>
 
       {/* Section 3: Traffic Sources & Volumes Breakdown */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 text-left">
-        {/* Top Acquisition Sources */}
-        <div className="p-6 rounded-xl bg-[#16130d] border border-[#2e281f] space-y-3">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 text-left">
+        {/* Card 1: Traffic & Visitor Sources (Live Traffic Referrals) */}
+        <div className="p-6 rounded-xl bg-[#16130d] border border-[#2e281f] space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-[#2e281f]">
-            <h3 className="text-sm font-bold text-[#f7f3ee] uppercase font-mono tracking-wider">
-              Acquisition Sources / UTM Campaigns
-            </h3>
-            <span className="text-xs font-mono text-[#c8b29b]">Attribution</span>
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-[#c8b29b]" />
+              <h3 className="text-sm font-bold text-[#f7f3ee] uppercase font-mono tracking-wider">
+                Traffic &amp; Visitor Sources
+              </h3>
+            </div>
+            <span className="text-xs font-mono text-[#4ade80] font-semibold">
+              {uniqueVisitors} Visitors
+            </span>
           </div>
 
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-            {topSources.map(([src, count]) => (
-              <div key={src} className="flex items-center justify-between text-xs py-1.5 px-3 rounded bg-[#110e08] border border-[#2e281f]/60">
-                <span className="text-[#eae1d7] truncate max-w-[280px] font-mono">{src}</span>
-                <span className="font-mono text-[#4ade80] font-semibold">{count} registrations</span>
+          <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+            {topVisitorSources.map((item) => (
+              <div key={item.source} className="space-y-1.5 p-2.5 rounded-lg bg-[#110e08] border border-[#2e281f]/70">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-[#f7f3ee] font-mono flex items-center gap-1.5">
+                    {item.source === "Facebook" && <span className="text-[#1877f2]">●</span>}
+                    {item.source === "Instagram" && <span className="text-[#e4405f]">●</span>}
+                    {item.source === "Twitter / X" && <span className="text-[#1da1f2]">●</span>}
+                    {item.source === "YouTube" && <span className="text-[#ef4444]">●</span>}
+                    {item.source === "Direct / Organic" && <span className="text-[#c8b29b]">●</span>}
+                    {item.source}
+                  </span>
+                  <div className="text-right font-mono">
+                    <span className="text-[#c8b29b] font-bold">{item.uniqueVisitors} visitors</span>
+                    <span className="text-[#736d64] ml-1.5 text-[11px]">({item.pageViews} views · {item.percent}%)</span>
+                  </div>
+                </div>
+
+                <div className="w-full h-1.5 rounded-full bg-[#16130d] overflow-hidden border border-[#2e281f]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#c8b29b] to-[#4ade80] transition-all duration-500"
+                    style={{ width: `${Math.max(item.percent, 5)}%` }}
+                  />
+                </div>
               </div>
             ))}
-            {topSources.length === 0 && (
-              <div className="text-xs text-[#736d64] py-4 text-center">No attribution records captured in this date window.</div>
+
+            {topVisitorSources.length === 0 && (
+              <div className="text-xs text-[#736d64] py-6 text-center font-mono">
+                No visitor traffic recorded yet.
+              </div>
             )}
           </div>
         </div>
 
-        {/* Channel Volume Breakdown */}
-        <div className="p-6 rounded-xl bg-[#16130d] border border-[#2e281f] space-y-3">
+        {/* Card 2: Top Acquisition Sources for Leads */}
+        <div className="p-6 rounded-xl bg-[#16130d] border border-[#2e281f] space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-[#2e281f]">
             <h3 className="text-sm font-bold text-[#f7f3ee] uppercase font-mono tracking-wider">
-              Registrations by Channels Managed
+              Lead Attribution / UTM
             </h3>
-            <span className="text-xs font-mono text-[#c8b29b]">Portfolio Size</span>
+            <span className="text-xs font-mono text-[#c8b29b]">{totalRegistrations} Leads</span>
+          </div>
+
+          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            {topSources.map(([src, count]) => (
+              <div key={src} className="flex items-center justify-between text-xs py-2 px-3 rounded-lg bg-[#110e08] border border-[#2e281f]/70">
+                <span className="text-[#eae1d7] truncate max-w-[180px] font-mono">{src}</span>
+                <span className="font-mono text-[#4ade80] font-semibold">{count} leads</span>
+              </div>
+            ))}
+            {topSources.length === 0 && (
+              <div className="text-xs text-[#736d64] py-8 text-center font-mono">
+                No lead attribution records in this date window.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Card 3: Channel Volume Breakdown */}
+        <div className="p-6 rounded-xl bg-[#16130d] border border-[#2e281f] space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#2e281f]">
+            <h3 className="text-sm font-bold text-[#f7f3ee] uppercase font-mono tracking-wider">
+              Portfolio Size Breakdown
+            </h3>
+            <span className="text-xs font-mono text-[#c8b29b]">Channels</span>
           </div>
 
           <div className="grid grid-cols-2 gap-3 pt-1">

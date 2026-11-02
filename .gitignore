@@ -49,3 +49,6 @@ workers/auto-video-generation-and-upload/remove-idea.ts
 try
 **/dist/
 .sf/
+
+scratch/
+product-video/
