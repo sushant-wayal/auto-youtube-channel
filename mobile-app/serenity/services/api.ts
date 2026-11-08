@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeStorage } from './storage';
 import { STORAGE_KEYS } from '../config';
 
 let cachedBaseUrl: string | null = null;
@@ -6,31 +6,35 @@ let cachedBaseUrl: string | null = null;
 export async function getApiBaseUrl(): Promise<string> {
     if (cachedBaseUrl) return cachedBaseUrl;
     try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEYS.API_BASE_URL);
+        const stored = await safeStorage.getItem(STORAGE_KEYS.API_BASE_URL);
         if (stored) {
             cachedBaseUrl = stored.trim().replace(/\/+$/, '');
             return cachedBaseUrl;
         }
     } catch (e) {
-        console.warn('Could not read API_BASE_URL from AsyncStorage:', e);
+        console.warn('Could not read API_BASE_URL:', e);
     }
     return '';
 }
 
 export async function setApiBaseUrl(url: string): Promise<void> {
     const clean = url.trim().replace(/\/+$/, '');
-    await AsyncStorage.setItem(STORAGE_KEYS.API_BASE_URL, clean);
-    cachedBaseUrl = clean;
+    cachedBaseUrl = clean; // Set in memory immediately so synchronous in-session calls work
+    try {
+        await safeStorage.setItem(STORAGE_KEYS.API_BASE_URL, clean);
+    } catch (e) {
+        console.warn('Could not persist API_BASE_URL:', e);
+    }
 }
 
 export async function clearServerConfig(): Promise<void> {
-    await Promise.all([
-        AsyncStorage.removeItem(STORAGE_KEYS.API_BASE_URL),
-        AsyncStorage.removeItem(STORAGE_KEYS.CHANNEL_GENRE),
-        AsyncStorage.removeItem(STORAGE_KEYS.CUSTOM_GENRE_PROMPT),
-        AsyncStorage.removeItem(STORAGE_KEYS.SETUP_COMPLETED),
-    ]);
     cachedBaseUrl = null;
+    await Promise.all([
+        safeStorage.removeItem(STORAGE_KEYS.API_BASE_URL),
+        safeStorage.removeItem(STORAGE_KEYS.CHANNEL_GENRE),
+        safeStorage.removeItem(STORAGE_KEYS.CUSTOM_GENRE_PROMPT),
+        safeStorage.removeItem(STORAGE_KEYS.SETUP_COMPLETED),
+    ]);
 }
 
 export async function testServerConnection(url: string): Promise<{ ok: boolean; data?: any; error?: string }> {

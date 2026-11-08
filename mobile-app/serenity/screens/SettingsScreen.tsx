@@ -14,7 +14,7 @@ import {
     Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeStorage } from '../services/storage';
 import {
     settingsApi,
     commentsApi,
@@ -212,7 +212,7 @@ export default function SettingsScreen({ onResetServer }: SettingsScreenProps = 
         setShowGenreModal(false);
         try {
             await settingsApi.updateSettings({ channelGenre: newGenre } as any);
-            await AsyncStorage.setItem(STORAGE_KEYS.CHANNEL_GENRE, newGenre);
+            await safeStorage.setItem(STORAGE_KEYS.CHANNEL_GENRE, newGenre);
             showToast(`Content genre updated to ${newGenre}`);
         } catch {
             showToast('Failed to sync genre to server');

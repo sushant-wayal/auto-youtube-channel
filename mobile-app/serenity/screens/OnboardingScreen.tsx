@@ -13,8 +13,8 @@ import {
     KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
+import { safeStorage } from '../services/storage';
 import { colors, spacing, borderRadius, typography } from '../theme';
 import { STORAGE_KEYS, GENRE_PRESETS } from '../config';
 import { setApiBaseUrl, testServerConnection, settingsApi, youtubeAuthApi } from '../services/api';
@@ -106,29 +106,32 @@ export default function OnboardingScreen({ onComplete, initialUrl }: OnboardingS
     // Finish Setup
     const handleFinishSetup = async () => {
         setIsSaving(true);
+        const cleanUrl = serverUrl.trim().replace(/\/+$/, '');
+
         try {
-            await setApiBaseUrl(serverUrl.trim().replace(/\/+$/, ''));
-            await AsyncStorage.setItem(STORAGE_KEYS.CHANNEL_GENRE, selectedGenre);
+            // 1. Immediately cache and persist the API base URL
+            await setApiBaseUrl(cleanUrl);
+
+            // 2. Persist chosen genre and setup completion flag
+            await safeStorage.setItem(STORAGE_KEYS.CHANNEL_GENRE, selectedGenre);
             if (customGenrePrompt) {
-                await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_GENRE_PROMPT, customGenrePrompt);
+                await safeStorage.setItem(STORAGE_KEYS.CUSTOM_GENRE_PROMPT, customGenrePrompt);
             }
-            await AsyncStorage.setItem(STORAGE_KEYS.SETUP_COMPLETED, 'true');
+            await safeStorage.setItem(STORAGE_KEYS.SETUP_COMPLETED, 'true');
 
-            // Push genre setting to backend
-            try {
-                await settingsApi.updateSettings({
-                    channelGenre: selectedGenre,
-                    channelGenrePrompt: customGenrePrompt || undefined,
-                } as any);
-            } catch (err) {
+            // 3. Sync genre setting to backend in the background without blocking screen transition
+            settingsApi.updateSettings({
+                channelGenre: selectedGenre,
+                channelGenrePrompt: customGenrePrompt || undefined,
+            } as any).catch((err) => {
                 console.warn('Could not sync genre to backend on setup:', err);
-            }
-
-            onComplete();
+            });
         } catch (e) {
-            console.error('Setup completion error:', e);
+            console.error('Setup persistence warning:', e);
         } finally {
             setIsSaving(false);
+            // 4. Guaranteed transition to Dashboard
+            onComplete();
         }
     };
 
