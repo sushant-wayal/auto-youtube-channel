@@ -1,12 +1,15 @@
 {
-  "crons": [
-    {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "schedules": {
+    "trigger-youtube": {
       "path": "/api/trigger-youtube",
-      "schedule": "0 0 * * *"
+      "schedule": "0 0 * * *",
+      "requestMethod": "GET"
     },
-    {
+    "auto-comment-reply": {
       "path": "/api/cron/auto-comment-reply",
-      "schedule": "0 12 * * *"
+      "schedule": "0 12 * * *",
+      "requestMethod": "GET"
     }
-  ]
+  }
 }
