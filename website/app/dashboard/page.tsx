@@ -2,6 +2,7 @@ import { auth, signOut } from "@/auth"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import DashboardClient from "./DashboardClient"
+import ForkSyncNotice from "./ForkSyncNotice"
 
 export default async function DashboardPage() {
   const isAuthEnforced = Boolean(process.env.GOOGLE_CLIENT_ID) && process.env.DISABLE_AUTH !== "true";
@@ -43,6 +44,7 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+      <ForkSyncNotice />
       <DashboardClient />
     </div>
   )
