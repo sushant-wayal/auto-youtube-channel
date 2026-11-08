@@ -1,52 +1,4 @@
-import { safeStorage } from './storage';
-import { STORAGE_KEYS } from '../config';
-
-let cachedBaseUrl: string | null = null;
-
-export async function getApiBaseUrl(): Promise<string> {
-    if (cachedBaseUrl) return cachedBaseUrl;
-    try {
-        const stored = await safeStorage.getItem(STORAGE_KEYS.API_BASE_URL);
-        if (stored) {
-            cachedBaseUrl = stored.trim().replace(/\/+$/, '');
-            return cachedBaseUrl;
-        }
-    } catch (e) {
-        console.warn('Could not read API_BASE_URL:', e);
-    }
-    return '';
-}
-
-export async function setApiBaseUrl(url: string): Promise<void> {
-    const clean = url.trim().replace(/\/+$/, '');
-    cachedBaseUrl = clean; // Set in memory immediately so synchronous in-session calls work
-    try {
-        await safeStorage.setItem(STORAGE_KEYS.API_BASE_URL, clean);
-    } catch (e) {
-        console.warn('Could not persist API_BASE_URL:', e);
-    }
-}
-
-export async function clearServerConfig(): Promise<void> {
-    cachedBaseUrl = null;
-    await Promise.all([
-        safeStorage.removeItem(STORAGE_KEYS.API_BASE_URL),
-        safeStorage.removeItem(STORAGE_KEYS.CHANNEL_GENRE),
-        safeStorage.removeItem(STORAGE_KEYS.CUSTOM_GENRE_PROMPT),
-        safeStorage.removeItem(STORAGE_KEYS.SETUP_COMPLETED),
-    ]);
-}
-
-export async function testServerConnection(url: string): Promise<{ ok: boolean; data?: any; error?: string }> {
-    try {
-        const clean = url.trim().replace(/\/+$/, '');
-        const response = await fetchWithTimeout(`${clean}/api/settings`, {}, 6000);
-        const data = await response.json();
-        return { ok: true, data };
-    } catch (err: any) {
-        return { ok: false, error: err.message || 'Server unreachable' };
-    }
-}
+import { API_BASE_URL } from '../config';
 
 export type JobResult = 'success' | 'failure' | 'skipped' | 'cancelled' | 'running' | null;
 
@@ -202,8 +154,6 @@ export type SettingsResponse = {
     thumbnailVariationsEnabled?: boolean;
     thumbnailActiveArchetypes?: string[];
     thumbnailCustomArchetypes?: CustomArchetype[];
-    channelGenre?: string;
-    channelGenrePrompt?: string;
     error?: string;
 };
 
@@ -212,8 +162,8 @@ export const ideasApi = {
     // Get all ideas
     getIdeas: async (): Promise<IdeasQueueResponse> => {
         try {
-            console.log('[API] Fetching ideas from:', `${await getApiBaseUrl()}/api/ideas-queue`);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/ideas-queue`);
+            console.log('[API] Fetching ideas from:', `${API_BASE_URL}/api/ideas-queue`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/ideas-queue`);
             const data = await response.json();
             console.log('[API] Ideas fetched successfully:', data);
             return data;
@@ -232,7 +182,7 @@ export const ideasApi = {
     addIdea: async (idea: string, position: 'top' | 'bottom' = 'bottom'): Promise<IdeasQueueResponse> => {
         try {
             console.log('[API] Adding idea:', idea, 'position:', position);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/ideas-queue`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/ideas-queue`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'add', idea, position }),
@@ -255,7 +205,7 @@ export const ideasApi = {
     editIdea: async (index: number, idea: string): Promise<IdeasQueueResponse> => {
         try {
             console.log('[API] Editing idea at index:', index);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/ideas-queue`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/ideas-queue`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'edit', index, idea }),
@@ -278,7 +228,7 @@ export const ideasApi = {
     removeIdea: async (index: number): Promise<IdeasQueueResponse> => {
         try {
             console.log('[API] Removing idea at index:', index);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/ideas-queue`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/ideas-queue`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'remove', index }),
@@ -301,7 +251,7 @@ export const ideasApi = {
     moveIdea: async (index: number, newIndex: number): Promise<IdeasQueueResponse> => {
         try {
             console.log('[API] Moving idea from', index, 'to', newIndex);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/ideas-queue`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/ideas-queue`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'move', index, newIndex }),
@@ -324,7 +274,7 @@ export const ideasApi = {
     clearIdeas: async (): Promise<IdeasQueueResponse> => {
         try {
             console.log('[API] Clearing all ideas');
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/ideas-queue`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/ideas-queue`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'clear' }),
@@ -349,8 +299,8 @@ export const shortsApi = {
     // Get current publish time
     getPublishTime: async (): Promise<ShortsPublishTimeResponse> => {
         try {
-            console.log('[API] Fetching publish time from:', `${await getApiBaseUrl()}/api/shorts-publish-time`);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/shorts-publish-time`);
+            console.log('[API] Fetching publish time from:', `${API_BASE_URL}/api/shorts-publish-time`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/shorts-publish-time`);
             const data = await response.json();
             console.log('[API] Publish time fetched successfully:', data);
             return data;
@@ -367,7 +317,7 @@ export const shortsApi = {
     updatePublishTime: async (time: string): Promise<ShortsPublishTimeResponse> => {
         try {
             console.log('[API] Updating publish time to:', time);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/shorts-publish-time`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/shorts-publish-time`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ time }),
@@ -390,8 +340,8 @@ export const scheduleTimesApi = {
     // Get all schedule times (shorts ranked times + long-form time)
     getScheduleTimes: async (): Promise<ScheduleTimesResponse> => {
         try {
-            console.log('[API] Fetching schedule times from:', `${await getApiBaseUrl()}/api/schedule-times`);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/schedule-times`);
+            console.log('[API] Fetching schedule times from:', `${API_BASE_URL}/api/schedule-times`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/schedule-times`);
             const data = await response.json();
             console.log('[API] Schedule times fetched successfully:', data);
             return data;
@@ -408,7 +358,7 @@ export const scheduleTimesApi = {
     updateShortsTimes: async (shortsTimes: string[]): Promise<ScheduleTimesResponse> => {
         try {
             console.log('[API] Updating shorts times:', shortsTimes);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/schedule-times`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/schedule-times`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ shortsTimes }),
@@ -429,7 +379,7 @@ export const scheduleTimesApi = {
     updateLongFormTime: async (longFormTime: string): Promise<ScheduleTimesResponse> => {
         try {
             console.log('[API] Updating long-form time:', longFormTime);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/schedule-times`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/schedule-times`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ longFormTime }),
@@ -450,7 +400,7 @@ export const scheduleTimesApi = {
     updateAllScheduleTimes: async (shortsTimes: string[], longFormTime: string): Promise<ScheduleTimesResponse> => {
         try {
             console.log('[API] Updating all schedule times');
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/schedule-times`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/schedule-times`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ shortsTimes, longFormTime }),
@@ -474,7 +424,7 @@ export const pipelineApi = {
     savePushToken: async (token: string): Promise<SavePushTokenResponse> => {
         try {
             console.log('[API] Saving push token');
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/push-token`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/push-token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token }),
@@ -491,7 +441,7 @@ export const pipelineApi = {
     // Trigger a live test notification (success or failure)
     triggerTestNotification: async (type: 'success' | 'failure'): Promise<{ ok: boolean; error?: string }> => {
         try {
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/test-notification`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/test-notification`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type }),
@@ -507,7 +457,7 @@ export const pipelineApi = {
     // Get latest pipeline run status
     getPipelineStatus: async (): Promise<PipelineStatusResponse> => {
         try {
-            const url = `${await getApiBaseUrl()}/api/pipeline-status?t=${Date.now()}`;
+            const url = `${API_BASE_URL}/api/pipeline-status?t=${Date.now()}`;
             console.log('[API] Fetching pipeline status from:', url);
             const response = await fetchWithTimeout(url, {
                 headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' },
@@ -525,7 +475,7 @@ export const pipelineApi = {
     rerunFailedJobs: async (runId?: string | number): Promise<RerunFailedJobsResponse> => {
         try {
             console.log('[API] Triggering rerun for failed jobs, runId:', runId);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/rerun-failed-jobs`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/rerun-failed-jobs`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ runId }),
@@ -545,8 +495,8 @@ export const settingsApi = {
     // Get current configuration settings
     getSettings: async (): Promise<SettingsResponse> => {
         try {
-            console.log('[API] Fetching settings from:', `${await getApiBaseUrl()}/api/settings`);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/settings`);
+            console.log('[API] Fetching settings from:', `${API_BASE_URL}/api/settings`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/settings`);
             const data = await response.json();
             console.log('[API] Settings fetched successfully:', data);
             return data;
@@ -568,8 +518,6 @@ export const settingsApi = {
             thumbnailVariationsEnabled?: boolean;
             thumbnailActiveArchetypes?: string[];
             thumbnailCustomArchetypes?: CustomArchetype[];
-            channelGenre?: string;
-            channelGenrePrompt?: string;
         } | 'gemini' | 'f5',
         arg2?: 'code' | 'ai'
     ): Promise<SettingsResponse> => {
@@ -579,7 +527,7 @@ export const settingsApi = {
                 : { voiceoverProvider: arg1, sceneRenderMethod: arg2 };
 
             console.log('[API] Updating settings with:', payload);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/settings`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/settings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -597,33 +545,12 @@ export const settingsApi = {
     },
 };
 
-// YouTube Auth Status API
-export const youtubeAuthApi = {
-    getStatus: async (): Promise<{
-        ok: boolean;
-        configured: boolean;
-        connected: boolean;
-        channel?: { title?: string; handle?: string; avatarUrl?: string };
-        authUrl?: string;
-        error?: string;
-    }> => {
-        try {
-            const baseUrl = await getApiBaseUrl();
-            if (!baseUrl) return { ok: false, configured: false, connected: false };
-            const response = await fetchWithTimeout(`${baseUrl}/api/auth/youtube/status`, {}, 6000);
-            return await response.json();
-        } catch (error: any) {
-            return { ok: false, configured: false, connected: false, error: error.message };
-        }
-    },
-};
-
 // Thumbnail & A/B Testing API
 export const thumbnailApi = {
     setActiveThumbnail: async (videoId: string, thumbnailUrl: string): Promise<{ ok: boolean; message?: string; error?: string }> => {
         try {
             console.log('[API] Setting active thumbnail:', { videoId, thumbnailUrl });
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/thumbnail`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/thumbnail`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'set-active', videoId, thumbnailUrl }),
@@ -639,7 +566,7 @@ export const thumbnailApi = {
     setAbTest: async (videoId: string, enabled: boolean, candidates: string[]): Promise<{ ok: boolean; message?: string; error?: string }> => {
         try {
             console.log('[API] Setting thumbnail A/B test:', { videoId, enabled, candidates });
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/thumbnail`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/thumbnail`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'set-ab-test', videoId, enabled, candidates }),
@@ -693,8 +620,8 @@ export type SeriesResponse = {
 export const seriesApi = {
     getSeries: async (): Promise<SeriesResponse> => {
         try {
-            console.log('[API] Fetching series from:', `${await getApiBaseUrl()}/api/series`);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/series`);
+            console.log('[API] Fetching series from:', `${API_BASE_URL}/api/series`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`);
             const data = await response.json();
             return data;
         } catch (error: any) {
@@ -706,7 +633,7 @@ export const seriesApi = {
     createSeries: async (title: string, learningGoal: string): Promise<SeriesResponse> => {
         try {
             console.log('[API] Creating series:', title);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/series`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'create', title, learningGoal }),
@@ -722,7 +649,7 @@ export const seriesApi = {
     pushEpisodeToQueue: async (id: string, episodeId?: string): Promise<SeriesResponse> => {
         try {
             console.log('[API] Pushing episode to queue for series:', id, episodeId);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/series`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'pushToQueue', id, episodeId }),
@@ -738,7 +665,7 @@ export const seriesApi = {
     updateSeriesStatus: async (id: string, status: 'active' | 'paused' | 'completed'): Promise<SeriesResponse> => {
         try {
             console.log('[API] Updating series status:', id, status);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/series`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'updateStatus', id, status }),
@@ -754,7 +681,7 @@ export const seriesApi = {
     reactivateSeries: async (id: string): Promise<SeriesResponse> => {
         try {
             console.log('[API] Reactivating series:', id);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/series`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'reactivate', id }),
@@ -770,7 +697,7 @@ export const seriesApi = {
     deleteSeries: async (id: string): Promise<SeriesResponse> => {
         try {
             console.log('[API] Deleting series:', id);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/series`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/series`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'delete', id }),
@@ -852,7 +779,7 @@ export const commentsApi = {
     getHistory: async (limit: number = 30): Promise<CommentsHistoryResponse> => {
         try {
             console.log('[API] Fetching comments history');
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/comments/history?limit=${limit}`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/history?limit=${limit}`);
             const data = await response.json();
             return data;
         } catch (error: any) {
@@ -863,7 +790,7 @@ export const commentsApi = {
 
     getSettings: async (): Promise<CommentsSettingsResponse> => {
         try {
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/comments/settings`);
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/settings`);
             const data = await response.json();
             return data;
         } catch (error: any) {
@@ -874,7 +801,7 @@ export const commentsApi = {
 
     updateSettings: async (settings: Partial<CommentReplySettings>): Promise<CommentsSettingsResponse> => {
         try {
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/comments/settings`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/settings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings),
@@ -889,7 +816,7 @@ export const commentsApi = {
 
     processNow: async (options?: { dryRun?: boolean; maxReplies?: number }): Promise<CommentsProcessResponse> => {
         try {
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/comments/process`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/process`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...options, force: true }),
@@ -904,7 +831,7 @@ export const commentsApi = {
 
     dispatchGitHub: async (options?: { dryRun?: boolean; maxReplies?: number }): Promise<CommentsDispatchResponse> => {
         try {
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/cron/auto-comment-reply`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/cron/auto-comment-reply`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...options, force: true }),
@@ -925,7 +852,7 @@ export const commentsApi = {
     }): Promise<{ ok: boolean; message?: string; error?: string }> => {
         try {
             console.log('[API] Posting live reply for thread:', params.threadId);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/comments/post-reply`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/post-reply`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params),
@@ -941,7 +868,7 @@ export const commentsApi = {
     updateReplyText: async (id: string, replyText: string): Promise<{ ok: boolean; error?: string; message?: string }> => {
         try {
             console.log('[API] Updating reply text for item:', id);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/comments/history`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/history`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id, replyText }),
@@ -957,7 +884,7 @@ export const commentsApi = {
     deleteHistoryItem: async (id: string): Promise<{ ok: boolean; error?: string; message?: string }> => {
         try {
             console.log('[API] Deleting comment history item:', id);
-            const response = await fetchWithTimeout(`${await getApiBaseUrl()}/api/comments/history?id=${encodeURIComponent(id)}`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/history?id=${encodeURIComponent(id)}`, {
                 method: 'DELETE',
             });
             const data = await response.json();
