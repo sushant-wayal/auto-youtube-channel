@@ -66,6 +66,7 @@ type PipelineStatus = {
     shortHooks?: string[];
     shorts?: ShortResult[];
     scriptData?: unknown;
+    errorSummary?: string | null;
     jobs: {
         populateIdeas: JobResult;
         generateScript: JobResult;
@@ -414,12 +415,33 @@ function ShortsOutput({ shorts, shortHooks }: { shorts?: ShortResult[]; shortHoo
 
 // ─── Pipeline Section Component ────────────────────────────────────────────────
 
+function JobFailureNotice({ jobTitle, onRerun, rerunning }: { jobTitle: string; onRerun: () => void; rerunning: boolean }) {
+    return (
+        <div className="mb-3 p-2.5 bg-red-50/80 border border-red-200 rounded-lg flex items-center justify-between gap-2 text-xs text-red-700">
+            <div className="flex items-center gap-1.5">
+                <AlertCircle size={14} className="text-red-600 shrink-0" />
+                <span>{jobTitle} encountered an error. Tap Re-run Failed Jobs to retry.</span>
+            </div>
+            <Button
+                variant="destructive"
+                size="sm"
+                disabled={rerunning}
+                onClick={onRerun}
+                className="h-7 px-2.5 text-xs bg-red-600 hover:bg-red-700 text-white gap-1 shrink-0 shadow-sm font-medium"
+            >
+                <RefreshCw size={12} className={rerunning ? "animate-spin" : ""} />
+                {rerunning ? "Re-running..." : "Re-run"}
+            </Button>
+        </div>
+    );
+}
+
 function PipelineSection() {
     const [status, setStatus] = useState<PipelineStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [rerunning, setRerunning] = useState(false);
-    const [rerunMsg, setRerunMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+    const [rerunMsg, setRerunMsg] = useState<{ type: 'error' | 'success' | 'info'; text: string } | null>(null);
 
     const load = useCallback(async () => {
         setError(null);
@@ -438,7 +460,7 @@ function PipelineSection() {
 
     const handleRerunFailed = async () => {
         setRerunning(true);
-        setRerunMsg(null);
+        setRerunMsg({ type: 'info', text: 'Re-running failed pipeline jobs on GitHub Actions...' });
         try {
             const res = await fetch('/api/rerun-failed-jobs', {
                 method: 'POST',
@@ -447,13 +469,16 @@ function PipelineSection() {
             });
             const data = await res.json();
             if (data.ok) {
-                setRerunMsg({ type: 'success', text: data.message || 'Rerun triggered successfully on GitHub Actions!' });
-                load();
+                setRerunMsg({ type: 'success', text: data.message || 'Failed jobs re-queued successfully!' });
+                await load();
+                setTimeout(() => {
+                    load();
+                }, 2500);
             } else {
                 setRerunMsg({ type: 'error', text: data.error || 'Failed to trigger rerun' });
             }
         } catch (err: any) {
-            setRerunMsg({ type: 'error', text: String(err) });
+            setRerunMsg({ type: 'error', text: 'Failed to trigger rerun: ' + String(err) });
         } finally {
             setRerunning(false);
         }
@@ -469,9 +494,16 @@ function PipelineSection() {
         setLoading(false);
     };
 
-    const isRunning = status?.overallStatus === 'running' || Object.values(status?.jobs || {}).some(j => j === 'running');
-    const isSuccess = !isRunning && status?.overallStatus === 'success';
-    const isFailed = !isRunning && (status?.overallStatus === 'failure' || Object.values(status?.jobs || {}).some(j => j === 'failure'));
+    // Parity with mobile app (PipelineStatusScreen):
+    const jobsRecord = (status?.jobs || {}) as Record<string, JobResult>;
+    const completedJobsCount = Object.values(jobsRecord).filter(v => v === 'success').length;
+    const runningJobsCount = Object.values(jobsRecord).filter(v => v === 'running').length;
+    const failedJobsCount = Object.values(jobsRecord).filter(v => v === 'failure').length;
+
+    const isPipelineFailedState = Boolean(status && (status.overallStatus === 'failure' || failedJobsCount > 0));
+    const isPipelineFailed = Boolean(isPipelineFailedState && completedJobsCount < 8);
+    const isRunning = Boolean(status && !isPipelineFailedState && (status.overallStatus === 'running' || runningJobsCount > 0));
+    const isSuccess = Boolean(status && !isPipelineFailedState && !isRunning && status.overallStatus === 'success');
 
     const jobItems = status ? [
         {
@@ -591,21 +623,35 @@ function PipelineSection() {
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                        <CardTitle>Pipeline Status</CardTitle>
+                        <CardTitle className="text-lg font-bold">Pipeline Status</CardTitle>
                         <CardDescription>Latest video generation pipeline run</CardDescription>
                     </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRefresh}
-                        disabled={loading}
-                        className="gap-2"
-                    >
-                        <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                        Refresh
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {isPipelineFailed && (
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                disabled={rerunning}
+                                onClick={handleRerunFailed}
+                                className="bg-red-600 hover:bg-red-700 text-white gap-1.5 shadow-sm font-medium"
+                            >
+                                <RefreshCw size={14} className={rerunning ? "animate-spin" : ""} />
+                                {rerunning ? "Re-running..." : "Re-run Failed Jobs"}
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRefresh}
+                            disabled={loading}
+                            className="gap-2"
+                        >
+                            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                            Refresh
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
@@ -631,40 +677,60 @@ function PipelineSection() {
                     <div className="space-y-4">
                         {/* Overall status banner */}
                         <div className={`p-4 rounded-lg border-l-4 ${
-                            isRunning
+                            isPipelineFailedState
+                                ? 'bg-red-50 border-red-500'
+                                : isRunning
                                 ? 'bg-purple-50 border-purple-500'
-                                : isSuccess
-                                ? 'bg-green-50 border-green-500'
-                                : 'bg-red-50 border-red-500'
+                                : 'bg-green-50 border-green-500'
                         }`}>
                             <div className="flex items-start gap-3">
-                                {isRunning
+                                {isPipelineFailedState
+                                    ? <XCircle size={28} className="text-red-600 shrink-0 mt-0.5" />
+                                    : isRunning
                                     ? <RefreshCw size={28} className="text-purple-600 shrink-0 mt-0.5 animate-spin" />
-                                    : isSuccess
-                                    ? <CheckCircle2 size={28} className="text-green-600 shrink-0 mt-0.5" />
-                                    : <XCircle size={28} className="text-red-600 shrink-0 mt-0.5" />
+                                    : <CheckCircle2 size={28} className="text-green-600 shrink-0 mt-0.5" />
                                 }
                                 <div className="flex-1 min-w-0">
-                                    <p className={`font-bold text-base ${
-                                        isRunning
-                                            ? 'text-purple-800'
-                                            : isSuccess
-                                            ? 'text-green-800'
-                                            : 'text-red-800'
-                                    }`}>
-                                        {isRunning
-                                            ? 'Pipeline Running... ⏳'
-                                            : isSuccess
-                                            ? 'Pipeline Succeeded ✅'
-                                            : 'Pipeline Failed ❌'}
-                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <p className={`font-bold text-base ${
+                                            isPipelineFailedState
+                                                ? 'text-red-800'
+                                                : isRunning
+                                                ? 'text-purple-800'
+                                                : 'text-green-800'
+                                        }`}>
+                                            {isPipelineFailedState
+                                                ? 'Pipeline Failed ❌'
+                                                : isRunning
+                                                ? 'Pipeline Running... ⏳'
+                                                : 'Pipeline Succeeded ✅'}
+                                        </p>
+                                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-white/80 border text-gray-700 shadow-2xs">
+                                            {completedJobsCount} of 8 Stages Complete
+                                        </span>
+                                        {failedJobsCount > 0 && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-800 border border-red-200">
+                                                {failedJobsCount} {failedJobsCount === 1 ? 'Job' : 'Jobs'} Failed
+                                            </span>
+                                        )}
+                                        {runningJobsCount > 0 && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                                                {runningJobsCount} {runningJobsCount === 1 ? 'Job' : 'Jobs'} Running
+                                            </span>
+                                        )}
+                                    </div>
                                     {status.videoTitle && (
-                                        <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">{status.videoTitle}</p>
+                                        <p className="text-sm font-medium text-gray-800 mt-1 truncate">{status.videoTitle}</p>
                                     )}
                                     {status.ranAt && (
                                         <p className="text-xs text-gray-500 mt-0.5">
                                             {formatRelativeTime(status.ranAt)} · {new Date(status.ranAt).toLocaleString()}
                                         </p>
+                                    )}
+                                    {status.errorSummary && (
+                                        <div className="mt-2 text-xs font-mono text-red-700 bg-red-100/70 p-2 rounded border border-red-200">
+                                            ⚠️ {status.errorSummary}
+                                        </div>
                                     )}
                                 </div>
                                 {status.youtubeId && (
@@ -674,32 +740,63 @@ function PipelineSection() {
                                 )}
                             </div>
 
-                            {/* Rerun Failed Jobs Action */}
-                            {isFailed && (
+                            {/* Actions Row (Re-run Failed Jobs & Review Master) */}
+                            {(isPipelineFailed || status.videoUrl) && (
                                 <div className="mt-3 pt-3 border-t border-red-200/60 flex flex-wrap items-center justify-between gap-2">
-                                    <div className="text-xs text-red-700">
-                                        Re-run only failed jobs on GitHub Actions without restarting the whole pipeline.
-                                    </div>
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        disabled={rerunning}
-                                        onClick={handleRerunFailed}
-                                        className="bg-red-600 hover:bg-red-700 text-white gap-1.5 shadow-sm"
-                                    >
-                                        <RefreshCw size={14} className={rerunning ? "animate-spin" : ""} />
-                                        {rerunning ? "Rerunning on GitHub..." : "Rerun Failed Jobs"}
-                                    </Button>
+                                    {isPipelineFailed ? (
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                disabled={rerunning}
+                                                onClick={handleRerunFailed}
+                                                className="bg-red-600 hover:bg-red-700 text-white gap-1.5 shadow-sm font-medium"
+                                            >
+                                                <RefreshCw size={14} className={rerunning ? "animate-spin" : ""} />
+                                                {rerunning ? "Re-running..." : "Re-run Failed Jobs"}
+                                            </Button>
+                                            <span className="text-xs text-red-700">
+                                                Re-run only failed jobs on GitHub Actions without restarting the whole pipeline.
+                                            </span>
+                                        </div>
+                                    ) : <div />}
+
+                                    {status.videoUrl && (
+                                        <a
+                                            href={status.videoUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-zinc-900 text-white hover:bg-zinc-800 transition-colors shadow-sm ml-auto"
+                                        >
+                                            <PlayCircle size={14} />
+                                            Review Master
+                                        </a>
+                                    )}
                                 </div>
                             )}
 
                             {rerunMsg && (
-                                <div className={`mt-2 text-xs p-2 rounded ${
+                                <div className={`mt-3 text-xs p-2.5 rounded-md flex items-center justify-between gap-2 border ${
                                     rerunMsg.type === 'success'
-                                        ? 'bg-green-100 text-green-800'
-                                        : 'bg-red-100 text-red-800'
+                                        ? 'bg-green-50 border-green-200 text-green-800'
+                                        : rerunMsg.type === 'info'
+                                        ? 'bg-blue-50 border-blue-200 text-blue-800'
+                                        : 'bg-red-50 border-red-200 text-red-800'
                                 }`}>
-                                    {rerunMsg.text}
+                                    <div className="flex items-center gap-1.5">
+                                        {rerunMsg.type === 'info' && <RefreshCw size={13} className="animate-spin" />}
+                                        {rerunMsg.type === 'success' && <CheckCircle2 size={13} className="text-green-600" />}
+                                        {rerunMsg.type === 'error' && <XCircle size={13} className="text-red-600" />}
+                                        <span>{rerunMsg.text}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setRerunMsg(null)}
+                                        className="text-gray-400 hover:text-gray-600 font-bold ml-2 text-sm leading-none"
+                                        aria-label="Dismiss"
+                                    >
+                                        ×
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -720,6 +817,13 @@ function PipelineSection() {
                                             </div>
                                         </AccordionTrigger>
                                         <AccordionContent className="px-4 pb-4">
+                                            {job.result === 'failure' && (
+                                                <JobFailureNotice
+                                                    jobTitle={job.title}
+                                                    onRerun={handleRerunFailed}
+                                                    rerunning={rerunning}
+                                                />
+                                            )}
                                             {job.content}
                                         </AccordionContent>
                                     </AccordionItem>
