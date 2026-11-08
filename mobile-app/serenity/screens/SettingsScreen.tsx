@@ -10,10 +10,22 @@ import {
     ActivityIndicator,
     TextInput,
     Modal,
+    Linking,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { settingsApi, commentsApi, pipelineApi, CustomArchetype } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+    settingsApi,
+    commentsApi,
+    pipelineApi,
+    CustomArchetype,
+    getApiBaseUrl,
+    clearServerConfig,
+    youtubeAuthApi,
+} from '../services/api';
 import { colors, spacing, borderRadius, typography } from '../theme';
+import { STORAGE_KEYS, GENRE_PRESETS } from '../config';
 
 type CommentMode = 'live' | 'dry_run' | 'paused';
 
@@ -44,7 +56,21 @@ const BUILTIN_ARCHETYPES = [
     },
 ];
 
-export default function SettingsScreen() {
+interface SettingsScreenProps {
+    onResetServer?: () => void;
+}
+
+export default function SettingsScreen({ onResetServer }: SettingsScreenProps = {}) {
+    // Server & Genre BYOK state
+    const [serverUrl, setServerUrl] = useState<string>('');
+    const [channelGenre, setChannelGenre] = useState<string>('tech');
+    const [showGenreModal, setShowGenreModal] = useState<boolean>(false);
+    const [ytStatus, setYtStatus] = useState<{
+        connected: boolean;
+        channelTitle?: string;
+        channelHandle?: string;
+    } | null>(null);
+
     const [voiceoverProvider, setVoiceoverProvider] = useState<'gemini' | 'f5'>('f5');
     const [sceneRenderMethod, setSceneRenderMethod] = useState<'code' | 'ai'>('ai');
     const [commentMode, setCommentMode] = useState<CommentMode>('live');
@@ -110,12 +136,29 @@ export default function SettingsScreen() {
     const loadSettings = async () => {
         setLoading(true);
         try {
-            const [settingsRes, commentsRes] = await Promise.all([
+            const currentUrl = await getApiBaseUrl();
+            setServerUrl(currentUrl);
+
+            const [settingsRes, commentsRes, ytRes] = await Promise.all([
                 settingsApi.getSettings(),
                 commentsApi.getSettings(),
+                youtubeAuthApi.getStatus(),
             ]);
 
+            if (ytRes && ytRes.ok && ytRes.connected) {
+                setYtStatus({
+                    connected: true,
+                    channelTitle: ytRes.channel?.title || 'YouTube Channel',
+                    channelHandle: ytRes.channel?.handle || '',
+                });
+            } else {
+                setYtStatus({ connected: false });
+            }
+
             if (settingsRes.ok) {
+                if (settingsRes.channelGenre) {
+                    setChannelGenre(settingsRes.channelGenre);
+                }
                 if (settingsRes.voiceoverProvider) setVoiceoverProvider(settingsRes.voiceoverProvider);
                 if (settingsRes.sceneRenderMethod) setSceneRenderMethod(settingsRes.sceneRenderMethod);
                 if (settingsRes.thumbnailPrimaryArchetype) setThumbnailPrimaryArchetype(settingsRes.thumbnailPrimaryArchetype);
@@ -143,6 +186,36 @@ export default function SettingsScreen() {
             // Keep current states
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDisconnectServer = () => {
+        Alert.alert(
+            'Disconnect Server',
+            'Are you sure you want to disconnect? You will need to enter your server URL again.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Disconnect',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await clearServerConfig();
+                        onResetServer?.();
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleSelectGenre = async (newGenre: string) => {
+        setChannelGenre(newGenre);
+        setShowGenreModal(false);
+        try {
+            await settingsApi.updateSettings({ channelGenre: newGenre } as any);
+            await AsyncStorage.setItem(STORAGE_KEYS.CHANNEL_GENRE, newGenre);
+            showToast(`Content genre updated to ${newGenre}`);
+        } catch {
+            showToast('Failed to sync genre to server');
         }
     };
 
@@ -315,6 +388,67 @@ export default function SettingsScreen() {
                             <Ionicons name="refresh" size={13} color={colors.sandstone} />
                             <Text style={styles.resetBtnText}>Reset</Text>
                         </TouchableOpacity>
+                    </View>
+
+                    {/* Server & Channel BYOK Card */}
+                    <View style={styles.card}>
+                        <View style={styles.cardHeader}>
+                            <Ionicons name="server-outline" size={16} color={colors.sandstone} />
+                            <Text style={styles.cardLabel}>Connected Backend & Channel</Text>
+                        </View>
+
+                        {/* URL Row */}
+                        <View style={byokStyles.row}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={byokStyles.rowLabel}>Server Endpoint</Text>
+                                <Text style={byokStyles.rowValue} numberOfLines={1}>{serverUrl || 'Local / Disconnected'}</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={byokStyles.disconnectBtn}
+                                onPress={handleDisconnectServer}
+                            >
+                                <Ionicons name="log-out-outline" size={14} color="#f87171" />
+                                <Text style={byokStyles.disconnectText}>Switch</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Genre Row */}
+                        <View style={[byokStyles.row, { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, marginTop: 8 }]}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={byokStyles.rowLabel}>Content Niche</Text>
+                                <Text style={[byokStyles.rowValue, { color: colors.sandstone, fontWeight: '700' }]}>
+                                    {GENRE_PRESETS.find(g => g.id === channelGenre)?.label || channelGenre}
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                style={byokStyles.editGenreBtn}
+                                onPress={() => setShowGenreModal(true)}
+                            >
+                                <Ionicons name="color-palette-outline" size={14} color={colors.linen} />
+                                <Text style={byokStyles.editGenreText}>Change</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* YouTube Status Row */}
+                        <View style={[byokStyles.row, { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, marginTop: 8 }]}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={byokStyles.rowLabel}>YouTube Publishing</Text>
+                                <Text style={[byokStyles.rowValue, { color: ytStatus?.connected ? colors.success : '#f87171' }]}>
+                                    {ytStatus?.connected
+                                        ? `● Connected (${ytStatus.channelHandle || ytStatus.channelTitle || 'Ready'})`
+                                        : '○ Authorization Required'}
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                style={byokStyles.ytBtn}
+                                onPress={() => {
+                                    if (serverUrl) Linking.openURL(`${serverUrl}/api/auth/youtube/start`);
+                                }}
+                            >
+                                <Ionicons name="logo-youtube" size={13} color="#fff" />
+                                <Text style={byokStyles.ytBtnText}>{ytStatus?.connected ? 'Re-auth' : 'Connect'}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     {/* Setting 1: Voiceover Engine */}
@@ -982,6 +1116,59 @@ export default function SettingsScreen() {
                                 <Text style={styles.modalSubmitText}>Add Archetype</Text>
                             </TouchableOpacity>
                         </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Select Genre Modal */}
+            <Modal
+                visible={showGenreModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowGenreModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Ionicons name="sparkles-outline" size={18} color={colors.sandstone} />
+                                <Text style={styles.modalTitle}>Choose Channel Niche</Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => setShowGenreModal(false)}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <Ionicons name="close" size={20} color={colors.bone.muted} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
+                            {GENRE_PRESETS.map((preset) => {
+                                const isSelected = channelGenre === preset.id;
+                                return (
+                                    <TouchableOpacity
+                                        key={preset.id}
+                                        style={[byokStyles.genreOption, isSelected && byokStyles.genreOptionSelected]}
+                                        onPress={() => handleSelectGenre(preset.id)}
+                                    >
+                                        <Ionicons
+                                            name={preset.icon as any}
+                                            size={20}
+                                            color={isSelected ? colors.sandstone : colors.bone.muted}
+                                        />
+                                        <View style={{ flex: 1, marginLeft: 12 }}>
+                                            <Text style={[byokStyles.genreTitle, isSelected && { color: colors.sandstone }]}>
+                                                {preset.label}
+                                            </Text>
+                                            <Text style={byokStyles.genreDesc}>{preset.description}</Text>
+                                        </View>
+                                        {isSelected && (
+                                            <Ionicons name="checkmark-circle" size={18} color={colors.sandstone} />
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>
@@ -1758,5 +1945,98 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '700',
         color: '#ef4444',
+    },
+});
+
+const byokStyles = StyleSheet.create({
+    row: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 4,
+    },
+    rowLabel: {
+        fontSize: 10.5,
+        fontWeight: '700',
+        color: colors.bone.muted,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 2,
+    },
+    rowValue: {
+        fontSize: 13,
+        color: colors.bone.DEFAULT,
+        fontWeight: '500',
+    },
+    disconnectBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderRadius: borderRadius.xs,
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.25)',
+    },
+    disconnectText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#f87171',
+    },
+    editGenreBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        backgroundColor: colors.obsidian[800],
+        borderRadius: borderRadius.xs,
+        borderWidth: 1,
+        borderColor: colors.bone.hairline,
+    },
+    editGenreText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: colors.bone.DEFAULT,
+    },
+    ytBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        backgroundColor: '#ef4444',
+        borderRadius: borderRadius.xs,
+    },
+    ytBtnText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    genreOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: borderRadius.sm,
+        borderWidth: 1,
+        borderColor: colors.bone.hairline,
+        marginBottom: 8,
+        backgroundColor: colors.obsidian[900],
+    },
+    genreOptionSelected: {
+        borderColor: colors.sandstone,
+        backgroundColor: 'rgba(200, 178, 155, 0.12)',
+    },
+    genreTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: colors.bone.DEFAULT,
+        marginBottom: 2,
+    },
+    genreDesc: {
+        fontSize: 11,
+        color: colors.bone.muted,
+        lineHeight: 15,
     },
 });

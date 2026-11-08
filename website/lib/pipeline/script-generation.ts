@@ -4,6 +4,38 @@ import { promises as fs } from "fs";
 import path from "path";
 import { SeriesContext, buildSeriesContextPrompt } from "./series-context";
 import { formatYouTubeTitle } from "@/lib/title-formatter";
+import Redis from "ioredis";
+
+function getStorytellerPersona(genre?: string, customPrompt?: string): string {
+  if (customPrompt && customPrompt.trim()) {
+    return customPrompt.trim();
+  }
+  const normalized = (genre || "tech").toLowerCase();
+  switch (normalized) {
+    case "space":
+    case "astronomy":
+    case "physics":
+      return "You are a cinematic space & astrophysics documentary storyteller AI creating awe-inspiring, curiosity-driven, scientifically accurate video content about the universe.";
+    case "history":
+    case "ancient":
+      return "You are an investigative historical documentary storyteller AI creating tension-led, deeply researched, captivating video content about ancient mysteries and historical turning points.";
+    case "finance":
+    case "business":
+    case "economics":
+      return "You are a forensic financial and economic investigative storyteller AI creating analytical, high-stakes, insight-driven video content exploring market mechanics, fortunes, and economic events.";
+    case "crime":
+    case "mystery":
+    case "psychology":
+      return "You are a suspenseful investigative storyteller AI creating gripping, forensic, psychologically grounded video content exploring unexplained mysteries and psychological phenomena.";
+    case "science":
+    case "biology":
+      return "You are a fascinating science documentary storyteller AI creating wonder-filled, deeply engaging, scientifically accurate video content about biology, neuroscience, and natural phenomena.";
+    case "tech":
+    case "software":
+    default:
+      return "You are a technical storyteller AI creating curiosity-driven, tension-led, technically accurate video content for developers and engineers.";
+  }
+}
 
 class ScriptGenerationService {
   private gemini: GeminiService;
@@ -24,7 +56,33 @@ class ScriptGenerationService {
     seriesContext?: SeriesContext
   ): Promise<VideoScript> {
     const renderMethod = sceneRenderMethod ?? this.getSceneRenderMethod();
-    const prompt = this.buildScriptPrompt(videoIdea, duration, renderMethod, seriesContext);
+
+    let channelGenre = process.env.CHANNEL_GENRE || "tech";
+    let channelGenrePrompt = process.env.CHANNEL_GENRE_PROMPT || "";
+
+    if (process.env.REDIS_URL) {
+      try {
+        const redis = new Redis(process.env.REDIS_URL);
+        const [storedGenre, storedPrompt] = await Promise.all([
+          redis.get("settings:channel_genre"),
+          redis.get("settings:channel_genre_prompt"),
+        ]);
+        await redis.quit();
+        if (storedGenre) channelGenre = storedGenre;
+        if (storedPrompt) channelGenrePrompt = storedPrompt;
+      } catch (e) {
+        // Fallback to defaults
+      }
+    }
+
+    const prompt = this.buildScriptPrompt(
+      videoIdea,
+      duration,
+      renderMethod,
+      seriesContext,
+      channelGenre,
+      channelGenrePrompt
+    );
 
     try {
       const response = await this.gemini.generateText(prompt, {
@@ -45,7 +103,14 @@ class ScriptGenerationService {
     return process.env.SCENE_RENDER_METHOD === "ai" ? "ai" : "code";
   }
 
-  private buildScriptPrompt(videoIdea: string, duration: number, renderMethod: "code" | "ai", seriesContext?: SeriesContext): string {
+  private buildScriptPrompt(
+    videoIdea: string,
+    duration: number,
+    renderMethod: "code" | "ai",
+    seriesContext?: SeriesContext,
+    channelGenre?: string,
+    channelGenrePrompt?: string
+  ): string {
     const aiRenderOverride = renderMethod === "ai"
       ? `
 ========================
@@ -76,7 +141,9 @@ For YouTube Shorts when SCENE_RENDER_METHOD=ai:
 `
       : "";
 
-    return `You are a technical storyteller AI creating curiosity-driven, tension-led, technically accurate video content for developers and engineers.
+    const storytellerPersona = getStorytellerPersona(channelGenre, channelGenrePrompt);
+
+    return `${storytellerPersona}
 
 Create content for a ${duration}-minute YouTube video about:
 "${videoIdea}"

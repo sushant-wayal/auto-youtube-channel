@@ -9,12 +9,15 @@ const THUMBNAIL_PRIMARY_ARCHETYPE_KEY = 'settings:thumbnail_primary_archetype';
 const THUMBNAIL_VARIATIONS_ENABLED_KEY = 'settings:thumbnail_variations_enabled';
 const THUMBNAIL_ACTIVE_ARCHETYPES_KEY = 'settings:thumbnail_active_archetypes';
 const THUMBNAIL_CUSTOM_ARCHETYPES_KEY = 'settings:thumbnail_custom_archetypes';
+const CHANNEL_GENRE_KEY = 'settings:channel_genre';
+const CHANNEL_GENRE_PROMPT_KEY = 'settings:channel_genre_prompt';
 
 const DEFAULT_VOICEOVER_PROVIDER = 'f5';
 const DEFAULT_SCENE_RENDER_METHOD = 'code';
 const DEFAULT_PRIMARY_ARCHETYPE = 'code_terminal_bug';
 const DEFAULT_VARIATIONS_ENABLED = true;
 const DEFAULT_ACTIVE_ARCHETYPES = ['code_terminal_bug', 'split_comparison', 'metric_showdown', 'cinematic_focal_hero'];
+const DEFAULT_CHANNEL_GENRE = 'tech';
 
 /**
  * GET /api/settings
@@ -29,6 +32,8 @@ export async function GET() {
             thumbnailVariationsEnabledRaw,
             thumbnailActiveArchetypesRaw,
             thumbnailCustomArchetypesRaw,
+            channelGenreRaw,
+            channelGenrePromptRaw,
         ] = await Promise.all([
             redis.get(VOICEOVER_PROVIDER_KEY),
             redis.get(SCENE_RENDER_METHOD_KEY),
@@ -36,6 +41,8 @@ export async function GET() {
             redis.get(THUMBNAIL_VARIATIONS_ENABLED_KEY),
             redis.get(THUMBNAIL_ACTIVE_ARCHETYPES_KEY),
             redis.get(THUMBNAIL_CUSTOM_ARCHETYPES_KEY),
+            redis.get(CHANNEL_GENRE_KEY),
+            redis.get(CHANNEL_GENRE_PROMPT_KEY),
         ]);
 
         if (!voiceoverProvider) {
@@ -89,6 +96,8 @@ export async function GET() {
             thumbnailVariationsEnabled,
             thumbnailActiveArchetypes,
             thumbnailCustomArchetypes,
+            channelGenre: channelGenreRaw || DEFAULT_CHANNEL_GENRE,
+            channelGenrePrompt: channelGenrePromptRaw || '',
         });
     } catch (error: any) {
         return NextResponse.json({
@@ -112,6 +121,8 @@ export async function POST(req: NextRequest) {
             thumbnailVariationsEnabled,
             thumbnailActiveArchetypes,
             thumbnailCustomArchetypes,
+            channelGenre,
+            channelGenrePrompt,
         } = body;
 
         if (voiceoverProvider) {
@@ -154,6 +165,14 @@ export async function POST(req: NextRequest) {
             await redis.set(THUMBNAIL_CUSTOM_ARCHETYPES_KEY, JSON.stringify(thumbnailCustomArchetypes));
         }
 
+        if (channelGenre !== undefined && typeof channelGenre === 'string') {
+            await redis.set(CHANNEL_GENRE_KEY, channelGenre.trim());
+        }
+
+        if (channelGenrePrompt !== undefined && typeof channelGenrePrompt === 'string') {
+            await redis.set(CHANNEL_GENRE_PROMPT_KEY, channelGenrePrompt.trim());
+        }
+
         const [
             updatedVoiceoverProvider,
             updatedSceneRenderMethod,
@@ -161,6 +180,8 @@ export async function POST(req: NextRequest) {
             updatedVariationsRaw,
             updatedActiveRaw,
             updatedCustomRaw,
+            updatedChannelGenreRaw,
+            updatedChannelGenrePromptRaw,
         ] = await Promise.all([
             redis.get(VOICEOVER_PROVIDER_KEY),
             redis.get(SCENE_RENDER_METHOD_KEY),
@@ -168,6 +189,8 @@ export async function POST(req: NextRequest) {
             redis.get(THUMBNAIL_VARIATIONS_ENABLED_KEY),
             redis.get(THUMBNAIL_ACTIVE_ARCHETYPES_KEY),
             redis.get(THUMBNAIL_CUSTOM_ARCHETYPES_KEY),
+            redis.get(CHANNEL_GENRE_KEY),
+            redis.get(CHANNEL_GENRE_PROMPT_KEY),
         ]);
 
         return NextResponse.json({
@@ -178,6 +201,8 @@ export async function POST(req: NextRequest) {
             thumbnailVariationsEnabled: updatedVariationsRaw === 'true',
             thumbnailActiveArchetypes: updatedActiveRaw ? JSON.parse(updatedActiveRaw) : DEFAULT_ACTIVE_ARCHETYPES,
             thumbnailCustomArchetypes: updatedCustomRaw ? JSON.parse(updatedCustomRaw) : [],
+            channelGenre: updatedChannelGenreRaw || DEFAULT_CHANNEL_GENRE,
+            channelGenrePrompt: updatedChannelGenrePromptRaw || '',
         });
     } catch (error: any) {
         return NextResponse.json({

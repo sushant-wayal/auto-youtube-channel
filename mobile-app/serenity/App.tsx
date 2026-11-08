@@ -4,7 +4,7 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { StatusBar } from 'expo-status-bar';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { Text, View, Animated, Dimensions, TouchableOpacity, Platform, StyleSheet, Modal, AppState } from 'react-native';
+import { Text, View, Animated, Dimensions, TouchableOpacity, Platform, StyleSheet, Modal, AppState, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import IdeasScreen from './screens/IdeasScreen';
@@ -13,8 +13,9 @@ import PipelineStatusScreen from './screens/PipelineStatusScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import SeriesScreen from './screens/SeriesScreen';
 import CommentsScreen from './screens/CommentsScreen';
+import OnboardingScreen from './screens/OnboardingScreen';
 import { borderRadius, colors, gradients, motion, shadows, spacing, typography } from './theme';
-import { pipelineApi } from './services/api';
+import { pipelineApi, getApiBaseUrl } from './services/api';
 
 // Hardcoded - avoids any Constants resolution issues in standalone builds
 const EXPO_PROJECT_ID = '294f6e06-d643-47b7-92a6-8701a374abf0';
@@ -89,6 +90,14 @@ export default function App() {
     const navigationRef = useNavigationContainerRef();
     const [activeTab, setActiveTab] = React.useState(0); // Start on Ideas
     const [showSettings, setShowSettings] = React.useState(false);
+    const [isConfigured, setIsConfigured] = React.useState<boolean | null>(null);
+
+    React.useEffect(() => {
+        (async () => {
+            const url = await getApiBaseUrl();
+            setIsConfigured(Boolean(url));
+        })();
+    }, []);
 
     // In-app floating notification state
     const [inAppNotification, setInAppNotification] = React.useState<{
@@ -454,6 +463,26 @@ export default function App() {
         jumpToTab(routeName, index);
     };
 
+    if (isConfigured === null) {
+        return (
+            <SafeAreaProvider>
+                <StatusBar style="light" />
+                <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
+                    <ActivityIndicator size="large" color={colors.sandstone} />
+                </View>
+            </SafeAreaProvider>
+        );
+    }
+
+    if (!isConfigured) {
+        return (
+            <SafeAreaProvider>
+                <StatusBar style="light" />
+                <OnboardingScreen onComplete={() => setIsConfigured(true)} />
+            </SafeAreaProvider>
+        );
+    }
+
     return (
         <SafeAreaProvider>
             <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -669,7 +698,12 @@ export default function App() {
                             <Text style={styles.modalTitle}>System Settings</Text>
                             <View style={{ width: 60 }} />
                         </View>
-                        <SettingsScreen />
+                        <SettingsScreen
+                            onResetServer={() => {
+                                setShowSettings(false);
+                                setIsConfigured(false);
+                            }}
+                        />
                     </SafeAreaView>
                 </Modal>
             </SafeAreaView>

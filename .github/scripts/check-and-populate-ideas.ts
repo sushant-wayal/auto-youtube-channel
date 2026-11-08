@@ -29,6 +29,18 @@ async function checkQueueAndPopulate(): Promise<void> {
     const seriesManager = new SeriesManager();
 
     try {
+        const [storedGenre, storedGenrePrompt] = await Promise.all([
+            redis.get('settings:channel_genre'),
+            redis.get('settings:channel_genre_prompt')
+        ]);
+        if (storedGenre) {
+            process.env.CHANNEL_GENRE = storedGenre;
+            console.error(`🎨 Active Channel Genre from Redis: ${storedGenre}`);
+        }
+        if (storedGenrePrompt) {
+            process.env.CHANNEL_GENRE_PROMPT = storedGenrePrompt;
+        }
+
         const shouldInitPipeline = process.env.INIT_PIPELINE === 'true' && !!process.env.GITHUB_RUN_ID;
         if (shouldInitPipeline) {
             await initPipeline('pending...', 'Initializing Pipeline...', process.env.GITHUB_RUN_ID);

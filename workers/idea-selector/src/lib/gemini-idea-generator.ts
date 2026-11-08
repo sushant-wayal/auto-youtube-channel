@@ -2,6 +2,74 @@ import GeminiClient from './gemini-client';
 import { YouTubeAnalytics } from './youtube-data-service';
 import { TrendingSignals, formatTrendingSignalsForPrompt } from './trend-detector';
 
+function getGenreStrategy(genre?: string, customPrompt?: string) {
+    if (customPrompt && customPrompt.trim()) {
+        return {
+            persona: customPrompt.trim(),
+            domainRules: "- Focus on captivating, deeply engaging, curiosity-driven topics within this niche."
+        };
+    }
+    const norm = (genre || process.env.CHANNEL_GENRE || 'tech').toLowerCase();
+    switch (norm) {
+        case 'space':
+        case 'astronomy':
+        case 'physics':
+            return {
+                persona: `You are an expert YouTube content strategist for a high-end Space, Cosmology, and Astrophysics channel. Generate curiosity-driven standalone video topic ideas for space enthusiasts, science followers, and curious thinkers.`,
+                domainRules: `- Great topic domains:
+  * Black hole singularities, event horizons, and accretion disk physics
+  * Quantum mechanics vs general relativity paradoxes (e.g. firewall paradox, holographic principle)
+  * Deep space exploration, exoplanet atmospheres, James Webb Space Telescope discoveries
+  * Dark matter, dark energy, and the fate of the expanding universe
+  * Solar system mysteries (e.g. Europa subsurface oceans, Venus atmospheric phosphine)`
+            };
+        case 'history':
+        case 'ancient':
+            return {
+                persona: `You are an expert YouTube content strategist for a captivating History & Ancient Mysteries documentary channel. Generate curiosity-driven standalone video topic ideas for history enthusiasts and documentary viewers.`,
+                domainRules: `- Great topic domains:
+  * Lost civilizations and ancient engineering marvels (e.g. Bronze Age collapse, Göbekli Tepe)
+  * Historical turning points and tactical masterstrokes in pivotal battles
+  * Declassified Cold War operations and espionage forensics
+  * Unsolved archeological enigmas, forgotten manuscripts, and codebreaking`
+            };
+        case 'finance':
+        case 'business':
+        case 'economics':
+            return {
+                persona: `You are an expert YouTube content strategist for a forensic Business, Macroeconomics, and Finance channel. Generate curiosity-driven standalone video topic ideas for investors, entrepreneurs, and finance enthusiasts.`,
+                domainRules: `- Great topic domains:
+  * Corporate collapses, accounting forensics, and spectacular business scandals
+  * Macroeconomic forces, central bank mechanics, liquidity cycles, and currency shifts
+  * Market bubbles, speculative manias, and psychological traps in trading
+  * Supply chain forensics, commodity shocks, and geopolitical trade wars`
+            };
+        case 'crime':
+        case 'mystery':
+        case 'psychology':
+            return {
+                persona: `You are an expert YouTube content strategist for a high-end Investigative Mystery & Psychology channel. Generate curiosity-driven standalone video topic ideas exploring baffling enigmas, forensic evidence, and psychological phenomena.`,
+                domainRules: `- Great topic domains:
+  * Unsolved historical disappearances and forensic puzzles
+  * Psychological experiments, cognitive biases, and behavioral anomalies
+  * Mastermind heists, deceptive cons, and investigative forensics`
+            };
+        case 'tech':
+        case 'software':
+        default:
+            return {
+                persona: `You are an expert YouTube content strategist for a high-end engineering YouTube channel. Based on the channel analysis below, generate curiosity-driven standalone video topic ideas for senior software engineers, systems developers, and backend architects.`,
+                domainRules: `- Great topic domains:
+  * Linux kernel internals & OS primitives (e.g., page tables, TLB shootdowns, io_uring pitfalls, futex deadlocks)
+  * Memory allocator forensics (e.g., arena contention in jemalloc vs mimalloc, false sharing in cache lines)
+  * Distributed systems realities (e.g., clock skew, split-brain failure modes, metadata storage traps, quorum tradeoffs)
+  * Database & Storage engine internals (e.g., WAL fsync stall latency, LSM compaction storms, B-tree write amplification)
+  * Network & Protocol engineering (e.g., TCP head-of-line blocking in HTTP/2 vs QUIC UDP packet drops, bufferbloat)
+  * Hardware microarchitecture (e.g., branch misprediction penalty in modern speculative CPUs, AVX-512 frequency scaling downclocking)`
+            };
+    }
+}
+
 export interface TopicIdea {
     topic: string;
     reasoning: string;
@@ -163,7 +231,9 @@ Be specific and data-driven. Focus on actionable insights.`;
             ? `\nEXTERNAL TRENDING SIGNALS (use these to make ideas timely and topical):\n${formatTrendingSignalsForPrompt(trendingSignals)}`
             : '';
 
-        const prompt = `You are an expert YouTube content strategist for a high-end engineering YouTube channel. Based on the channel analysis below, generate ${count} curiosity-driven standalone video topic ideas for senior software engineers, systems developers, and backend architects.
+        const strategy = getGenreStrategy();
+
+        const prompt = `${strategy.persona}
 
 CHANNEL INSIGHTS:
 ${channelInsights}
@@ -173,24 +243,12 @@ ${allTitles.slice(0, 100).map((t, i) => `${i + 1}. ${t}`).join('\n')}${trendingS
 
 STRICT EXCLUSION RULES (CRITICAL):
 - ABSOLUTELY DO NOT suggest any topic covered in the list above, even with different phrasing!
-- STRICTLY FORBIDDEN TOPICS (Already saturated / too cliché / beaten to death):
-  * Unified Memory vs RAM / "Is 16GB RAM enough?" / "The Unified Memory Myth" / RAM swap SSD wear
-  * Clean Code vs Fast Code / "The Clean Code Lie" / premature optimization debates
-  * Smartphone magnetic interference / wireless charging myths / phone radiation
-  * Basic async/await vs promises / JavaScript event loop basics
-  * Electron RAM consumption / "Why Electron apps eat memory"
-  * Junior vs Senior developer obsolescence / "Is the junior developer dead?"
-- The audience is SENIOR AND EXPERIENCED. Do not suggest beginner tutorials, surface-level explanations, or generic debates.
+- STRICTLY FORBIDDEN TOPICS: Avoid shallow, cliché, or already oversaturated topics.
+- The audience is discerning and curious. Do not suggest beginner tutorials, surface-level explanations, or generic debates.
 
 CONTENT CRITERIA:
-- Propose FRESH, DEEP, FORENSIC technical topics that have NOT yet been covered on this channel.
-- Great topic domains:
-  * Linux kernel internals & OS primitives (e.g., page tables, TLB shootdowns, io_uring pitfalls, futex deadlocks)
-  * Memory allocator forensics (e.g., arena contention in jemalloc vs mimalloc, false sharing in cache lines)
-  * Distributed systems realities (e.g., clock skew, split-brain failure modes, metadata storage traps, quorum tradeoffs)
-  * Database & Storage engine internals (e.g., WAL fsync stall latency, LSM compaction storms, B-tree write amplification)
-  * Network & Protocol engineering (e.g., TCP head-of-line blocking in HTTP/2 vs QUIC UDP packet drops, bufferbloat)
-  * Hardware microarchitecture (e.g., branch misprediction penalty in modern speculative CPUs, AVX-512 frequency scaling downclocking)
+- Propose FRESH, DEEP, FORENSIC topics that have NOT yet been covered on this channel.
+${strategy.domainRules}
 - Every selected topic MUST be framed through at least one of: Myth, Hidden Cost, Surprising Truth, Counterintuitive Behavior, Tradeoff, Failure Mode, Common Mistake
 - Heavily favor topics with Audience Breadth Score 60+ and Title Potential Score 75+
 - Each topic should be standalone (not part of an existing series track)

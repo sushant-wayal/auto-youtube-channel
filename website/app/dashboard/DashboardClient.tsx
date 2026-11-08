@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import CommentReplySection from './CommentReplySection';
+import ChannelSettingsSection from './ChannelSettingsSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -999,9 +1000,11 @@ export default function DashboardClient() {
             <div>
                 <h1 className="text-3xl font-bold">Pipeline Dashboard</h1>
                 <p className="text-muted-foreground mt-2">
-                    Manage video ideas queue and shorts publishing schedule
+                    Manage channel niche, video ideas queue, automated publishing, and pipeline telemetry
                 </p>
             </div>
+
+            <ChannelSettingsSection />
 
             <PipelineSection />
 
